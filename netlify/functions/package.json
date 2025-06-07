@@ -12,6 +12,8 @@
   "dependencies": {
     "bcryptjs": "^2.4.3",
     "jsonwebtoken": "^9.0.2",
-    "pg": "^8.11.3"
+    "pg": "^8.11.3",
+    "busboy": "^1.6.0",    饞
+    "exceljs": "^4.4.0"     // For Excel file reading/writing
   }
 }
