@@ -13,6 +13,10 @@
   to = "/.netlify/functions/:splat"
   status = 200
 
+# Add this section to automatically install function dependencies
+[[plugins]]
+package = "@netlify/plugin-functions-install-core"
+
 # Optional: This redirect is useful for Single Page Applications (SPAs)
 # It ensures that direct access to any path (e.g., /dashboard) or refreshing a page
 # routes back to index.html, allowing your client-side routing to take over.
