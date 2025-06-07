@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RCM Buddy - Login / Register</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts - Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f4f8; /* Light background */
+        }
+        /* Custom styles for subtle transitions */
+        .form-fade-enter-active, .form-fade-leave-active {
+            transition: opacity 0.3s ease-in-out;
+        }
+        .form-fade-enter, .form-fade-leave-to /* .form-fade-leave-active in <2.1.8 */ {
+            opacity: 0;
+        }
+    </style>
+</head>
+<body class="flex items-center justify-center min-h-screen">
+    <div class="bg-white p-8 rounded-xl shadow-2xl w-full max-w-md">
+        <h1 class="text-3xl font-extrabold text-center text-blue-700 mb-6">RCM Buddy</h1>
+        <p class="text-lg text-gray-600 text-center mb-8">Your intelligent companion for Revenue Cycle Management.</p>
+
+        <!-- Toggle Buttons -->
+        <div class="flex justify-center space-x-4 mb-8">
+            <button id="showLoginBtn" class="px-6 py-3 rounded-full text-lg font-semibold transition duration-300 ease-in-out bg-blue-600 text-white shadow-md hover:bg-blue-700">
+                Login
+            </button>
+            <button id="showRegisterBtn" class="px-6 py-3 rounded-full text-lg font-semibold transition duration-300 ease-in-out bg-gray-200 text-gray-800 hover:bg-gray-300">
+                Register
+            </button>
+        </div>
+
+        <!-- Login Form -->
+        <div id="loginSection" class="form-fade-enter-active">
+            <h2 class="text-2xl font-bold text-center text-indigo-700 mb-6">Welcome Back!</h2>
+            <form id="loginForm" class="space-y-5">
+                <div>
+                    <label for="loginEmail" class="block text-sm font-medium text-gray-700">Email Address</label>
+                    <input type="email" id="loginEmail" name="email" required
+                           class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-base"
+                           placeholder="your.email@example.com">
+                </div>
+                <div>
+                    <label for="loginPassword" class="block text-sm font-medium text-gray-700">Password</label>
+                    <input type="password" id="loginPassword" name="password" required
+                           class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-base"
+                           placeholder="••••••••">
+                </div>
+                <button type="submit"
+                        class="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-lg text-lg font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition duration-300 ease-in-out transform hover:-translate-y-0.5">
+                    Log In
+                </button>
+            </form>
+        </div>
+
+        <!-- Registration Form (Hidden by default) -->
+        <div id="registerSection" class="hidden form-fade-leave-to">
+            <h2 class="text-2xl font-bold text-center text-green-700 mb-6">Join RCM Buddy!</h2>
+            <form id="registerForm" class="space-y-5">
+                <div>
+                    <label for="registerUsername" class="block text-sm font-medium text-gray-700">Username</label>
+                    <input type="text" id="registerUsername" name="username" required
+                           class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-base"
+                           placeholder="Choose a username">
+                </div>
+                <div>
+                    <label for="registerEmail" class="block text-sm font-medium text-gray-700">Email Address</label>
+                    <input type="email" id="registerEmail" name="email" required
+                           class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-base"
+                           placeholder="your.email@example.com">
+                </div>
+                <div>
+                    <label for="registerPassword" class="block text-sm font-medium text-gray-700">Password</label>
+                    <input type="password" id="registerPassword" name="password" required
+                           class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-base"
+                           placeholder="••••••••">
+                </div>
+                <button type="submit"
+                        class="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-lg text-lg font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition duration-300 ease-in-out transform hover:-translate-y-0.5">
+                    Register
+                </button>
+            </form>
+        </div>
+
+        <!-- Message Display Area -->
+        <p id="message" class="mt-6 text-center text-lg font-medium text-gray-800"></p>
+    </div>
+
+    <script>
+        const loginSection = document.getElementById('loginSection');
+        const registerSection = document.getElementById('registerSection');
+        const showLoginBtn = document.getElementById('showLoginBtn');
+        const showRegisterBtn = document.getElementById('showRegisterBtn');
+        const messageElement = document.getElementById('message');
+
+        // Function to show a message
+        function showMessage(text, type = 'info') {
+            messageElement.textContent = text;
+            messageElement.className = `mt-6 text-center text-lg font-medium ${
+                type === 'success' ? 'text-green-700' :
+                type === 'error' ? 'text-red-700' :
+                'text-gray-800'
+            }`;
+        }
+
+        // Function to toggle between login and registration forms
+        function toggleForms(showLogin) {
+            if (showLogin) {
+                loginSection.classList.remove('hidden', 'form-fade-leave-to');
+                loginSection.classList.add('form-fade-enter-active');
+                registerSection.classList.add('hidden', 'form-fade-leave-to');
+                registerSection.classList.remove('form-fade-enter-active');
+
+                showLoginBtn.classList.remove('bg-gray-200', 'text-gray-800');
+                showLoginBtn.classList.add('bg-blue-600', 'text-white');
+                showRegisterBtn.classList.remove('bg-green-600', 'text-white');
+                showRegisterBtn.classList.add('bg-gray-200', 'text-gray-800');
+            } else {
+                registerSection.classList.remove('hidden', 'form-fade-leave-to');
+                registerSection.classList.add('form-fade-enter-active');
+                loginSection.classList.add('hidden', 'form-fade-leave-to');
+                loginSection.classList.remove('form-fade-enter-active');
+
+                showRegisterBtn.classList.remove('bg-gray-200', 'text-gray-800');
+                showRegisterBtn.classList.add('bg-green-600', 'text-white');
+                showLoginBtn.classList.remove('bg-blue-600', 'text-white');
+                showLoginBtn.classList.add('bg-gray-200', 'text-gray-800');
+            }
+            showMessage(''); // Clear previous messages
+        }
+
+        // Event Listeners for form toggling
+        showLoginBtn.addEventListener('click', () => toggleForms(true));
+        showRegisterBtn.addEventListener('click', () => toggleForms(false));
+
+        // Handle Login Form Submission
+        document.getElementById('loginForm').addEventListener('submit', async function(event) {
+            event.preventDefault();
+            const email = document.getElementById('loginEmail').value;
+            const password = document.getElementById('loginPassword').value;
+
+            try {
+                const response = await fetch('/api/login', { // Call Netlify Function
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    showMessage('Login successful! Redirecting...', 'success');
+                    localStorage.setItem('jwtToken', data.token); // Store JWT
+                    setTimeout(() => {
+                        window.location.href = '/dashboard.html'; // Redirect to dashboard
+                    }, 1500);
+                } else {
+                    showMessage(data.message || 'Login failed. Please try again.', 'error');
+                    console.error('Login error:', data.message);
+                }
+            } catch (error) {
+                showMessage('Network error. Please check your connection.', 'error');
+                console.error('Fetch error:', error);
+            }
+        });
+
+        // Handle Registration Form Submission
+        document.getElementById('registerForm').addEventListener('submit', async function(event) {
+            event.preventDefault();
+            const username = document.getElementById('registerUsername').value;
+            const email = document.getElementById('registerEmail').value;
+            const password = document.getElementById('registerPassword').value;
+
+            try {
+                const response = await fetch('/api/register', { // Call Netlify Function
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, email, password })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    showMessage('Registration successful! Please log in.', 'success');
+                    // Optionally, auto-fill login form or switch to login tab
+                    document.getElementById('loginEmail').value = email;
+                    toggleForms(true); // Switch to login form
+                } else {
+                    showMessage(data.message || 'Registration failed. Please try again.', 'error');
+                    console.error('Registration error:', data.message);
+                }
+            } catch (error) {
+                showMessage('Network error. Please check your connection.', 'error');
+                console.error('Fetch error:', error);
+            }
+        });
+
+        // Initial state: show login form
+        toggleForms(true);
+    </script>
+</body>
+</html>
