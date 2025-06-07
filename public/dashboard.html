@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RCM Buddy - Dashboard</title>
+    <title>Excel Buddy - Dashboard</title>
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Google Fonts - Inter -->
@@ -19,7 +19,7 @@
     <!-- Header Section -->
     <header class="bg-gradient-to-r from-blue-600 to-indigo-700 p-4 shadow-lg">
         <div class="container mx-auto flex flex-col sm:flex-row items-center justify-between">
-            <h1 class="text-white text-3xl font-bold mb-2 sm:mb-0">RCM Buddy Dashboard</h1>
+            <h1 class="text-white text-3xl font-bold mb-2 sm:mb-0">Excel Buddy Dashboard</h1>
             <nav>
                 <ul class="flex space-x-4">
                     <li><a href="#" id="profileLink" class="text-white hover:text-blue-200 transition duration-300">Profile</a></li>
@@ -33,9 +33,9 @@
     <main class="flex-grow container mx-auto p-4 sm:p-6 lg:p-8">
         <section class="bg-white p-6 sm:p-8 rounded-xl shadow-lg mb-8">
             <h2 class="text-2xl sm:text-3xl font-semibold text-center text-blue-700 mb-4">
-                Welcome to your RCM Buddy Dashboard!
+                Welcome to your Excel Buddy Dashboard!
             </h2>
-            <p id="dashboardMessage" class="text-lg text-gray-700 text-center mb-6">Loading user data...</p>
+            <p id="dashboardMessage" class="text-lg text-gray-700 text-center mb-6">Loading user data and tool insights...</p>
 
             <div id="userData" class="mt-8 bg-blue-50 p-6 rounded-lg border border-blue-200 hidden">
                 <h3 class="text-xl font-semibold text-blue-600 mb-4">Your Profile Information:</h3>
@@ -44,15 +44,21 @@
                 <p><strong>User ID:</strong> <span id="displayId"></span></p>
             </div>
 
-            <!-- Example of a dashboard feature -->
+            <!-- Excel Tools & Automation Insights -->
             <div class="mt-8 p-6 bg-purple-50 rounded-lg shadow-md border border-purple-200">
-                <h3 class="text-xl font-bold text-purple-600 mb-3">Your RCM Insights at a Glance</h3>
-                <p class="text-gray-600">This is where you'd see personalized metrics, recent tasks, and other RCM-related data.</p>
+                <h3 class="text-xl font-bold text-purple-600 mb-3">Your Excel Tool Insights at a Glance</h3>
+                <p class="text-gray-600">This is where you'd find quick links to your most used tools, recent automation runs, and validation reports.</p>
                 <ul class="list-disc list-inside mt-4 text-gray-600">
-                    <li>Claims submitted: 1,234</li>
-                    <li>Outstanding A/R: $56,789</li>
-                    <li>Denial rate: 2.1%</li>
+                    <li>Last Validation Run: 2025-06-07 (Passed: 98%)</li>
+                    <li>Automated Reports Generated This Week: 12</li>
+                    <li>Favorite Tool: Data Cleaner (57 uses)</li>
+                    <li>Upcoming Automation Schedule: Daily at 3:00 AM</li>
                 </ul>
+                <div class="mt-6 text-center">
+                    <button class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-8 rounded-full shadow-lg transition duration-300 ease-in-out transform hover:-translate-y-1">
+                        Access Your Tools
+                    </button>
+                </div>
             </div>
         </section>
     </main>
@@ -60,30 +66,32 @@
     <!-- Footer Section -->
     <footer class="bg-gray-800 text-white p-4 mt-8">
         <div class="container mx-auto text-center text-sm">
-            &copy; 2025 RCM Buddy. All rights reserved.
+            &copy; 2025 Excel Buddy. All rights reserved.
         </div>
     </footer>
 
     <script>
-        // Check for JWT on page load
+        // This script runs when the dashboard page loads.
         document.addEventListener('DOMContentLoaded', async () => {
-            const token = localStorage.getItem('jwtToken');
+            const token = localStorage.getItem('jwtToken'); // Retrieve the JWT from local storage
+
+            // If no token is found, the user is not logged in. Redirect to the login page.
             if (!token) {
-                // If no token, redirect to login
-                window.location.href = '/'; // Or '/index.html'
-                return;
+                window.location.href = '/'; // Redirects to index.html
+                return; // Stop execution
             }
 
-            // Fetch protected data using the token
+            // Attempt to fetch protected data from the backend using the JWT
             try {
-                const response = await fetch('/api/protected', { // Call Netlify Function
+                const response = await fetch('/api/protected', { // Call the protected Netlify Function
                     method: 'GET',
                     headers: {
-                        'Authorization': `Bearer ${token}`
+                        'Authorization': `Bearer ${token}` // Send the JWT in the Authorization header
                     }
                 });
 
-                const data = await response.json();
+                const data = await response.json(); // Parse the JSON response
+
                 const dashboardMessage = document.getElementById('dashboardMessage');
                 const userDataSection = document.getElementById('userData');
                 const displayUsername = document.getElementById('displayUsername');
@@ -91,46 +99,50 @@
                 const displayId = document.getElementById('displayId');
 
 
-                if (response.ok) {
-                    dashboardMessage.textContent = `Welcome, ${data.user.username}! Here's your RCM overview.`;
+                if (response.ok) { // If the response status is 2xx (success)
+                    // Display a welcome message with the user's username
+                    dashboardMessage.textContent = `Welcome, ${data.user.username}! Here's your Excel automation overview.`;
+                    // Populate user data fields
                     displayUsername.textContent = data.user.username;
                     displayEmail.textContent = data.user.email;
                     displayId.textContent = data.user.id;
-                    userDataSection.classList.remove('hidden'); // Show user data
-                    console.log('Protected data:', data);
+                    userDataSection.classList.remove('hidden'); // Show the user data section
+                    console.log('Protected data fetched successfully:', data);
                 } else {
-                    // Token invalid or expired
+                    // If the token is invalid or expired (e.g., 401 or 403 status)
                     dashboardMessage.textContent = 'Session expired or invalid. Please log in again.';
                     dashboardMessage.className = 'mt-6 text-center text-lg font-medium text-red-700';
-                    console.error('Protected route error:', data.message);
-                    localStorage.removeItem('jwtToken'); // Clear invalid token
+                    console.error('Protected route access error:', data.message);
+                    localStorage.removeItem('jwtToken'); // Clear the invalid token from local storage
+                    // Redirect to login after a short delay
                     setTimeout(() => {
-                        window.location.href = '/'; // Redirect to login
+                        window.location.href = '/';
                     }, 1500);
                 }
             } catch (error) {
+                // Catch any network errors during the fetch
                 document.getElementById('dashboardMessage').textContent = 'Error fetching dashboard data. Please try again.';
                 document.getElementById('dashboardMessage').className = 'mt-6 text-center text-lg font-medium text-red-700';
                 console.error('Dashboard fetch error:', error);
-                localStorage.removeItem('jwtToken'); // Assume token issue on network error
+                localStorage.removeItem('jwtToken'); // Assume token issue on network error for security
+                // Redirect to login after a short delay
                 setTimeout(() => {
-                    window.location.href = '/'; // Redirect to login
+                    window.location.href = '/';
                 }, 1500);
             }
         });
 
-        // Logout functionality
+        // --- Logout functionality ---
         document.getElementById('logoutBtn').addEventListener('click', () => {
-            localStorage.removeItem('jwtToken'); // Remove the JWT
-            window.location.href = '/'; // Redirect to login page
+            localStorage.removeItem('jwtToken'); // Remove the JWT from local storage
+            window.location.href = '/'; // Redirect to the login page
         });
 
-        // Simple profile link (could navigate to a dedicated profile page)
+        // Example: A placeholder for a profile link. In a real app, this might navigate to another page.
         document.getElementById('profileLink').addEventListener('click', (e) => {
-            e.preventDefault();
-            alert('This would navigate to a detailed user profile page.');
+            e.preventDefault(); // Prevent default link behavior
+            alert('This would navigate to a detailed user profile page or open a modal.');
         });
     </script>
 </body>
 </html>
-
