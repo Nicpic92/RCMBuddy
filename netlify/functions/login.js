@@ -1,135 +1,97 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RCM Buddy - Dashboard</title>
-    <!-- Tailwind CSS CDN -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Google Fonts - Inter -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <style>
-        body {
-            font-family: 'Inter', sans-serif;
-            background-color: #f0f4f8; /* Light background */
+// netlify/functions/login.js
+const { Pool } = require('pg');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
+
+// Initialize database connection pool (reused across invocations)
+const pool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: {
+        rejectUnauthorized: false
+    }
+});
+
+/**
+ * Netlify Function handler for user login.
+ * Expects a POST request with email and password in the body.
+ */
+exports.handler = async (event, context) => {
+    // Only allow POST requests
+    if (event.httpMethod !== 'POST') {
+        return {
+            statusCode: 405,
+            body: 'Method Not Allowed'
+        };
+    }
+
+    let body;
+    try {
+        body = JSON.parse(event.body);
+    } catch (error) {
+        console.error("Failed to parse request body:", error);
+        return {
+            statusCode: 400,
+            body: JSON.stringify({ message: 'Invalid JSON body.' })
+        };
+    }
+
+    const { email, password } = body;
+
+    // Validate if required fields are present
+    if (!email || !password) {
+        return {
+            statusCode: 400,
+            body: JSON.stringify({ message: 'Email and password are required.' })
+        };
+    }
+
+    try {
+        // Find the user by email in the database
+        const result = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
+        const user = result.rows[0];
+
+        // If no user is found with that email
+        if (!user) {
+            return {
+                statusCode: 401, // 401 Unauthorized
+                body: JSON.stringify({ message: 'Invalid credentials.' }) // Generic message for security
+            };
         }
-    </style>
-</head>
-<body class="flex flex-col min-h-screen text-gray-800">
-    <!-- Header Section -->
-    <header class="bg-gradient-to-r from-blue-600 to-indigo-700 p-4 shadow-lg">
-        <div class="container mx-auto flex flex-col sm:flex-row items-center justify-between">
-            <h1 class="text-white text-3xl font-bold mb-2 sm:mb-0">RCM Buddy Dashboard</h1>
-            <nav>
-                <ul class="flex space-x-4">
-                    <li><a href="#" id="profileLink" class="text-white hover:text-blue-200 transition duration-300">Profile</a></li>
-                    <li><a href="#" id="logoutBtn" class="text-white hover:text-blue-200 transition duration-300 cursor-pointer">Logout</a></li>
-                </ul>
-            </nav>
-        </div>
-    </header>
 
-    <!-- Main Content Section -->
-    <main class="flex-grow container mx-auto p-4 sm:p-6 lg:p-8">
-        <section class="bg-white p-6 sm:p-8 rounded-xl shadow-lg mb-8">
-            <h2 class="text-2xl sm:text-3xl font-semibold text-center text-blue-700 mb-4">
-                Welcome to your RCM Buddy Dashboard!
-            </h2>
-            <p id="dashboardMessage" class="text-lg text-gray-700 text-center mb-6">Loading user data...</p>
+        // Compare the provided plain password with the stored hashed password
+        const isMatch = await bcrypt.compare(password, user.password_hash);
 
-            <div id="userData" class="mt-8 bg-blue-50 p-6 rounded-lg border border-blue-200 hidden">
-                <h3 class="text-xl font-semibold text-blue-600 mb-4">Your Profile Information:</h3>
-                <p><strong>Username:</strong> <span id="displayUsername"></span></p>
-                <p><strong>Email:</strong> <span id="displayEmail"></span></p>
-                <p><strong>User ID:</strong> <span id="displayId"></span></p>
-            </div>
+        // If passwords do not match
+        if (!isMatch) {
+            return {
+                statusCode: 401, // 401 Unauthorized
+                body: JSON.stringify({ message: 'Invalid credentials.' }) // Generic message for security
+            };
+        }
 
-            <!-- Example of a dashboard feature -->
-            <div class="mt-8 p-6 bg-purple-50 rounded-lg shadow-md border border-purple-200">
-                <h3 class="text-xl font-bold text-purple-600 mb-3">Your RCM Insights at a Glance</h3>
-                <p class="text-gray-600">This is where you'd see personalized metrics, recent tasks, and other RCM-related data.</p>
-                <ul class="list-disc list-inside mt-4 text-gray-600">
-                    <li>Claims submitted: 1,234</li>
-                    <li>Outstanding A/R: $56,789</li>
-                    <li>Denial rate: 2.1%</li>
-                </ul>
-            </div>
-        </section>
-    </main>
+        // If login is successful, generate a JSON Web Token (JWT).
+        // The token contains user ID, username, and email.
+        // It's signed with a secret key from environment variables.
+        const token = jwt.sign(
+            { id: user.id, username: user.username, email: user.email },
+            process.env.JWT_SECRET, // Get JWT secret from Netlify Environment Variables
+            { expiresIn: '1h' } // Token expires in 1 hour
+        );
 
-    <!-- Footer Section -->
-    <footer class="bg-gray-800 text-white p-4 mt-8">
-        <div class="container mx-auto text-center text-sm">
-            &copy; 2025 RCM Buddy. All rights reserved.
-        </div>
-    </footer>
+        // Respond with success message and the generated JWT
+        return {
+            statusCode: 200, // 200 OK
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ message: 'Login successful!', token: token })
+        };
 
-    <script>
-        // Check for JWT on page load
-        document.addEventListener('DOMContentLoaded', async () => {
-            const token = localStorage.getItem('jwtToken');
-            if (!token) {
-                // If no token, redirect to login
-                window.location.href = '/'; // Or '/index.html'
-                return;
-            }
-
-            // Fetch protected data using the token
-            try {
-                const response = await fetch('/api/protected', { // Call Netlify Function
-                    method: 'GET',
-                    headers: {
-                        'Authorization': `Bearer ${token}`
-                    }
-                });
-
-                const data = await response.json();
-                const dashboardMessage = document.getElementById('dashboardMessage');
-                const userDataSection = document.getElementById('userData');
-                const displayUsername = document.getElementById('displayUsername');
-                const displayEmail = document.getElementById('displayEmail');
-                const displayId = document.getElementById('displayId');
-
-
-                if (response.ok) {
-                    dashboardMessage.textContent = `Welcome, ${data.user.username}! Here's your RCM overview.`;
-                    displayUsername.textContent = data.user.username;
-                    displayEmail.textContent = data.user.email;
-                    displayId.textContent = data.user.id;
-                    userDataSection.classList.remove('hidden'); // Show user data
-                    console.log('Protected data:', data);
-                } else {
-                    // Token invalid or expired
-                    dashboardMessage.textContent = 'Session expired or invalid. Please log in again.';
-                    dashboardMessage.className = 'mt-6 text-center text-lg font-medium text-red-700';
-                    console.error('Protected route error:', data.message);
-                    localStorage.removeItem('jwtToken'); // Clear invalid token
-                    setTimeout(() => {
-                        window.location.href = '/'; // Redirect to login
-                    }, 1500);
-                }
-            } catch (error) {
-                document.getElementById('dashboardMessage').textContent = 'Error fetching dashboard data. Please try again.';
-                document.getElementById('dashboardMessage').className = 'mt-6 text-center text-lg font-medium text-red-700';
-                console.error('Dashboard fetch error:', error);
-                localStorage.removeItem('jwtToken'); // Assume token issue on network error
-                setTimeout(() => {
-                    window.location.href = '/'; // Redirect to login
-                }, 1500);
-            }
-        });
-
-        // Logout functionality
-        document.getElementById('logoutBtn').addEventListener('click', () => {
-            localStorage.removeItem('jwtToken'); // Remove the JWT
-            window.location.href = '/'; // Redirect to login page
-        });
-
-        // Simple profile link (could navigate to a dedicated profile page)
-        document.getElementById('profileLink').addEventListener('click', (e) => {
-            e.preventDefault();
-            alert('This would navigate to a detailed user profile page.');
-        });
-    </script>
-</body>
-</html>
+    } catch (error) {
+        // Log the full error for debugging in Netlify logs
+        console.error('Login error:', error);
+        // Return a generic server error message
+        return {
+            statusCode: 500, // 500 Internal Server Error
+            body: JSON.stringify({ message: 'Server error during login.' })
+        };
+    }
+};
