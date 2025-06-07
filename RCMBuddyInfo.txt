@@ -1,0 +1,221 @@
+RCM Buddy Project Setup Summary
+This document provides a comprehensive overview of the "RCM Buddy" web application, including its architecture, file structure, key code components, and deployment steps using Netlify, GitHub, and Neon (PostgreSQL). It also summarizes common issues and their solutions encountered during the setup.
+
+1. Project Goal
+To create a web application named "RCM Buddy" with:
+
+User registration and login functionality.
+
+A protected dashboard accessible only to authenticated users.
+
+Data storage in a PostgreSQL database (Neon).
+
+Deployment via Netlify using Netlify Functions as the backend.
+
+Version control with GitHub.
+
+2. Core Technologies Used
+Frontend: HTML, CSS (Tailwind CSS for styling), JavaScript
+
+Backend: Node.js (via Netlify Functions)
+
+Database: Neon (PostgreSQL)
+
+Deployment Platform: Netlify
+
+Version Control: GitHub
+
+Authentication Mechanism: JSON Web Tokens (JWT) for stateless session management
+
+Password Hashing: bcryptjs
+
+3. Project File Structure
+The project follows a specific directory structure optimized for Netlify deployments:
+
+rcm-buddy-app/
+├── public/                     <-- Contains all static frontend assets (HTML, client-side JS)
+│   ├── index.html              <-- Main page for login/registration forms
+│   └── dashboard.html          <-- Protected page for authenticated users
+├── netlify/                    <-- Parent directory for Netlify-specific configurations
+│   └── functions/              <-- Contains Node.js serverless functions
+│       ├── package.json        <-- Lists Node.js dependencies for the functions
+│       ├── register.js         <-- Handles user registration logic
+│       ├── login.js            <-- Handles user login logic and JWT generation
+│       └── protected.js        <-- Example function for a protected API endpoint
+├── netlify.toml                <-- Netlify build configuration and redirects
+└── .gitignore                  <-- Specifies files/folders to ignore in Git
+
+4. Key Code Components & Their Roles
+4.1. netlify.toml
+Located at the project root. Essential for Netlify to understand the project structure and routing.
+
+[build]
+  publish = "public"            # Specifies the frontend static assets directory
+  functions = "netlify/functions" # Specifies the Netlify Functions directory
+
+[[redirects]]
+  from = "/api/*"
+  to = "/.netlify/functions/:splat" # Routes all /api/ requests to Netlify Functions
+  status = 200
+
+# Required plugin to automatically install Node.js dependencies for Netlify Functions
+[[plugins]]
+package = "@netlify/plugin-functions-install-core"
+
+4.2. Frontend (public/ directory)
+index.html:
+
+Contains two forms: one for user login and one for user registration.
+
+Uses Tailwind CSS for responsive styling.
+
+JavaScript handles form submissions, sending data to /api/register or /api/login endpoints.
+
+Stores the received JWT in localStorage upon successful login.
+
+Redirects to dashboard.html after successful login.
+
+dashboard.html:
+
+A protected page that requires a JWT for access.
+
+On load, it retrieves the JWT from localStorage.
+
+Sends a GET request to the /api/protected endpoint, including the JWT in the Authorization header.
+
+Displays user information fetched from the protected endpoint or redirects to index.html if the token is missing/invalid.
+
+Includes a "Logout" button to clear the JWT from localStorage and redirect to index.html.
+
+4.3. Backend (netlify/functions/ directory)
+package.json:
+
+Lists necessary Node.js modules for all functions:
+
+pg: PostgreSQL client to interact with Neon DB.
+
+bcryptjs: For secure password hashing and comparison.
+
+jsonwebtoken: For creating and verifying JWTs.
+
+{
+  "name": "netlify-rcm-buddy-functions",
+  "version": "1.0.0",
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "jsonwebtoken": "^9.0.2",
+    "pg": "^8.11.3"
+  }
+}
+
+register.js:
+
+Purpose: Handles POST requests to /api/register.
+
+Logic:
+
+Parses incoming username, email, and password.
+
+Generates a salt and securely hashes the password using bcryptjs.
+
+Inserts the new user (with hashed password) into the users table in Neon.
+
+Returns a 201 Created status on success or a 409 Conflict if email/username already exists.
+
+login.js:
+
+Purpose: Handles POST requests to /api/login.
+
+Logic:
+
+Parses email and password.
+
+Queries the users table for the provided email.
+
+Compares the provided password with the stored hashed password using bcryptjs.compare().
+
+On successful authentication, generates a JWT containing user id, username, and email, signed with process.env.JWT_SECRET.
+
+Returns a 200 OK status with the JWT on success, or 401 Unauthorized for invalid credentials.
+
+protected.js:
+
+Purpose: Handles GET requests to /api/protected.
+
+Logic:
+
+Expects a JWT in the Authorization: Bearer <token> header.
+
+Verifies the JWT's authenticity and expiration using jsonwebtoken and process.env.JWT_SECRET.
+
+If the token is valid, returns 200 OK with basic user information (from the token payload).
+
+If the token is missing, invalid, or expired, returns 401 Unauthorized or 403 Forbidden.
+
+5. Critical Setup & Configuration Steps
+Neon Database (users table):
+
+CREATE TABLE users (
+    id SERIAL PRIMARY KEY,
+    username VARCHAR(50) UNIQUE NOT NULL,
+    email VARCHAR(100) UNIQUE NOT NULL,
+    password_hash VARCHAR(255) NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+Netlify Environment Variables:
+
+Go to Netlify Dashboard -> Site settings -> Build & deploy -> Environment variables.
+
+Add (or verify) these two variables:
+
+DATABASE_URL: Your full connection string from Neon (e.g., postgresql://user:pass@host:port/db?sslmode=require). Crucial: Copy directly from Neon.
+
+JWT_SECRET: A long, randomly generated, unique string (e.g., generated via require('crypto').randomBytes(32).toString('hex') in Node.js).
+
+For both, ensure the "Functions" scope is checked.
+
+6. Common Issues & Troubleshooting
+"Network error. Please check your connection." (on frontend):
+
+Cause: Frontend fetch request failed to reach the Netlify Function.
+
+Troubleshooting:
+
+Check Netlify Deploy logs for the latest successful deploy.
+
+Go to the "Functions" section within the deploy logs.
+
+Look for any errors in the logs of register.js or login.js after attempting a client-side call.
+
+Inspect your browser's Network tab in Developer Tools for the /api/login or /api/register request (check status code, response, payload).
+
+Functions not showing in Netlify deploy logs or failing to build:
+
+Cause 1: Incorrect path in netlify.toml. The functions = "netlify/functions" must exactly match the folder structure in your GitHub repo (including casing).
+
+Cause 2: Missing Netlify plugin for function dependency installation.
+
+Solution: Ensure netlify.toml contains:
+
+[[plugins]]
+package = "@netlify/plugin-functions-install-core"
+
+SyntaxError: Unexpected token '<' in function logs:
+
+Cause: One of your .js function files (login.js, register.js, protected.js) was accidentally saved or replaced with HTML content (which starts with <).
+
+Solution: Verify the content of each .js file in netlify/functions/ on GitHub.com to ensure they contain only valid JavaScript code.
+
+7. Deployment Process
+Local Setup: Create the project structure and files as described.
+
+Git & GitHub: Commit all files (except those in .gitignore) and push to your GitHub repository.
+
+Netlify Sync: Since Netlify is synced, it will automatically detect the push and trigger a new deployment.
+
+Monitor Deployment: Observe the "Deploys" tab in your Netlify dashboard until the site shows "Published."
+
+Test Live Site: Visit your Netlify-provided URL and test registration, login, and dashboard access.
+
+This document should serve as a comprehensive guide for future reference regarding your RCM Buddy application.
