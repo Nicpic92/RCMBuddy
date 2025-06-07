@@ -1,0 +1,19 @@
+# netlify.toml
+
+[build]
+  # Directory where your static frontend files are located
+  publish = "public"
+  # Directory where your Netlify Functions are located
+  functions = "netlify/functions"
+
+# This section routes requests to /api/ to your Netlify Functions
+[[redirects]]
+  from = "/api/*"
+  to = "/.netlify/functions/:splat"
+  status = 200
+
+# Optional: If you want all unhandled paths to fall back to index.html (useful for SPAs)
+# [[redirects]]
+#   from = "/*"
+#   to = "/index.html"
+#   status = 200
