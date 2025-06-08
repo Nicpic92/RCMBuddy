@@ -94,7 +94,7 @@
                         <input type="file" id="excelFile" accept=".xlsx, .xls, .csv" required
                                class="mt-1 block w-full text-sm text-gray-900 border border-gray-300 rounded-lg cursor-pointer bg-white focus:outline-none focus:border-green-500">
                     </div>
-                    <button type="submit" id="analyzeFileBtn"
+                    <button type="button" id="analyzeFileBtn" onclick="analyzeFile()"
                             class="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-lg text-lg font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition duration-300 ease-in-out transform hover:-translate-y-0.5">
                         Analyze File
                     </button>
@@ -112,7 +112,7 @@
                         <p id="totalDuplicateRowsDisplay" class="text-gray-800 text-base font-medium"></p>
                     </div>
                     <div id="sheetResults"></div>
-                    <button id="generateSummaryBtn" class="mt-6 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg shadow-md transition duration-300 hidden">View Summary Report</button>
+                    <button id="generateSummaryBtn" onclick="generateSummaryReport()" class="mt-6 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg shadow-md transition duration-300 hidden">View Summary Report</button>
                 </div>
             </div>
 
@@ -272,7 +272,7 @@
                                     <span class="text-gray-900 text-base font-medium">${issueTextHTML}</span>
                                 </div>
                                 <div class="text-sm text-gray-600 italic">${countsDisplayHTML}</div>
-                                <button class="ml-auto px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded-md text-sm font-medium">Show Values</button>
+                                <button class="ml-auto px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded-md text-sm font-medium toggle-values-btn">Show Values</button>
                             </div>
                             <div class="column-values-container p-3 mt-3 bg-white border border-gray-300 rounded-lg shadow-inner" style="display:none; max-height: 250px; overflow-y: auto;"></div>
                         `;
