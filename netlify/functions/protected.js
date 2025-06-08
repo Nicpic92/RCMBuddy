@@ -1,78 +1,60 @@
 // netlify/functions/protected.js
 const jwt = require('jsonwebtoken');
 
-/**
- * Netlify Function handler for a protected route.
- * Requires a valid JWT in the Authorization header (Bearer token).
- */
 exports.handler = async (event, context) => {
-    // Only allow GET requests for fetching data
     if (event.httpMethod !== 'GET') {
-        return {
-            statusCode: 405,
-            body: 'Method Not Allowed'
-        };
+        return { statusCode: 405, body: 'Method Not Allowed' };
     }
 
-    // Get the Authorization header
+    // Get the Authorization header from the incoming request
     const authHeader = event.headers.authorization;
 
-    // Check if Authorization header is present
+    // If no Authorization header is present, deny access
     if (!authHeader) {
-        return {
-            statusCode: 401, // 401 Unauthorized
-            body: JSON.stringify({ message: 'Access denied. No token provided.' })
-        };
+        return { statusCode: 401, body: JSON.stringify({ message: 'Access denied. No token provided.' }) };
     }
 
-    // Extract the token (expecting "Bearer TOKEN")
+    // Extract the token (assuming "Bearer TOKEN" format)
     const token = authHeader.split(' ')[1];
 
-    // If no token part found after 'Bearer'
+    // If the token is missing after "Bearer ", deny access
     if (!token) {
-        return {
-            statusCode: 401,
-            body: JSON.stringify({ message: 'Access denied. Token format is "Bearer [token]".' })
-        };
+        return { statusCode: 401, body: JSON.stringify({ message: 'Access denied. Token format is "Bearer [token]".' }) };
     }
 
     try {
-        // Verify the token using the secret key
+        // Verify the token using the secret key from environment variables
+        // The decoded payload now includes company_id and company_name
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
         // If verification is successful, the token is valid.
-        // You can now access user data from the decoded token (e.g., decoded.id, decoded.username).
-        // In a real application, you might fetch fresh user data from the DB here if needed,
-        // but for a simple example, the decoded data is sufficient.
-
+        // Return user details including company information.
         return {
-            statusCode: 200, // 200 OK
+            statusCode: 200,
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-                message: `Welcome, ${decoded.username}! You have access to protected data.`,
+                message: `Welcome, ${decoded.username}! This is protected data for company ${decoded.company_name}.`,
                 user: {
                     id: decoded.id,
                     username: decoded.username,
-                    email: decoded.email
+                    email: decoded.email,
+                    company_id: decoded.company_id,      // Include company_id from JWT
+                    company_name: decoded.company_name    // Include company_name from JWT
                 }
             })
         };
 
     } catch (error) {
-        // Log the error for debugging (e.g., token expired, invalid signature)
+        // Log the error for debugging purposes in Netlify logs
         console.error('Token verification error:', error.message);
 
-        // Handle different JWT errors
+        // Handle specific JWT errors to provide clearer messages to the client
         let errorMessage = 'Invalid token.';
         if (error.name === 'TokenExpiredError') {
             errorMessage = 'Token expired. Please log in again.';
         } else if (error.name === 'JsonWebTokenError') {
             errorMessage = 'Invalid token signature.';
         }
-
-        return {
-            statusCode: 403, // 403 Forbidden (token is present but invalid/expired)
-            body: JSON.stringify({ message: errorMessage })
-        };
+        return { statusCode: 403, body: JSON.stringify({ message: errorMessage }) };
     }
 };
