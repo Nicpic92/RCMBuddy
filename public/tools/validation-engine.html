@@ -163,7 +163,7 @@
             alert('This would navigate to a detailed user profile page.');
         });
 
-        // --- Validation Engine Tool Logic (Client-side Mock) ---
+        // --- Validation Engine Tool Logic ---
         const validationForm = document.getElementById('validationForm');
         const excelFile = document.getElementById('excelFile');
         const validateButton = document.getElementById('validateButton');
@@ -193,47 +193,70 @@
                 return;
             }
 
-            // In a real application, you would send this file and selected rules to a Netlify Function.
-            // Example:
-            // const formData = new FormData();
-            // formData.append('excelFile', file);
-            // formData.append('requiredFields', document.getElementById('requiredFields').checked);
-            // formData.append('dataTypeCheck', document.getElementById('dataTypeCheck').checked);
-            // formData.append('valueRange', document.getElementById('valueRange').checked);
-            // formData.append('uniqueValues', document.getElementById('uniqueValues').checked);
-            //
-            // const token = localStorage.getItem('jwtToken');
-            // const response = await fetch('/api/validate-excel', {
-            //     method: 'POST',
-            //     headers: { 'Authorization': `Bearer ${token}` },
-            //     body: formData
-            // });
-            // const result = await response.json();
+            // Create FormData object to send file and selected rules
+            const formData = new FormData();
+            formData.append('excelFile', file);
+            formData.append('requiredFields', document.getElementById('requiredFields').checked);
+            formData.append('dataTypeCheck', document.getElementById('dataTypeCheck').checked);
+            formData.append('valueRange', document.getElementById('valueRange').checked);
+            formData.append('uniqueValues', document.getElementById('uniqueValues').checked);
+            
+            try {
+                const token = localStorage.getItem('jwtToken');
+                if (!token) {
+                    throw new Error('User not authenticated. Please log in again.');
+                }
 
-            // Mocking an API call and response for demonstration
-            console.log('Simulating file upload and validation for:', file.name);
+                // --- ACTIVATE THE REAL BACKEND CALL ---
+                const response = await fetch('/api/validate-excel', { // TARGETS YOUR NEW BACKEND FUNCTION
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}` // Include JWT for authentication
+                    },
+                    body: formData // Send the FormData object
+                });
 
-            setTimeout(() => {
-                // Simulate successful validation
-                const mockFailed = Math.floor(Math.random() * 5) + 1; // 1-5 failed
-                const mockTotal = 10;
-                const mockPassed = mockTotal - mockFailed;
+                const result = await response.json(); // Parse the JSON response from the backend
 
-                statusMessage.textContent = 'Validation complete!';
-                statusMessage.className = 'mt-4 text-center text-green-700';
+                if (response.ok) {
+                    statusMessage.textContent = 'Validation complete!';
+                    statusMessage.className = 'mt-4 text-center text-green-700';
 
-                totalChecks.textContent = `Total Checks: ${mockTotal}`;
-                failedChecks.textContent = `Failed Checks: ${mockFailed}`;
-                passedChecks.textContent = `Passed Checks: ${mockPassed}`;
-                validationResults.classList.remove('hidden');
+                    // Display validation summary from backend result
+                    totalChecks.textContent = `Total Checks: ${result.summary.totalChecks}`;
+                    failedChecks.textContent = `Failed Checks: ${result.summary.failedChecks}`;
+                    passedChecks.textContent = `Passed Checks: ${result.summary.passedChecks}`;
+                    validationResults.classList.remove('hidden');
 
-                const mockReportUrl = 'https://placehold.co/600x400/0000FF/FFFFFF?text=Validation_Report'; // Placeholder for report
-                downloadLink.href = mockReportUrl;
-                downloadLink.download = 'validation_report.xlsx';
-                downloadSection.classList.remove('hidden');
+                    // Convert the base64-encoded report from the backend into a Blob
+                    const binaryString = atob(result.validationReportBase64); // Decode base64 string
+                    const len = binaryString.length;
+                    const bytes = new Uint8Array(len); // Create a Uint8Array
+                    for (let i = 0; i < len; i++) {
+                        bytes[i] = binaryString.charCodeAt(i); // Populate with byte values
+                    }
+                    const blob = new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }); // .xlsx MIME type
+                    const url = URL.createObjectURL(blob); // Create a temporary URL for the Blob
 
-                validateButton.disabled = false;
-            }, 3000); // Simulate 3 seconds of processing
+                    // Set the download link properties
+                    downloadLink.href = url; // Assign the Blob URL to the link
+                    downloadLink.download = result.fileName; // Use filename suggested by backend
+                    downloadSection.classList.remove('hidden'); // Show download section
+
+                } else {
+                    // Handle errors returned from the backend (e.g., 400 Bad Request, 500 Internal Server Error)
+                    statusMessage.textContent = `Error: ${result.message || 'Failed to run validation.'}`;
+                    statusMessage.className = 'mt-4 text-center text-red-700';
+                    console.error('Backend error:', result.error || result.message);
+                }
+            } catch (error) {
+                // Handle network errors or issues before the backend call
+                statusMessage.textContent = `Network or authentication error: ${error.message}`;
+                statusMessage.className = 'mt-4 text-center text-red-700';
+                console.error('Frontend fetch error:', error);
+            } finally {
+                validateButton.disabled = false; // Always re-enable the button after processing
+            }
         });
     </script>
 </body>
