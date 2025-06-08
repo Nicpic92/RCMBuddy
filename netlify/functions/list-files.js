@@ -1,4 +1,5 @@
-// netlify/functions/list-files.js
+// netlify/functions/upload-file.js
+const Busboy = require('busboy'); // For parsing multipart/form-data
 const jwt = require('jsonwebtoken'); // For JWT authentication
 const { Pool } = require('pg');     // PostgreSQL client
 
@@ -8,8 +9,38 @@ const pool = new Pool({
     ssl: { rejectUnauthorized: false }
 });
 
+/**
+ * Helper to parse multipart/form-data from Netlify Function event.
+ * @param {object} event - The Netlify Function event object.
+ * @returns {Promise<{fields: object, files: object}>}
+ */
+function parseMultipartForm(event) {
+    return new Promise((resolve, reject) => {
+        const busboy = Busboy({ headers: event.headers });
+        const fields = {};
+        const files = {};
+        let fileBuffer = Buffer.from('');
+
+        busboy.on('file', (fieldname, file, filename, encoding, mimetype) => {
+            file.on('data', (data) => { fileBuffer = Buffer.concat([fileBuffer, data]); });
+            file.on('end', () => {
+                files[fieldname] = { filename, encoding, mimetype, data: fileBuffer };
+            });
+        });
+        busboy.on('field', (fieldname, val) => { fields[fieldname] = val; });
+        busboy.on('finish', () => { resolve({ fields, files }); });
+        busboy.on('error', reject);
+
+        // Convert event body to a readable stream
+        const readableStream = new require('stream').Readable();
+        readableStream.push(Buffer.from(event.body, event.isBase64Encoded ? 'base64' : 'utf8'));
+        readableStream.push(null);
+        readableStream.pipe(busboy);
+    });
+}
+
 exports.handler = async (event, context) => {
-    if (event.httpMethod !== 'GET') {
+    if (event.httpMethod !== 'POST') {
         return { statusCode: 405, body: 'Method Not Allowed' };
     }
 
@@ -25,42 +56,55 @@ exports.handler = async (event, context) => {
     } catch (error) {
         return { statusCode: 403, body: JSON.stringify({ message: 'Invalid or expired token.' }) };
     }
+    const user_id = decoded.id;
     const company_id = decoded.company_id; // CRUCIAL for data isolation
-    const user_id = decoded.id;             // Optional: if you want to filter by user as well
 
-    // 2. Fetch files from database for the authenticated company_id
-    let client;
+    // 2. Parse file upload
+    if (!event.headers['content-type'] || !event.headers['content-type'].includes('multipart/form-data')) {
+        return { statusCode: 400, body: JSON.stringify({ message: 'Content-Type must be multipart/form-data.' }) };
+    }
+
     try {
-        client = await pool.connect();
-        // Query to get all files for the current company_id
-        // Order by uploaded_at to show most recent first
-        const filesResult = await client.query(
-            `SELECT id, original_filename, mimetype, size_bytes, uploaded_at, user_id
-             FROM company_files
-             WHERE company_id = $1
-             ORDER BY uploaded_at DESC`,
-            [company_id]
-        );
+        const { fields, files } = await parseMultipartForm(event);
+        const uploadedFile = files.file; // 'file' is the name attribute from the input type="file"
+        const isDataDictionary = fields.isDataDictionary === 'true'; // Get boolean from form field
 
-        const files = filesResult.rows.map(file => ({
-            id: file.id,
-            filename: file.original_filename,
-            mimetype: file.mimetype,
-            size_bytes: parseInt(file.size_bytes, 10), // Ensure size is a number
-            uploaded_at: file.uploaded_at,
-            uploaded_by_user_id: file.user_id // Include uploader's ID if needed on frontend
-        }));
+        if (!uploadedFile || !uploadedFile.data) {
+            return { statusCode: 400, body: JSON.stringify({ message: 'No file uploaded.' }) };
+        }
 
-        return {
-            statusCode: 200,
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ message: 'Files retrieved successfully.', files: files })
-        };
+        // --- Store file data directly in PostgreSQL (Neon) ---
+        let client;
+        try {
+            client = await pool.connect();
+            await client.query('BEGIN'); // Start transaction for atomicity
 
-    } catch (dbError) {
-        console.error('Database error listing files:', dbError);
-        return { statusCode: 500, body: JSON.stringify({ message: 'Failed to retrieve files.', error: dbError.message }) };
-    } finally {
-        if (client) client.release();
+            // Insert file metadata AND binary data into company_files table
+            const insertResult = await client.query(
+                `INSERT INTO company_files (company_id, user_id, original_filename, mimetype, size_bytes, file_data, is_data_dictionary)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
+                [company_id, user_id, uploadedFile.filename, uploadedFile.mimetype, uploadedFile.data.length, uploadedFile.data, isDataDictionary] // Pass isDataDictionary
+            );
+            await client.query('COMMIT'); // Commit the transaction
+
+            const newFileId = insertResult.rows[0].id;
+
+            return {
+                statusCode: 200,
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ message: 'File uploaded successfully to Neon!', fileId: newFileId, fileName: uploadedFile.filename })
+            };
+
+        } catch (dbError) {
+            if (client) await client.query('ROLLBACK'); // Rollback on error
+            console.error('Database error storing file:', dbError);
+            return { statusCode: 500, body: JSON.stringify({ message: 'Failed to save file to database.', error: dbError.message }) };
+        } finally {
+            if (client) client.release(); // Release client back to pool
+        }
+
+    } catch (error) {
+        console.error('File upload function error:', error);
+        return { statusCode: 500, body: JSON.stringify({ message: 'Failed to upload file.', error: error.message }) };
     }
 };
