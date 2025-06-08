@@ -67,6 +67,7 @@ exports.handler = async (event, context) => {
     try {
         const { fields, files } = await parseMultipartForm(event);
         const uploadedFile = files.file; // 'file' is the name attribute from the input type="file"
+        const isDataDictionary = fields.isDataDictionary === 'true'; // Get boolean from form field
 
         if (!uploadedFile || !uploadedFile.data) {
             return { statusCode: 400, body: JSON.stringify({ message: 'No file uploaded.' }) };
@@ -80,9 +81,9 @@ exports.handler = async (event, context) => {
 
             // Insert file metadata AND binary data into company_files table
             const insertResult = await client.query(
-                `INSERT INTO company_files (company_id, user_id, original_filename, mimetype, size_bytes, file_data)
-                 VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
-                [company_id, user_id, uploadedFile.filename, uploadedFile.mimetype, uploadedFile.data.length, uploadedFile.data] // Pass Buffer directly
+                `INSERT INTO company_files (company_id, user_id, original_filename, mimetype, size_bytes, file_data, is_data_dictionary)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
+                [company_id, user_id, uploadedFile.filename, uploadedFile.mimetype, uploadedFile.data.length, uploadedFile.data, isDataDictionary] // Pass isDataDictionary
             );
             await client.query('COMMIT'); // Commit the transaction
 
