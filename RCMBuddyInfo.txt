@@ -14,6 +14,10 @@ Deployment via Netlify using Netlify Functions as the backend.
 
 Version control with GitHub.
 
+Core Focus: Providing tools and solutions for Excel file manipulation, data validation, and process automation.
+
+Multi-Company Support: Allow multiple companies to use the application with their data isolated from other companies. Multiple users can belong to the same company.
+
 2. Core Technologies Used
 Frontend: HTML, CSS (Tailwind CSS for styling), JavaScript
 
@@ -29,19 +33,30 @@ Authentication Mechanism: JSON Web Tokens (JWT) for stateless session management
 
 Password Hashing: bcryptjs
 
+Excel Processing (Client-side): xlsx.full.min.js (for Validation Engine)
+
+Excel Processing (Backend - for Data Cleaner): exceljs, busboy
+
 3. Project File Structure
 The project follows a specific directory structure optimized for Netlify deployments:
 
 rcm-buddy-app/
 ├── public/                     <-- Contains all static frontend assets (HTML, client-side JS)
-│   ├── index.html              <-- Main page for login/registration forms
-│   └── dashboard.html          <-- Protected page for authenticated users
+│   ├── index.html              <-- Main page for login/registration forms (includes Company Name for registration)
+│   ├── dashboard.html          <-- Protected page for authenticated users (displays company name)
+│   ├── tools.html              <-- Page listing all available Excel tools (can hide 'development' tools)
+│   └── tools/                  <-- New sub-directory for individual tool pages
+│       ├── data-cleaner.html   <-- Dedicated page for the Data Cleaner tool
+│       └── validation-engine.html <-- Dedicated page for the Validation Engine tool (Client-side)
 ├── netlify/                    <-- Parent directory for Netlify-specific configurations
 │   └── functions/              <-- Contains Node.js serverless functions
 │       ├── package.json        <-- Lists Node.js dependencies for the functions
-│       ├── register.js         <-- Handles user registration logic
-│       ├── login.js            <-- Handles user login logic and JWT generation
-│       └── protected.js        <-- Example function for a protected API endpoint
+│       ├── register.js         <-- Handles user registration logic (now handles Company creation/assignment)
+│       ├── login.js            <-- Handles user login logic and JWT generation (now includes Company ID/Name in JWT, queries by username/email)
+│       ├── protected.js        <-- Example function for a protected API endpoint (returns Company ID/Name)
+│       └── clean-excel.js      <-- Backend function for Data Cleaner tool (authenticates by JWT, requires company_id)
+├── tools/                      <-- New folder for various project tools (Non-web content, e.g., documentation)
+│   └── tracker tool            <-- A file within the tools folder
 ├── netlify.toml                <-- Netlify build configuration and redirects
 └── .gitignore                  <-- Specifies files/folders to ignore in Git
 
@@ -62,160 +77,139 @@ Located at the project root. Essential for Netlify to understand the project str
 [[plugins]]
 package = "@netlify/plugin-functions-install-core"
 
-4.2. Frontend (public/ directory)
-index.html:
+4.2. Database Schema for Multi-Company Support
+companies table:
 
-Contains two forms: one for user login and one for user registration.
-
-Uses Tailwind CSS for responsive styling.
-
-JavaScript handles form submissions, sending data to /api/register or /api/login endpoints.
-
-Stores the received JWT in localStorage upon successful login.
-
-Redirects to dashboard.html after successful login.
-
-dashboard.html:
-
-A protected page that requires a JWT for access.
-
-On load, it retrieves the JWT from localStorage.
-
-Sends a GET request to the /api/protected endpoint, including the JWT in the Authorization header.
-
-Displays user information fetched from the protected endpoint or redirects to index.html if the token is missing/invalid.
-
-Includes a "Logout" button to clear the JWT from localStorage and redirect to index.html.
-
-4.3. Backend (netlify/functions/ directory)
-package.json:
-
-Lists necessary Node.js modules for all functions:
-
-pg: PostgreSQL client to interact with Neon DB.
-
-bcryptjs: For secure password hashing and comparison.
-
-jsonwebtoken: For creating and verifying JWTs.
-
-{
-  "name": "netlify-rcm-buddy-functions",
-  "version": "1.0.0",
-  "dependencies": {
-    "bcryptjs": "^2.4.3",
-    "jsonwebtoken": "^9.0.2",
-    "pg": "^8.11.3"
-  }
-}
-
-register.js:
-
-Purpose: Handles POST requests to /api/register.
-
-Logic:
-
-Parses incoming username, email, and password.
-
-Generates a salt and securely hashes the password using bcryptjs.
-
-Inserts the new user (with hashed password) into the users table in Neon.
-
-Returns a 201 Created status on success or a 409 Conflict if email/username already exists.
-
-login.js:
-
-Purpose: Handles POST requests to /api/login.
-
-Logic:
-
-Parses email and password.
-
-Queries the users table for the provided email.
-
-Compares the provided password with the stored hashed password using bcryptjs.compare().
-
-On successful authentication, generates a JWT containing user id, username, and email, signed with process.env.JWT_SECRET.
-
-Returns a 200 OK status with the JWT on success, or 401 Unauthorized for invalid credentials.
-
-protected.js:
-
-Purpose: Handles GET requests to /api/protected.
-
-Logic:
-
-Expects a JWT in the Authorization: Bearer <token> header.
-
-Verifies the JWT's authenticity and expiration using jsonwebtoken and process.env.JWT_SECRET.
-
-If the token is valid, returns 200 OK with basic user information (from the token payload).
-
-If the token is missing, invalid, or expired, returns 401 Unauthorized or 403 Forbidden.
-
-5. Critical Setup & Configuration Steps
-Neon Database (users table):
-
-CREATE TABLE users (
+CREATE TABLE companies (
     id SERIAL PRIMARY KEY,
-    username VARCHAR(50) UNIQUE NOT NULL,
-    email VARCHAR(100) UNIQUE NOT NULL,
-    password_hash VARCHAR(255) NOT NULL,
+    name VARCHAR(255) UNIQUE NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
+users table (updated):
+
+ALTER TABLE users
+ADD COLUMN company_id INTEGER REFERENCES companies(id) ON DELETE RESTRICT;
+
+-- Optional: If you want to ensure a user always belongs to a company
+-- (i.e., this column cannot be null), you can run this additional command:
+-- ALTER TABLE users
+-- ALTER COLUMN company_id SET NOT NULL;
+
+Any future data stored (e.g., cleaned files, validation reports if persisted) should include a company_id to ensure data isolation.
+
+4.3. Frontend (public/ directory)
+index.html:
+
+Updated registration form to include a "Company Name" input field.
+
+Login form now accepts either "Username or Email" as an identifier.
+
+JavaScript sends company_name during registration and identifier during login to backend functions.
+
+dashboard.html:
+
+Updated to display the authenticated user's company_name retrieved from the protected.js function's JWT payload.
+
+Displays general Excel tool insights.
+
+tools.html:
+
+Lists all available Excel tools.
+
+Uses data-status="development" and CSS to hide tools not yet ready.
+
+tools/data-cleaner.html:
+
+Dedicated page for the Data Cleaner tool.
+
+Backend processing (clean-excel.js) handles file cleaning and download.
+
+tools/validation-engine.html:
+
+Performs Excel validation entirely client-side using xlsx.full.min.js.
+
+Provides interactive analysis and a downloadable report.
+
+Navigation links streamlined to match main site structure.
+
+"Show Values" button functionality fixed via event delegation.
+
+4.4. Backend (netlify/functions/ directory)
+package.json:
+
+Lists necessary Node.js modules for all functions: pg, bcryptjs, jsonwebtoken, busboy, exceljs.
+
+register.js:
+
+Updated: Accepts company_name. Checks if company exists; if not, creates a new companies entry. Associates the new user with company_id.
+
+login.js:
+
+Updated: Accepts identifier (username or email). Queries users table by both username and email. Includes company_id and company_name in the generated JWT payload.
+
+protected.js:
+
+Updated: Decodes company_id and company_name from the JWT and returns them. This company_id is crucial for securing data access in other backend functions.
+
+clean-excel.js:
+
+Backend function for the Data Cleaner tool. Handles file upload, cleaning, and returning a base64-encoded cleaned file and summary.
+
+Updated: Now authenticates requests by verifying the JWT and extracts company_id from it, making company_id available for data isolation in future database operations.
+
+4.5. Data Isolation Strategy (Crucial)
+The company_id is stored in the users table and included in the JWT upon login.
+
+For any backend functions that save or retrieve data specific to a company (e.g., clean-excel.js if it were to log cleaning events, or future functions for saving reports), they MUST:
+
+Extract the company_id from the decoded JWT.
+
+Include a WHERE company_id = <extracted_company_id> clause in all database queries (SELECT, INSERT, UPDATE, DELETE) to ensure only data belonging to that company is accessed or modified.
+
+5. Critical Setup & Configuration Steps
+Neon Database Changes:
+
+Run SQL to create the companies table.
+
+Run SQL to alter the users table to add company_id.
+
 Netlify Environment Variables:
 
-Go to Netlify Dashboard -> Site settings -> Build & deploy -> Environment variables.
+DATABASE_URL: Your Neon connection string.
 
-Add (or verify) these two variables:
+JWT_SECRET: Your strong, random secret key.
 
-DATABASE_URL: Your full connection string from Neon (e.g., postgresql://user:pass@host:port/db?sslmode=require). Crucial: Copy directly from Neon.
-
-JWT_SECRET: A long, randomly generated, unique string (e.g., generated via require('crypto').randomBytes(32).toString('hex') in Node.js).
-
-For both, ensure the "Functions" scope is checked.
+Ensure both have "Functions" scope checked.
 
 6. Common Issues & Troubleshooting
-"Network error. Please check your connection." (on frontend):
+"Network error. Please check your connection." (on frontend): Frontend fetch request failed to reach the Netlify Function. Check Netlify logs for register.js, login.js errors.
 
-Cause: Frontend fetch request failed to reach the Netlify Function.
+Functions not showing in Netlify deploy logs or failing to build: Incorrect path in netlify.toml (functions = "netlify/functions") or missing netlify/functions/package.json dependencies. Ensure netlify.toml has [[plugins]] package = "@netlify/plugin-functions-install-core".
 
-Troubleshooting:
+SyntaxError: Unexpected token '<' in function logs: A .js function file contains HTML content. Verify file content on GitHub.
 
-Check Netlify Deploy logs for the latest successful deploy.
+Login fails after "username or email" update: Ensure netlify/functions/login.js is updated to query by WHERE email = $1 OR username = $1.
 
-Go to the "Functions" section within the deploy logs.
-
-Look for any errors in the logs of register.js or login.js after attempting a client-side call.
-
-Inspect your browser's Network tab in Developer Tools for the /api/login or /api/register request (check status code, response, payload).
-
-Functions not showing in Netlify deploy logs or failing to build:
-
-Cause 1: Incorrect path in netlify.toml. The functions = "netlify/functions" must exactly match the folder structure in your GitHub repo (including casing).
-
-Cause 2: Missing Netlify plugin for function dependency installation.
-
-Solution: Ensure netlify.toml contains:
-
-[[plugins]]
-package = "@netlify/plugin-functions-install-core"
-
-SyntaxError: Unexpected token '<' in function logs:
-
-Cause: One of your .js function files (login.js, register.js, protected.js) was accidentally saved or replaced with HTML content (which starts with <).
-
-Solution: Verify the content of each .js file in netlify/functions/ on GitHub.com to ensure they contain only valid JavaScript code.
+"Show Values" button not working (on Validation Engine): Ensure the button's type is button and that the JavaScript event delegation for .toggle-values-btn is correctly targeting the button in public/tools/validation-engine.html. (This was addressed in previous steps).
 
 7. Deployment Process
-Local Setup: Create the project structure and files as described.
+Local Setup: Apply all code changes (updated index.html, dashboard.html, login.js, register.js, protected.js, clean-excel.js, validation-engine.html, tools.html, and companies table SQL).
 
-Git & GitHub: Commit all files (except those in .gitignore) and push to your GitHub repository.
+Consider removing netlify/functions/validate-excel.js as it is no longer used by the frontend for validation.
 
-Netlify Sync: Since Netlify is synced, it will automatically detect the push and trigger a new deployment.
+Git & GitHub: Commit all changes and push to your GitHub repository.
+
+Netlify Sync: Netlify will automatically trigger a new deployment.
 
 Monitor Deployment: Observe the "Deploys" tab in your Netlify dashboard until the site shows "Published."
 
-Test Live Site: Visit your Netlify-provided URL and test registration, login, and dashboard access.
+Test Live Site: Verify registration (with company name), login (with username/email), and tool functionality (Data Cleaner and Validation Engine).
 
-This document should serve as a comprehensive guide for future reference regarding your RCM Buddy application.
+This updated document provides a comprehensive blueprint for your multi-company Excel Buddy application.
+
+Final Next Step for you:
+
+Commit and push these latest changes to your GitHub repository.
+
+Once Netlify successfully deploys, your Excel Buddy application will fully support multi-company registration, login, and basic data isolation principles. Remember to continue applying the company_id isolation logic to any new backend functions that interact with company-specific data.
