@@ -143,7 +143,7 @@ exports.handler = async (event, context) => {
         };
     }
 
-    // Authenticate and get company_id from JWT
+    // Authenticate and get company_id from JWT (REQUIRED for data isolation)
     const authHeader = event.headers.authorization;
     if (!authHeader) {
         return { statusCode: 401, body: JSON.stringify({ message: 'Authentication required.' }) };
@@ -157,10 +157,11 @@ exports.handler = async (event, context) => {
     try {
         decoded = jwt.verify(token, process.env.JWT_SECRET);
     } catch (error) {
+        // If token is invalid/expired, return 403 Forbidden
         return { statusCode: 403, body: JSON.stringify({ message: 'Invalid or expired token.' }) };
     }
-    const company_id = decoded.company_id; // Get company_id from the authenticated user's JWT
-    // You can also get user_id: const user_id = decoded.id;
+    const company_id = decoded.company_id; // Extract company_id from the authenticated user's JWT
+    const user_id = decoded.id; // Extract user_id (optional, but good for logging who did what)
 
     // Ensure the request is multipart/form-data
     if (!event.headers['content-type'] || !event.headers['content-type'].includes('multipart/form-data')) {
@@ -197,14 +198,19 @@ exports.handler = async (event, context) => {
         // Write the cleaned workbook to a buffer
         const cleanedFileBuffer = await workbook.xlsx.writeBuffer();
 
-        // --- Data Isolation Consideration (if saving/logging cleaning events) ---
-        // If you were to save a record of this cleaning event to your database,
-        // you would now include `company_id` (and potentially `user_id`) in that database record.
-        // For example:
-        // await pool.query(
-        //     'INSERT INTO cleaning_logs (user_id, company_id, file_name, summary) VALUES ($1, $2, $3, $4)',
-        //     [user_id, company_id, excelFile.filename, JSON.stringify(cleaningSummary)]
-        // );
+        // --- IMPORTANT FOR MULTI-COMPANY DATA ISOLATION ---
+        // If you were to save a record of this cleaning event or the file itself to your database,
+        // you would NOW include `company_id` (and potentially `user_id`) in that database record.
+        // This is where you enforce that only data for the current company is handled/stored.
+        // For example (this is conceptual, not implemented here):
+        /*
+        const { Pool } = require('pg'); // Need to re-require if not already at top for this block
+        const dbPool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
+        await dbPool.query(
+             'INSERT INTO cleaning_logs (user_id, company_id, original_file_name, cleaned_summary, cleaned_file_size_kb) VALUES ($1, $2, $3, $4, $5)',
+             [user_id, company_id, excelFile.filename, JSON.stringify(cleaningSummary), cleanedFileBuffer.length / 1024]
+        );
+        */
 
         // Respond with the cleaned file as base64 and the summary
         return {
@@ -222,9 +228,14 @@ exports.handler = async (event, context) => {
 
     } catch (error) {
         console.error('Error in clean-excel function:', error);
+        // Provide more detailed error message if it's a known error type, otherwise generic
+        let userFacingError = 'Error processing Excel file.';
+        if (error.message.includes('file format')) {
+            userFacingError = 'Invalid Excel file format. Please upload a valid .xlsx or .xls file.';
+        }
         return {
             statusCode: 500,
-            body: JSON.stringify({ message: 'Error processing Excel file.', error: error.message })
+            body: JSON.stringify({ message: userFacingError, error: error.message })
         };
     }
 };
