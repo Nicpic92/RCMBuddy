@@ -15,5 +15,6 @@
     "pg": "^8.11.3",
     "busboy": "^1.6.0",
     "exceljs": "^4.4.0"
+    // Note: "@google-cloud/storage" was removed as per previous instructions for Neon direct file storage
   }
 }
