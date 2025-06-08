@@ -1,0 +1,186 @@
+/* Import Poppins font */
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap');
+
+/* Base Body and HTML Styling (ensure these don't conflict with global Tailwind) */
+body, html {
+    margin: 0;
+    padding: 0;
+    font-family: 'Poppins', sans-serif; /* Custom font */
+    line-height: 1.6;
+}
+
+/* Top Navigation Bar - Basic styles (Tailwind handles most) */
+.top-nav {
+    /* Background and shadow are handled by Tailwind classes in HTML */
+    /* .bg-gradient-to-r from-blue-600 to-indigo-700 p-4 shadow-lg */
+}
+.tool-list {
+    list-style: none; /* Remove bullet points */
+    margin: 0;
+    padding: 0;
+    /* display: flex; gap: 20px; handled by Tailwind in HTML */
+}
+.tool-link {
+    /* Color, text-decoration, font-weight, font-size, padding, border-radius, transition handled by Tailwind in HTML */
+}
+.tool-link:hover {
+    /* background-color handled by Tailwind in HTML */
+}
+.tool-link.active {
+    /* background-color, font-weight handled by Tailwind in HTML */
+}
+.logout-button {
+    /* Padding, border, background-color, color, font-size, font-weight, border-radius, cursor, transition handled by Tailwind in HTML */
+}
+.logout-button:hover {
+    /* background-color handled by Tailwind in HTML */
+}
+
+/* Main Content Styling - Most handled by Tailwind classes in HTML */
+.container {
+    /* max-width, margin, padding handled by Tailwind in HTML */
+}
+.page-header {
+    /* text-align, margin-bottom handled by Tailwind in HTML */
+}
+.page-header h1 {
+    /* color, font-size, font-weight, margin handled by Tailwind in HTML */
+}
+.content-box {
+    /* background-color, padding, border-radius, box-shadow, border, margin-bottom handled by Tailwind in HTML */
+}
+
+h2, h3, h4 { /* color handled by Tailwind in HTML */ }
+.intro-text { /* margin-bottom, font-size, color handled by Tailwind in HTML */ }
+input[type="file"] {
+    /* margin-bottom, font-family, display handled by Tailwind in HTML */
+}
+button, .action-button {
+    /* padding, background-color, color, border, border-radius, cursor, font-size, font-family, margin, transition handled by Tailwind in HTML */
+}
+button:hover, .action-button:hover {
+    /* background-color, transform, box-shadow handled by Tailwind in HTML */
+}
+.toggle-values-btn {
+    /* font-size, padding, margin-left, background-color handled by Tailwind in HTML */
+}
+.toggle-values-btn:hover {
+    /* background-color handled by Tailwind in HTML */
+}
+
+/* Loader Animation - specific CSS needed for animation */
+.loader {
+    border: 6px solid #e9ecef;
+    border-top: 6px solid #2D62B3;
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    animation: spin 0.8s linear infinite;
+    display: none; /* Hidden by default */
+    margin: 25px auto;
+}
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Analysis Results Section */
+#results { margin-top: 25px; }
+#results ul { list-style-type: none; padding: 0; }
+#results li { padding: 10px 0; border-bottom: 1px solid #e9ecef; line-height: 1.5; }
+#results li:last-child { border-bottom: none; }
+.count-display { /* font-weight, margin-top, font-size, color handled by Tailwind in HTML */ }
+
+#overallCounts, .summary-section {
+    /* margin-bottom, padding, background-color, border-radius handled by Tailwind in HTML */
+}
+.column-summary {
+    display: flex;
+    flex-direction: column;
+    padding: 8px 0;
+}
+.column-header-controls {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap; /* Allow wrapping on small screens */
+    margin-bottom: 5px;
+}
+.column-issue-text { flex-grow: 1; }
+.column-issue-text .clean { /* color, font-weight handled by Tailwind in HTML */ }
+.column-issue-text .issues { /* color, font-weight handled by Tailwind in HTML */ }
+.column-counts { /* font-style, color, font-size, margin-top handled by Tailwind in HTML */ }
+
+/* Column Values Display */
+.column-values-container {
+    margin-top: 12px;
+    margin-left: 25px;
+    padding: 12px;
+    background-color: #ffffff;
+    border: 1px solid #dee2e6;
+    border-radius: 6px;
+    max-height: 350px;
+    overflow-y: auto; /* Scroll for long lists */
+    box-shadow: inset 0 1px 3px rgba(0,0,0,0.05);
+}
+.column-values-container ul { list-style-type: none; padding-left: 0; }
+.column-values-container li { padding: 4px 0; border-bottom: none; font-size: 0.9em; }
+.value-date { /* color handled by Tailwind in HTML */ }
+.value-future-date { /* color, font-weight handled by Tailwind in HTML */ }
+.value-null { /* color, font-style handled by Tailwind in HTML */ }
+.value-blank { /* color, font-style handled by Tailwind in HTML */ }
+.value-generic-issue { /* font-weight, color handled by Tailwind in HTML */ }
+
+/* Override Styling */
+.column-summary.opacity-50.line-through .column-issue-text, .column-summary.opacity-50.line-through .column-counts {
+    /* text-decoration, color handled by Tailwind in HTML */
+}
+.override-checkbox-label { /* margin-right, font-size, color, cursor handled by Tailwind in HTML */ }
+.override-checkbox { /* margin-right, cursor, vertical-align handled by Tailwind in HTML */ }
+
+/* Summary Report Table */
+#summaryReportContainer table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 20px;
+}
+#summaryReportContainer th, #summaryReportContainer td {
+    border: 1px solid #dee2e6;
+    padding: 10px;
+    text-align: left;
+}
+#summaryReportContainer th {
+    background-color: #e9ecef;
+    font-weight: 600;
+}
+.pass-status { /* color, font-weight handled by Tailwind in HTML */ }
+.fail-status { /* color, font-weight handled by Tailwind in HTML */ }
+#printSummaryBtn { /* background-color handled by Tailwind in HTML */ }
+#printSummaryBtn:hover { /* background-color handled by Tailwind in HTML */ }
+#exportExcelBtn { /* background-color handled by Tailwind in HTML */ }
+#exportExcelBtn:hover { /* background-color handled by Tailwind in HTML */ }
+.editable-stat { /* background-color, padding, border-radius handled by Tailwind in HTML */ }
+.editable-stat:focus { /* background-color, outline handled by Tailwind in HTML */ }
+.stat-overridden-marker { /* color, font-style, font-size handled by Tailwind in HTML */ }
+td.editable-stat.opacity-50.line-through { /* text-decoration, color, background-color handled by Tailwind in HTML */ }
+
+/* Responsive Adjustments - most handled by Tailwind classes in HTML */
+@media (max-width: 992px) {
+    .top-nav { /* flex-direction, padding, gap handled by Tailwind in HTML */ }
+    .tool-list { /* flex-direction, width, align-items, gap handled by Tailwind in HTML */ }
+    .tool-link { /* display, width, text-align handled by Tailwind in HTML */ }
+}
+
+/* Print Specific Styles - needs direct CSS rules */
+@media print {
+    body { background-color: #fff; }
+    body * { visibility: hidden; } /* Hide everything by default */
+    #summaryReportContainer, #summaryReportContainer * { visibility: visible; } /* Show only report container */
+    #summaryReportContainer { position: absolute; left: 0; top: 0; width: 100%; border: none !important; box-shadow: none !important; margin:0 !important; padding:0 !important; border-radius: 0; }
+    .print-hidden { display: none !important; } /* Class to hide elements specifically when printing */
+    #summaryReportContainer h1, #summaryReportContainer h2, #summaryReportContainer h3, #summaryReportContainer h4 { color: black !important; border: none !important; }
+    #summaryReportContainer table, #summaryReportContainer th, #summaryReportContainer td { border: 1px solid #666 !important; }
+    #summaryReportContainer th { background-color: #eee !important; }
+    a { text-decoration: none; color: black !important; }
+    .pass-status { color: #006400 !important; } /* Dark green for print */
+    .fail-status { color: #8B0000 !important; } /* Dark red for print */
+}
