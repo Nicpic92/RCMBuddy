@@ -2,95 +2,84 @@
 const { Pool } = require('pg');
 const bcrypt = require('bcryptjs');
 
-// Initialize database connection pool.
-// This is outside the handler to allow connection reuse across function invocations,
-// which is efficient in a serverless environment.
 const pool = new Pool({
-    connectionString: process.env.DATABASE_URL, // Get connection string from Netlify Environment Variables
+    connectionString: process.env.DATABASE_URL,
     ssl: {
-        rejectUnauthorized: false // Required for Neon's default SSL setup
+        rejectUnauthorized: false
     }
 });
 
-/**
- * Netlify Function handler for user registration.
- * Expects a POST request with username, email, and password in the body.
- */
 exports.handler = async (event, context) => {
-    // Only allow POST requests for this endpoint
     if (event.httpMethod !== 'POST') {
-        return {
-            statusCode: 405,
-            body: 'Method Not Allowed'
-        };
+        return { statusCode: 405, body: 'Method Not Allowed' };
     }
 
     let body;
     try {
-        // Parse the request body. Netlify Functions provide body as a string.
         body = JSON.parse(event.body);
     } catch (error) {
-        // Handle malformed JSON body
         console.error("Failed to parse request body:", error);
-        return {
-            statusCode: 400,
-            body: JSON.stringify({ message: 'Invalid JSON body.' })
-        };
+        return { statusCode: 400, body: JSON.stringify({ message: 'Invalid JSON body.' }) };
     }
 
-    const { username, email, password } = body;
+    const { username, email, password, company_name } = body; // Now expecting company_name from frontend
 
-    // Validate if all required fields are present
-    if (!username || !email || !password) {
-        return {
-            statusCode: 400,
-            body: JSON.stringify({ message: 'All fields (username, email, password) are required.' })
-        };
+    if (!username || !email || !password || !company_name) {
+        return { statusCode: 400, body: JSON.stringify({ message: 'All fields (username, email, password, company name) are required.' }) };
     }
 
+    let client; // Declare client outside try block for finally block access
     try {
-        // Generate a salt and hash the password.
-        // bcryptjs is used for secure password storage.
-        const salt = await bcrypt.genSalt(10); // 10 rounds is a good balance for security and performance
+        client = await pool.connect(); // Get a client from the pool to use for a transaction
+        await client.query('BEGIN'); // Start a transaction for atomicity
+
+        // 1. Check if the company already exists
+        let companyId;
+        const companyResult = await client.query('SELECT id FROM companies WHERE name = $1', [company_name]);
+
+        if (companyResult.rows.length > 0) {
+            // Company found, use its existing ID
+            companyId = companyResult.rows[0].id;
+        } else {
+            // Company not found, create a new one
+            const newCompanyResult = await client.query(
+                'INSERT INTO companies (name) VALUES ($1) RETURNING id',
+                [company_name]
+            );
+            companyId = newCompanyResult.rows[0].id; // Get the ID of the newly created company
+        }
+
+        // 2. Hash the user's password
+        const salt = await bcrypt.genSalt(10);
         const passwordHash = await bcrypt.hash(password, salt);
 
-        // Insert the new user into the 'users' table in the Neon database.
-        // Using parameterized queries ($1, $2, $3) prevents SQL injection attacks.
-        const result = await pool.query(
-            'INSERT INTO users (username, email, password_hash) VALUES ($1, $2, $3) RETURNING id, username, email',
-            [username, email, passwordHash]
+        // 3. Store the user in the database, linking them to the company
+        const userResult = await client.query(
+            'INSERT INTO users (username, email, password_hash, company_id) VALUES ($1, $2, $3, $4) RETURNING id, username, email',
+            [username, email, passwordHash, companyId]
         );
 
-        // Respond with success message and basic user info (excluding password hash)
+        await client.query('COMMIT'); // Commit the transaction if all operations succeed
+
         return {
             statusCode: 201, // 201 Created status for successful resource creation
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
                 message: 'User registered successfully!',
-                user: {
-                    id: result.rows[0].id,
-                    username: result.rows[0].username,
-                    email: result.rows[0].email
-                }
+                user: { id: userResult.rows[0].id, username: userResult.rows[0].username, email: userResult.rows[0].email },
+                company_id: companyId,
+                company_name: company_name
             })
         };
 
     } catch (error) {
-        // Log the full error for debugging in Netlify logs
-        console.error('Registration error:', error);
-
-        // Handle specific PostgreSQL error for unique constraint violation (e.g., username/email already exists)
-        if (error.code === '23505') { // '23505' is the unique_violation error code in PostgreSQL
-            return {
-                statusCode: 409, // 409 Conflict status
-                body: JSON.stringify({ message: 'Username or email already exists. Please choose another.' })
-            };
+        if (client) await client.query('ROLLBACK'); // Rollback the transaction on any error
+        if (error.code === '23505') { // PostgreSQL unique violation error code
+            return { statusCode: 409, body: JSON.stringify({ message: 'Username or email already exists.' }) };
         }
-
-        // Catch any other server-side errors
-        return {
-            statusCode: 500, // 500 Internal Server Error
-            body: JSON.stringify({ message: 'Server error during registration.' })
-        };
+        console.error('Registration error:', error);
+        return { statusCode: 500, body: JSON.stringify({ message: 'Server error during registration.' }) };
+    } finally {
+        if (client) client.release(); // Always release the client back to the pool
     }
 };
