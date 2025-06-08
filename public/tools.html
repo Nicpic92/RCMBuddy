@@ -13,6 +13,10 @@
             font-family: 'Inter', sans-serif;
             background-color: #f0f4f8; /* Light background */
         }
+        /* CSS to hide tools marked as 'development' */
+        .tool-card[data-status="development"] {
+            display: none;
+        }
     </style>
 </head>
 <body class="flex flex-col min-h-screen text-gray-800">
@@ -42,57 +46,50 @@
 
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 <!-- Tool Card 1: Data Cleaner -->
-                <div class="bg-blue-50 p-6 rounded-lg shadow-md border border-blue-200 transform hover:scale-105 transition-transform duration-300">
+                <div class="tool-card bg-blue-50 p-6 rounded-lg shadow-md border border-blue-200 transform hover:scale-105 transition-transform duration-300" data-status="ready">
                     <h3 class="text-xl font-bold text-blue-600 mb-3">Data Cleaner</h3>
-                    <p class="text-gray-600 mb-4">Clean your data, that easily.</p>
+                    <p class="text-gray-600 mb-4">Automatically identify and remove duplicates, fix formatting issues, and standardize text across your Excel files.</p>
                     <a href="/tools/data-cleaner.html" class="inline-block bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-full transition duration-300">
                         Launch Tool
                     </a>
                 </div>
 
                 <!-- Tool Card 2: Validation Engine -->
-                <div class="bg-green-50 p-6 rounded-lg shadow-md border border-green-200 transform hover:scale-105 transition-transform duration-300">
+                <div class="tool-card bg-green-50 p-6 rounded-lg shadow-md border border-green-200 transform hover:scale-105 transition-transform duration-300" data-status="ready">
                     <h3 class="text-xl font-bold text-green-600 mb-3">Validation Engine</h3>
                     <p class="text-gray-600 mb-4">Set up custom validation rules to ensure data integrity and prevent errors in your spreadsheets.</p>
                     <a href="/tools/validation-engine.html" class="inline-block bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-full transition duration-300">
                         Launch Tool
+
                     </a>
                 </div>
 
-                <!-- Tool Card 3: Report Automator -->
-                <div class="bg-purple-50 p-6 rounded-lg shadow-md border border-purple-200 transform hover:scale-105 transition-transform duration-300">
+                <!-- Tool Card 3: Report Automator (Under Development) -->
+                <div class="tool-card bg-purple-50 p-6 rounded-lg shadow-md border border-purple-200 transform hover:scale-105 transition-transform duration-300" data-status="development">
                     <h3 class="text-xl font-bold text-purple-600 mb-3">Report Automator</h3>
                     <p class="text-gray-600 mb-4">Automate the generation and distribution of your routine Excel reports with custom templates.</p>
-                    <a href="/tools/report-automator.html" class="inline-block bg-purple-500 hover:bg-purple-600 text-white font-bold py-2 px-4 rounded-full transition duration-300">
-                        Launch Tool
-                    </a>
+                    <span class="inline-block text-sm text-gray-500 italic">Coming Soon!</span>
                 </div>
 
-                <!-- Tool Card 4: Merger & Splitter -->
-                <div class="bg-yellow-50 p-6 rounded-lg shadow-md border border-yellow-200 transform hover:scale-105 transition-transform duration-300">
+                <!-- Tool Card 4: Merger & Splitter (Under Development) -->
+                <div class="tool-card bg-yellow-50 p-6 rounded-lg shadow-md border border-yellow-200 transform hover:scale-105 transition-transform duration-300" data-status="development">
                     <h3 class="text-xl font-bold text-yellow-600 mb-3">Merger & Splitter</h3>
                     <p class="text-gray-600 mb-4">Efficiently combine multiple Excel files or split large spreadsheets into manageable parts.</p>
-                    <a href="/tools/merger-splitter.html" class="inline-block bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-2 px-4 rounded-full transition duration-300">
-                        Launch Tool
-                    </a>
+                    <span class="inline-block text-sm text-gray-500 italic">Coming Soon!</span>
                 </div>
 
-                <!-- Tool Card 5: Macro Recorder & Editor -->
-                <div class="bg-red-50 p-6 rounded-lg shadow-md border border-red-200 transform hover:scale-105 transition-transform duration-300">
+                <!-- Tool Card 5: Macro Recorder & Editor (Under Development) -->
+                <div class="tool-card bg-red-50 p-6 rounded-lg shadow-md border border-red-200 transform hover:scale-105 transition-transform duration-300" data-status="development">
                     <h3 class="text-xl font-bold text-red-600 mb-3">Macro Recorder & Editor</h3>
                     <p class="text-gray-600 mb-4">Record your repetitive Excel actions and easily edit or share the generated VBA macros.</p>
-                    <a href="/tools/macro-editor.html" class="inline-block bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-full transition duration-300">
-                        Launch Tool
-                    </a>
+                    <span class="inline-block text-sm text-gray-500 italic">Coming Soon!</span>
                 </div>
 
-                <!-- Tool Card 6: Custom Formula Builder -->
-                <div class="bg-indigo-50 p-6 rounded-lg shadow-md border border-indigo-200 transform hover:scale-105 transition-transform duration-300">
+                <!-- Tool Card 6: Custom Formula Builder (Under Development) -->
+                <div class="tool-card bg-indigo-50 p-6 rounded-lg shadow-md border border-indigo-200 transform hover:scale-105 transition-transform duration-300" data-status="development">
                     <h3 class="text-xl font-bold text-indigo-600 mb-3">Custom Formula Builder</h3>
                     <p class="text-gray-600 mb-4">Create, save, and manage your own complex Excel formulas for re-use and efficiency.</p>
-                    <a href="/tools/formula-builder.html" class="inline-block bg-indigo-500 hover:bg-indigo-600 text-white font-bold py-2 px-4 rounded-full transition duration-300">
-                        Launch Tool
-                    </a>
+                    <span class="inline-block text-sm text-gray-500 italic">Coming Soon!</span>
                 </div>
             </div>
         </section>
