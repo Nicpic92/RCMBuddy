@@ -532,6 +532,7 @@
 
         document.getElementById('sheetResults').addEventListener('click', function(event) {
             const target = event.target;
+            // Handle clicks on "Override Issues" checkboxes
             if (target.classList.contains('override-checkbox')) {
                 const { sheet, column } = target.dataset;
                 const originalColName = findOriginalColumnName(sheet, column);
@@ -545,7 +546,9 @@
                         generateSummaryReport(false);
                     }
                 }
-            } else if (target.classList.contains('toggle-values-btn')) {
+            }
+            // Handle clicks on "Show Values" / "Hide Values" buttons
+            else if (target.classList.contains('toggle-values-btn')) { /* Corrected class name */
                 const { sheet, column } = target.dataset;
                 const originalColName = findOriginalColumnName(sheet, column);
                 const valuesContainer = target.closest('li').querySelector('.column-values-container');
