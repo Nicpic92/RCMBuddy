@@ -42,10 +42,10 @@
             <h2 class="text-2xl font-bold text-center text-indigo-700 mb-6">Welcome Back!</h2>
             <form id="loginForm" class="space-y-5">
                 <div>
-                    <label for="loginEmail" class="block text-sm font-medium text-gray-700">Email Address</label>
-                    <input type="email" id="loginEmail" name="email" required
+                    <label for="loginIdentifier" class="block text-sm font-medium text-gray-700">Username or Email</label>
+                    <input type="text" id="loginIdentifier" name="identifier" required
                            class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-base"
-                           placeholder="your.email@example.com">
+                           placeholder="your.username or your.email@example.com">
                 </div>
                 <div>
                     <label for="loginPassword" class="block text-sm font-medium text-gray-700">Password</label>
@@ -156,7 +156,7 @@
         document.getElementById('loginForm').addEventListener('submit', async function(event) {
             event.preventDefault(); // Prevent default browser form submission
 
-            const email = document.getElementById('loginEmail').value;
+            const identifier = document.getElementById('loginIdentifier').value; // Get username or email
             const password = document.getElementById('loginPassword').value;
 
             try {
@@ -164,7 +164,8 @@
                 const response = await fetch('/api/login', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ email, password })
+                    // Send identifier instead of email
+                    body: JSON.stringify({ identifier, password })
                 });
 
                 const data = await response.json(); // Parse the JSON response from the function
@@ -209,7 +210,7 @@
                 if (response.ok) { // Check if the HTTP status code is 2xx (success, specifically 201 Created)
                     showMessage('Registration successful! Please log in with your new account.', 'success');
                     // Optionally, pre-fill the login email and switch to login form
-                    document.getElementById('loginEmail').value = email;
+                    document.getElementById('loginIdentifier').value = email; // Pre-fill identifier with email
                     toggleForms(true); // Switch to the login form
                 } else {
                     // Display error message from the backend or a generic one
