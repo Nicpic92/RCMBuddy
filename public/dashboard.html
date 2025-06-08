@@ -43,6 +43,7 @@
                 <p><strong>Username:</strong> <span id="displayUsername"></span></p>
                 <p><strong>Email:</strong> <span id="displayEmail"></span></p>
                 <p><strong>User ID:</strong> <span id="displayId"></span></p>
+                <p><strong>Company:</strong> <span id="displayCompany"></span></p> {/* NEW LINE */}
             </div>
 
             <!-- Excel Tools & Automation Insights -->
@@ -82,7 +83,7 @@
                 return; // Stop execution
             }
 
-            // Attempt to fetch protected data from the backend using the JWT
+            // Attempt to fetch protected data using the token
             try {
                 const response = await fetch('/api/protected', { // Call the protected Netlify Function
                     method: 'GET',
@@ -98,6 +99,7 @@
                 const displayUsername = document.getElementById('displayUsername');
                 const displayEmail = document.getElementById('displayEmail');
                 const displayId = document.getElementById('displayId');
+                const displayCompany = document.getElementById('displayCompany'); // NEW LINE: Get company display element
 
 
                 if (response.ok) { // If the response status is 2xx (success)
@@ -107,6 +109,7 @@
                     displayUsername.textContent = data.user.username;
                     displayEmail.textContent = data.user.email;
                     displayId.textContent = data.user.id;
+                    displayCompany.textContent = data.user.company_name; // NEW LINE: Display company name
                     userDataSection.classList.remove('hidden'); // Show the user data section
                     console.log('Protected data fetched successfully:', data);
                 } else {
@@ -114,7 +117,7 @@
                     dashboardMessage.textContent = 'Session expired or invalid. Please log in again.';
                     dashboardMessage.className = 'mt-6 text-center text-lg font-medium text-red-700';
                     console.error('Protected route access error:', data.message);
-                    localStorage.removeItem('jwtToken'); // Clear the invalid token from local storage
+                    localStorage.removeItem('jwtToken'); // Clear invalid token
                     // Redirect to login after a short delay
                     setTimeout(() => {
                         window.location.href = '/';
@@ -136,13 +139,13 @@
         // --- Logout functionality ---
         document.getElementById('logoutBtn').addEventListener('click', () => {
             localStorage.removeItem('jwtToken'); // Remove the JWT from local storage
-            window.location.href = '/'; // Redirect to the login page
+            window.location.href = '/'; // Redirect to login page
         });
 
-        // Example: A placeholder for a profile link. In a real app, this might navigate to another page.
+        // Example: A placeholder for a profile link. In a real app, this might navigate to a dedicated profile page.
         document.getElementById('profileLink').addEventListener('click', (e) => {
             e.preventDefault(); // Prevent default link behavior
-            alert('This would navigate to a detailed user profile page or open a modal.');
+            alert('This would navigate to a detailed user profile page.');
         });
     </script>
 </body>
