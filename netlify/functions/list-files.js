@@ -33,9 +33,9 @@ exports.handler = async (event, context) => {
     try {
         client = await pool.connect();
         // Query to get all files for the current company_id
-        // Order by uploaded_at to show most recent first
+        // IMPORTANT: Now selecting 'is_data_dictionary' as well
         const filesResult = await client.query(
-            `SELECT id, original_filename, mimetype, size_bytes, uploaded_at, user_id
+            `SELECT id, original_filename, mimetype, size_bytes, uploaded_at, user_id, is_data_dictionary
              FROM company_files
              WHERE company_id = $1
              ORDER BY uploaded_at DESC`,
@@ -48,7 +48,8 @@ exports.handler = async (event, context) => {
             mimetype: file.mimetype,
             size_bytes: parseInt(file.size_bytes, 10), // Ensure size is a number
             uploaded_at: file.uploaded_at,
-            uploaded_by_user_id: file.user_id // Include uploader's ID if needed on frontend
+            uploaded_by_user_id: file.user_id, // Include uploader's ID
+            is_data_dictionary: file.is_data_dictionary // Include is_data_dictionary flag
         }));
 
         return {
