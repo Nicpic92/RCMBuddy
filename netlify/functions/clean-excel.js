@@ -2,6 +2,7 @@
 const Busboy = require('busboy'); // For parsing multipart/form-data (file uploads)
 const exceljs = require('exceljs'); // For reading, manipulating, and writing Excel files
 const { Readable } = require('stream'); // Node.js stream utility
+const jwt = require('jsonwebtoken'); // For JWT verification to get company_id
 
 /**
  * Helper function to parse multipart/form-data from Netlify Function event.
@@ -142,6 +143,25 @@ exports.handler = async (event, context) => {
         };
     }
 
+    // Authenticate and get company_id from JWT
+    const authHeader = event.headers.authorization;
+    if (!authHeader) {
+        return { statusCode: 401, body: JSON.stringify({ message: 'Authentication required.' }) };
+    }
+    const token = authHeader.split(' ')[1];
+    if (!token) {
+        return { statusCode: 401, body: JSON.stringify({ message: 'Authentication token missing.' }) };
+    }
+
+    let decoded;
+    try {
+        decoded = jwt.verify(token, process.env.JWT_SECRET);
+    } catch (error) {
+        return { statusCode: 403, body: JSON.stringify({ message: 'Invalid or expired token.' }) };
+    }
+    const company_id = decoded.company_id; // Get company_id from the authenticated user's JWT
+    // You can also get user_id: const user_id = decoded.id;
+
     // Ensure the request is multipart/form-data
     if (!event.headers['content-type'] || !event.headers['content-type'].includes('multipart/form-data')) {
         return {
@@ -176,6 +196,15 @@ exports.handler = async (event, context) => {
 
         // Write the cleaned workbook to a buffer
         const cleanedFileBuffer = await workbook.xlsx.writeBuffer();
+
+        // --- Data Isolation Consideration (if saving/logging cleaning events) ---
+        // If you were to save a record of this cleaning event to your database,
+        // you would now include `company_id` (and potentially `user_id`) in that database record.
+        // For example:
+        // await pool.query(
+        //     'INSERT INTO cleaning_logs (user_id, company_id, file_name, summary) VALUES ($1, $2, $3, $4)',
+        //     [user_id, company_id, excelFile.filename, JSON.stringify(cleaningSummary)]
+        // );
 
         // Respond with the cleaned file as base64 and the summary
         return {
