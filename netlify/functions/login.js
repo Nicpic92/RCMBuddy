@@ -13,7 +13,7 @@ const pool = new Pool({
 
 /**
  * Netlify Function handler for user login.
- * Expects a POST request with email and password in the body.
+ * Expects a POST request with 'identifier' (username or email) and 'password' in the body.
  */
 exports.handler = async (event, context) => {
     // Only allow POST requests
@@ -35,22 +35,25 @@ exports.handler = async (event, context) => {
         };
     }
 
-    const { email, password } = body;
+    const { identifier, password } = body; // Now expecting 'identifier'
 
     // Validate if required fields are present
-    if (!email || !password) {
+    if (!identifier || !password) {
         return {
             statusCode: 400,
-            body: JSON.stringify({ message: 'Email and password are required.' })
+            body: JSON.stringify({ message: 'Username/Email and password are required.' })
         };
     }
 
     try {
-        // Find the user by email in the database
-        const result = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
+        // Find the user by either username OR email in the database
+        const result = await pool.query(
+            'SELECT * FROM users WHERE email = $1 OR username = $1', // Query by identifier in both columns
+            [identifier]
+        );
         const user = result.rows[0];
 
-        // If no user is found with that email
+        // If no user is found with that identifier
         if (!user) {
             return {
                 statusCode: 401, // 401 Unauthorized
@@ -70,8 +73,6 @@ exports.handler = async (event, context) => {
         }
 
         // If login is successful, generate a JSON Web Token (JWT).
-        // The token contains user ID, username, and email.
-        // It's signed with a secret key from environment variables.
         const token = jwt.sign(
             { id: user.id, username: user.username, email: user.email },
             process.env.JWT_SECRET, // Get JWT secret from Netlify Environment Variables
