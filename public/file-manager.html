@@ -271,6 +271,23 @@
         function renderFiles(files) {
             fileListContainer.innerHTML = ''; // Clear previous content
             files.forEach(file => {
+                // Defensive parsing for filename: try to parse as JSON, otherwise use as-is
+                let displayFilename = file.filename;
+                // Check if the filename string starts with '{' and try to parse it as JSON
+                if (typeof file.filename === 'string' && file.filename.startsWith('{')) {
+                    try {
+                        const parsedFilenameObject = JSON.parse(file.filename);
+                        // If it's an object with a 'filename' property, use that
+                        if (parsedFilenameObject && typeof parsedFilenameObject.filename === 'string') {
+                            displayFilename = parsedFilenameObject.filename;
+                        }
+                    } catch (e) {
+                        // If parsing fails, it's not a JSON string, so use original file.filename
+                        console.warn('Filename looks like JSON but could not be parsed:', file.filename);
+                    }
+                }
+                // No change to file.mimetype; it should be correct as a string.
+
                 const fileItem = document.createElement('div');
                 fileItem.className = 'file-item'; // Apply Tailwind-like styles from CSS
 
@@ -278,11 +295,11 @@
 
                 fileItem.innerHTML = `
                     <div class="file-info">
-                        <div class="file-name">${file.filename}</div>
+                        <div class="file-name">${displayFilename}</div> {/* Use the potentially parsed filename */}
                         <div class="file-meta">${formatBytes(file.size_bytes)} | Uploaded: ${uploadedDate}</div>
                     </div>
                     <div class="file-actions">
-                        <button class="file-action-btn download-btn" data-file-id="${file.id}" data-file-name="${file.filename}" data-file-mimetype="${file.mimetype}">Download</button>
+                        <button class="file-action-btn download-btn" data-file-id="${file.id}" data-file-name="${displayFilename}" data-file-mimetype="${file.mimetype}">Download</button>
                         <button class="file-action-btn delete-btn delete ml-2" data-file-id="${file.id}">Delete</button>
                     </div>
                 `;
@@ -290,7 +307,6 @@
             });
 
             // Add event listeners for download and delete buttons (using event delegation)
-            // Remove any existing listener to prevent duplicate attachments if renderFiles is called multiple times
             const existingClickListener = fileListContainer._clickListener;
             if (existingClickListener) {
                 fileListContainer.removeEventListener('click', existingClickListener);
@@ -304,7 +320,6 @@
                     downloadFile(fileId, fileName, fileMimeType, target);
                 } else if (target.classList.contains('delete-btn')) {
                     const fileId = target.dataset.fileId;
-                    // Confirm before deleting
                     if (confirm('Are you sure you want to delete this file? This action cannot be undone.')) {
                         deleteFile(fileId, target);
                     }
@@ -332,10 +347,8 @@
                 });
 
                 if (response.ok) {
-                    // Assuming the backend sends base64 encoded file data in a JSON response
-                    const result = await response.json(); // Read as JSON first
+                    const result = await response.json(); // Backend sends JSON with base64 data
                     
-                    // Decode the base64 string to a binary string
                     const binaryString = atob(result.fileData); 
                     const len = binaryString.length;
                     const bytes = new Uint8Array(len);
@@ -343,18 +356,16 @@
                         bytes[i] = binaryString.charCodeAt(i);
                     }
                     
-                    // Create a Blob from the binary data with the correct MIME type
                     const blob = new Blob([bytes], { type: fileMimeType }); 
-                    const url = URL.createObjectURL(blob); // Create a temporary URL for the Blob
+                    const url = URL.createObjectURL(blob);
 
-                    // Create a temporary anchor tag to trigger the download
                     const a = document.createElement('a');
                     a.href = url;
-                    a.download = fileName; // Set the download filename
+                    a.download = fileName; 
                     document.body.appendChild(a);
-                    a.click(); // Programmatically click the link to trigger download
-                    document.body.removeChild(a); // Clean up the temporary link
-                    URL.revokeObjectURL(url); // Release the object URL
+                    a.click(); 
+                    document.body.removeChild(a); 
+                    URL.revokeObjectURL(url);
 
                     alert(`File "${fileName}" downloaded successfully!`);
                 } else {
