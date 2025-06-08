@@ -1,84 +1,74 @@
-RCM Buddy Project Setup Summary
-This document provides a comprehensive overview of the "RCM Buddy" web application, including its architecture, file structure, key code components, and deployment steps using Netlify, GitHub, and Neon (PostgreSQL). It also summarizes common issues and their solutions encountered during the setup.
+Excel Buddy Project Setup Summary (Comprehensive)
+This document provides a complete overview of the "Excel Buddy" web application's current state, architecture, file structure, key code components, database setup, and deployment steps using Netlify, GitHub, and Neon (PostgreSQL). It also includes a summary of issues encountered and their resolutions.
 
 1. Project Goal
-To create a web application named "RCM Buddy" with:
+To provide a web application named "Excel Buddy" focused on Excel file manipulation, data validation, and process automation. Key features include:
 
-User registration and login functionality.
+User Management: Secure user registration and login.
 
-A protected dashboard accessible only to authenticated users.
+Multi-Company Support: Allows multiple companies to use the application, with strict data isolation ensuring each company can only access its own data. Multiple users can belong to the same company.
 
-Data storage in a PostgreSQL database (Neon).
+File Management: Users can securely upload, store, list, download, and delete files (like Excel data dictionaries and other documents) directly within the Neon (PostgreSQL) database.
 
-Deployment via Netlify using Netlify Functions as the backend.
+Data Validation Tool: An interactive client-side tool to analyze Excel/CSV files for data quality issues, including integration with uploaded data dictionaries for custom validation rules.
 
-Version control with GitHub.
+Clean Data Tool: A client-side tool for basic Excel data cleaning (duplicates, trimming, case standardization).
 
-Core Focus: Providing tools and solutions for Excel file manipulation, data validation, and process automation.
+Deployment: Automated deployment via Netlify, leveraging Netlify Functions for backend logic.
 
-Multi-Company Support: Allow multiple companies to use the application with their data isolated from other companies. Multiple users can belong to the same company.
+Version Control: GitHub.
 
 2. Core Technologies Used
 Frontend: HTML, CSS (Tailwind CSS for styling), JavaScript
 
-Backend: Node.js (via Netlify Functions)
+Backend: Node.js (running as Netlify Functions)
 
-Database: Neon (PostgreSQL)
+Database: Neon (PostgreSQL) for user data, company data, and binary file data.
 
 Deployment Platform: Netlify
 
 Version Control: GitHub
 
-Authentication Mechanism: JSON Web Tokens (JWT) for stateless session management
+Authentication: JSON Web Tokens (JWT) for secure, stateless user sessions.
 
-Password Hashing: bcryptjs
+Password Hashing: bcryptjs.
 
-Excel Processing (Client-side): xlsx.full.min.js (for Validation Engine)
+File Upload Parsing: busboy (Node.js library for multipart/form-data).
 
-Excel Processing (Backend - for Data Cleaner): exceljs, busboy
+Excel Processing (Client-side): xlsx.full.min.js (for Validation Engine analysis and report generation).
 
-3. Project File Structure
-The project follows a specific directory structure optimized for Netlify deployments:
+Excel Processing (Backend): exceljs (for Data Cleaner processing).
 
-rcm-buddy-app/
-├── public/                     <-- Contains all static frontend assets (HTML, client-side JS)
-│   ├── index.html              <-- Main page for login/registration forms (includes Company Name for registration)
-│   ├── dashboard.html          <-- Protected page for authenticated users (displays company name)
-│   ├── tools.html              <-- Page listing all available Excel tools (can hide 'development' tools)
-│   └── tools/                  <-- New sub-directory for individual tool pages
-│       ├── data-cleaner.html   <-- Dedicated page for the Data Cleaner tool
-│       └── validation-engine.html <-- Dedicated page for the Validation Engine tool (Client-side)
-├── netlify/                    <-- Parent directory for Netlify-specific configurations
-│   └── functions/              <-- Contains Node.js serverless functions
-│       ├── package.json        <-- Lists Node.js dependencies for the functions
-│       ├── register.js         <-- Handles user registration logic (now handles Company creation/assignment)
-│       ├── login.js            <-- Handles user login logic and JWT generation (now includes Company ID/Name in JWT, queries by username/email)
-│       ├── protected.js        <-- Example function for a protected API endpoint (returns Company ID/Name)
-│       └── clean-excel.js      <-- Backend function for Data Cleaner tool (authenticates by JWT, requires company_id)
-├── tools/                      <-- New folder for various project tools (Non-web content, e.g., documentation)
-│   └── tracker tool            <-- A file within the tools folder
-├── netlify.toml                <-- Netlify build configuration and redirects
-└── .gitignore                  <-- Specifies files/folders to ignore in Git
+3. Current Project File Structure
+rcm-buddy-app/ (or excel-buddy-app/)
+├── public/                                 <-- Static frontend files
+│   ├── index.html                          <-- Login/Registration page
+│   ├── dashboard.html                      <-- User dashboard
+│   ├── tools.html                          <-- List of all tools
+│   ├── file-manager.html                   <-- File upload and listing page
+│   └── tools/                              <-- Sub-directory for individual tool pages
+│       ├── data-cleaner.html               <-- Data Cleaner UI
+│       ├── validation-engine.html          <-- Validation Engine UI (HTML only)
+│       ├── validation-engine.css           <-- Validation Engine custom CSS
+│       └── validation-engine.js            <-- Validation Engine client-side logic
+├── netlify/                                <-- Netlify Functions directory
+│   └── functions/
+│       ├── package.json                    <-- Function dependencies
+│       ├── register.js                     <-- User/Company registration logic
+│       ├── login.js                        <-- User login logic
+│       ├── protected.js                    <-- JWT verification for protected routes
+│       ├── upload-file.js                  <-- Handles file upload to Neon DB
+│       ├── list-files.js                   <-- Lists files from Neon DB (company-isolated)
+│       ├── get-file.js                     <-- Retrieves file data from Neon DB (company-isolated)
+│       └── delete-file.js                  <-- Deletes file from Neon DB (company-isolated)
+│       └── clean-excel.js                  <-- Backend for Data Cleaner tool
+├── netlify.toml                            <-- Netlify build configuration
+└── .gitignore                              <-- Git ignore rules
 
-4. Key Code Components & Their Roles
-4.1. netlify.toml
-Located at the project root. Essential for Netlify to understand the project structure and routing.
+4. Database Schema
+The application uses a PostgreSQL database (Neon) with the following tables:
 
-[build]
-  publish = "public"            # Specifies the frontend static assets directory
-  functions = "netlify/functions" # Specifies the Netlify Functions directory
-
-[[redirects]]
-  from = "/api/*"
-  to = "/.netlify/functions/:splat" # Routes all /api/ requests to Netlify Functions
-  status = 200
-
-# Required plugin to automatically install Node.js dependencies for Netlify Functions
-[[plugins]]
-package = "@netlify/plugin-functions-install-core"
-
-4.2. Database Schema for Multi-Company Support
-companies table:
+companies table: Stores information about each client company.
 
 CREATE TABLE companies (
     id SERIAL PRIMARY KEY,
@@ -86,130 +76,193 @@ CREATE TABLE companies (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
-users table (updated):
+users table: Stores user credentials and links to their company.
 
+-- Assuming existing users table, alter to add company_id
 ALTER TABLE users
 ADD COLUMN company_id INTEGER REFERENCES companies(id) ON DELETE RESTRICT;
 
--- Optional: If you want to ensure a user always belongs to a company
--- (i.e., this column cannot be null), you can run this additional command:
+-- Optional: If you want to enforce that every user MUST belong to a company
 -- ALTER TABLE users
 -- ALTER COLUMN company_id SET NOT NULL;
 
-Any future data stored (e.g., cleaned files, validation reports if persisted) should include a company_id to ensure data isolation.
+company_files table: Stores metadata and the binary data of uploaded files, with strict company and user ownership.
 
-4.3. Frontend (public/ directory)
+CREATE TABLE company_files (
+    id SERIAL PRIMARY KEY,
+    company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE, -- CRUCIAL for data isolation
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    original_filename VARCHAR(255) NOT NULL,
+    mimetype VARCHAR(100),
+    size_bytes BIGINT,
+    file_data BYTEA NOT NULL, -- Stores the actual file content as binary data (suitable for smaller files)
+    is_data_dictionary BOOLEAN DEFAULT FALSE, -- NEW: Flag to identify data dictionary files
+    uploaded_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+5. Key Code Components & Their Roles
+5.1. netlify.toml
+The primary configuration for Netlify deployment. It defines build directories, function paths, and API redirects.
+
+[build]
+  publish = "public"
+  functions = "netlify/functions"
+
+[[redirects]]
+  from = "/api/*"
+  to = "/.netlify/functions/:splat"
+  status = 200
+
+[[plugins]]
+package = "@netlify/plugin-functions-install-core"
+
+5.2. Frontend Pages (public/ and public/tools/)
 index.html:
 
-Updated registration form to include a "Company Name" input field.
+Registration: Form collects company_name, username, email, password. Sends data to /api/register.
 
-Login form now accepts either "Username or Email" as an identifier.
+Login: Form accepts username or email as identifier, plus password. Sends data to /api/login.
 
-JavaScript sends company_name during registration and identifier during login to backend functions.
+Stores jwtToken in localStorage on successful login.
 
 dashboard.html:
 
-Updated to display the authenticated user's company_name retrieved from the protected.js function's JWT payload.
+Authenticates via JWT.
 
-Displays general Excel tool insights.
+Displays logged-in user's username, email, and company_name (fetched from /api/protected).
+
+Provides links to tools.html.
 
 tools.html:
 
-Lists all available Excel tools.
+Lists all available tools (File Manager, Data Cleaner, Validation Engine, etc.).
 
-Uses data-status="development" and CSS to hide tools not yet ready.
+Tools can be hidden using data-status="development" attribute on their div elements combined with a CSS rule.
+
+file-manager.html:
+
+File Upload: Form for selecting a file and a checkbox to Mark as Data Dictionary. Sends FormData to /api/upload-file.
+
+File Listing: Fetches file metadata from /api/list-files and displays it.
+
+File Download: Calls /api/get-file to retrieve and download binary file data.
+
+File Delete: Calls /api/delete-file to delete file metadata and binary data from Neon.
+
+Includes defensive parsing in renderFiles to handle original_filename potentially stored as a JSON string from earlier versions.
 
 tools/data-cleaner.html:
 
-Dedicated page for the Data Cleaner tool.
+UI for uploading Excel files and applying cleaning options.
 
-Backend processing (clean-excel.js) handles file cleaning and download.
+Calls clean-excel.js backend function for processing and download.
 
 tools/validation-engine.html:
 
-Performs Excel validation entirely client-side using xlsx.full.min.js.
+Client-side Validation: Uses xlsx.full.min.js to perform all Excel file analysis, rule application, and report generation directly in the browser.
 
-Provides interactive analysis and a downloadable report.
+Data Dictionary Selection: Loads dropdown with files marked is_data_dictionary from /api/list-files. Allows user to select and load a dictionary.
 
-Navigation links streamlined to match main site structure.
+Dynamic Rules: When a data dictionary is loaded, its "Validation Rules" sheet is parsed to define validation rules (e.g., REQUIRED, DATE_PAST, ALLOWED_VALUES, NUMERIC_RANGE, REGEX, UNIQUE).
 
-"Show Values" button functionality fixed via event delegation.
+Rule Application: The analyzeFile function now applies these parsed data dictionary rules to the uploaded main Excel file.
 
-4.4. Backend (netlify/functions/ directory)
-package.json:
+Downloadable Report: Generates and exports a summary report as an Excel file.
 
-Lists necessary Node.js modules for all functions: pg, bcryptjs, jsonwebtoken, busboy, exceljs.
+Separated into validation-engine.html, validation-engine.css, and validation-engine.js for better organization.
+
+5.3. Backend Functions (netlify/functions/)
+package.json: Lists Node.js dependencies: bcryptjs, jsonwebtoken, pg, busboy, exceljs. (@google-cloud/storage was removed).
 
 register.js:
 
-Updated: Accepts company_name. Checks if company exists; if not, creates a new companies entry. Associates the new user with company_id.
+Accepts company_name.
+
+Transactions: Checks if company exists, creates if new, then inserts user with company_id.
 
 login.js:
 
-Updated: Accepts identifier (username or email). Queries users table by both username and email. Includes company_id and company_name in the generated JWT payload.
+Accepts identifier (username or email). Queries DB for match.
+
+Generates JWT including user.id, username, email, company_id, company_name.
 
 protected.js:
 
-Updated: Decodes company_id and company_name from the JWT and returns them. This company_id is crucial for securing data access in other backend functions.
+Verifies JWT.
 
-clean-excel.js:
+Returns decoded JWT payload (including company_id, company_name) to frontend.
 
-Backend function for the Data Cleaner tool. Handles file upload, cleaning, and returning a base64-encoded cleaned file and summary.
+upload-file.js:
 
-Updated: Now authenticates requests by verifying the JWT and extracts company_id from it, making company_id available for data isolation in future database operations.
+Handles file upload directly to company_files table in Neon.
 
-4.5. Data Isolation Strategy (Crucial)
-The company_id is stored in the users table and included in the JWT upon login.
+Authenticates via JWT to get user_id and company_id.
 
-For any backend functions that save or retrieve data specific to a company (e.g., clean-excel.js if it were to log cleaning events, or future functions for saving reports), they MUST:
+Stores company_id, user_id, original_filename, mimetype, size_bytes, and file_data (BYTEA) in Neon.
+
+list-files.js:
+
+Authenticates via JWT to get company_id.
+
+Queries company_files table WHERE company_id = $1 to list files only for that company.
+
+Returns id, original_filename, mimetype, size_bytes, uploaded_at, user_id, and is_data_dictionary.
+
+get-file.js:
+
+Authenticates via JWT to get company_id.
+
+Retrieves file_data (binary) and metadata from company_files table WHERE id = $1 AND company_id = $2.
+
+Returns file data as base64 in a JSON response for frontend download.
+
+delete-file.js:
+
+Authenticates via JWT to get company_id.
+
+Deletes file record from company_files table WHERE id = $1 AND company_id = $2.
+
+5.4. Data Isolation Strategy (CRUCIAL)
+Company ID in JWT: company_id is embedded in the JWT upon successful login.
+
+Backend Enforcement: All backend functions that interact with company-specific data (upload-file.js, list-files.js, get-file.js, delete-file.js, clean-excel.js if it were to log to DB) MUST:
+
+Verify the JWT.
 
 Extract the company_id from the decoded JWT.
 
-Include a WHERE company_id = <extracted_company_id> clause in all database queries (SELECT, INSERT, UPDATE, DELETE) to ensure only data belonging to that company is accessed or modified.
+Include a WHERE company_id = <extracted_company_id> clause in ALL database queries (SELECT, INSERT, UPDATE, DELETE) to ensure strict data isolation.
 
-5. Critical Setup & Configuration Steps
-Neon Database Changes:
+6. Netlify Deployment & Configuration
+Environment Variables:
 
-Run SQL to create the companies table.
-
-Run SQL to alter the users table to add company_id.
-
-Netlify Environment Variables:
-
-DATABASE_URL: Your Neon connection string.
+DATABASE_URL: Your Neon PostgreSQL connection string.
 
 JWT_SECRET: Your strong, random secret key.
 
-Ensure both have "Functions" scope checked.
+These must be set in Netlify Site Settings > Build & Deploy > Environment Variables, with "Functions" scope enabled.
 
-6. Common Issues & Troubleshooting
-"Network error. Please check your connection." (on frontend): Frontend fetch request failed to reach the Netlify Function. Check Netlify logs for register.js, login.js errors.
+GCS-related variables (GCS_PROJECT_ID, etc.) are no longer needed.
 
-Functions not showing in Netlify deploy logs or failing to build: Incorrect path in netlify.toml (functions = "netlify/functions") or missing netlify/functions/package.json dependencies. Ensure netlify.toml has [[plugins]] package = "@netlify/plugin-functions-install-core".
+Continuous Deployment: Netlify automatically deploys changes pushed to the configured GitHub branch.
 
-SyntaxError: Unexpected token '<' in function logs: A .js function file contains HTML content. Verify file content on GitHub.
+Function Bundling: The @netlify/plugin-functions-install-core plugin handles Node.js dependency installation for functions.
 
-Login fails after "username or email" update: Ensure netlify/functions/login.js is updated to query by WHERE email = $1 OR username = $1.
+7. Common Issues & Troubleshooting
+"Network or authentication error: Unexpected token '<', "<!DOCTYPE "... is not valid JSON": Frontend expecting JSON but received HTML. Usually means backend function was not found or failed to execute.
 
-"Show Values" button not working (on Validation Engine): Ensure the button's type is button and that the JavaScript event delegation for .toggle-values-btn is correctly targeting the button in public/tools/validation-engine.html. (This was addressed in previous steps).
+Verify netlify.toml functions path.
 
-7. Deployment Process
-Local Setup: Apply all code changes (updated index.html, dashboard.html, login.js, register.js, protected.js, clean-excel.js, validation-engine.html, tools.html, and companies table SQL).
+Check netlify/functions/ for correct file names (upload-file.js, list-files.js, etc.) and content (pure JS, no HTML).
 
-Consider removing netlify/functions/validate-excel.js as it is no longer used by the frontend for validation.
+Check Netlify deploy logs (under "Functions" section) for build or runtime errors specific to the function.
 
-Git & GitHub: Commit all changes and push to your GitHub repository.
+Functions not showing in Netlify deploy logs: Incorrect folder paths in netlify.toml or missing plugin.
 
-Netlify Sync: Netlify will automatically trigger a new deployment.
+Login fails (username/email): Ensure login.js correctly queries both email and username.
 
-Monitor Deployment: Observe the "Deploys" tab in your Netlify dashboard until the site shows "Published."
+Old filename formatting (JSON string): Old entries in company_files may have this. file-manager.html includes defensive parsing to display them correctly. New uploads should be fine.
 
-Test Live Site: Verify registration (with company name), login (with username/email), and tool functionality (Data Cleaner and Validation Engine).
+File upload/download/delete not working: Check specific function logs (upload-file.js, list-files.js, get-file.js, delete-file.js) for runtime errors. Verify authentication token is sent correctly from frontend.
 
-This updated document provides a comprehensive blueprint for your multi-company Excel Buddy application.
-
-Final Next Step for you:
-
-Commit and push these latest changes to your GitHub repository.
-
-Once Netlify successfully deploys, your Excel Buddy application will fully support multi-company registration, login, and basic data isolation principles. Remember to continue applying the company_id isolation logic to any new backend functions that interact with company-specific data.
+This document should provide a complete and up-to-date reference for your Excel Buddy project.
