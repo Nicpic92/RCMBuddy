@@ -3,27 +3,60 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Excel Buddy - Validation Engine</title>
+    <title>Excel Validate - MirraBuddy</title>
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Google Fonts - Inter -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- XLSX library for client-side Excel file parsing -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <style>
         body {
             font-family: 'Inter', sans-serif;
             background-color: #f0f4f8; /* Light background */
         }
+        /* Loader Animation - specific CSS needed for animation */
+        .loader {
+            border: 6px solid #e9ecef;
+            border-top: 6px solid #2D62B3;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 0.8s linear infinite;
+            display: none; /* Hidden by default */
+            margin: 25px auto;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        /* Specific print styles to hide UI elements */
+        @media print {
+            body { background-color: #fff; }
+            body * { visibility: hidden; }
+            #summaryReportContainer, #summaryReportContainer * { visibility: visible; }
+            #summaryReportContainer { position: absolute; left: 0; top: 0; width: 100%; border: none !important; box-shadow: none !important; margin:0 !important; padding:0 !important; border-radius: 0; }
+            .print-hidden { display: none !important; } /* Class to hide elements specifically when printing */
+            #summaryReportContainer h1, #summaryReportContainer h2, #summaryReportContainer h3, #summaryReportContainer h4 { color: black !important; border: none !important; }
+            #summaryReportContainer table, #summaryReportContainer th, #summaryReportContainer td { border: 1px solid #666 !important; }
+            #summaryReportContainer th { background-color: #eee !important; }
+            a { text-decoration: none; color: black !important; }
+            .pass-status { color: #006400 !important; }
+            .fail-status { color: #8B0000 !important; }
+        }
     </style>
 </head>
 <body class="flex flex-col min-h-screen text-gray-800">
-    <!-- Header Section -->
-    <header class="bg-gradient-to-r from-blue-600 to-indigo-700 p-4 shadow-lg">
+    <!-- Header Section: Consistent navigation across the app -->
+    <header class="bg-gradient-to-r from-blue-600 to-indigo-700 p-4 shadow-lg print-hidden">
         <div class="container mx-auto flex flex-col sm:flex-row items-center justify-between">
-            <h1 class="text-white text-3xl font-bold mb-2 sm:mb-0">Validation Engine</h1>
+            <h1 class="text-white text-3xl font-bold mb-2 sm:mb-0">Excel Validate</h1>
             <nav>
                 <ul class="flex space-x-4">
                     <li><a href="/dashboard.html" class="text-white hover:text-blue-200 transition duration-300">Dashboard</a></li>
                     <li><a href="/tools.html" class="text-white hover:text-blue-200 transition duration-300">Tools List</a></li>
+                    <li><a href="/tools/data-cleaner.html" class="text-white hover:text-blue-200 transition duration-300">Data Cleaner</a></li>
+                    <li><a href="/tools/validation-engine.html" class="text-white hover:text-blue-200 transition duration-300 active">Excel Validate</a></li>
                     <li><a href="#" id="profileLink" class="text-white hover:text-blue-200 transition duration-300">Profile</a></li>
                     <li><a href="#" id="logoutBtn" class="text-white hover:text-blue-200 transition duration-300 cursor-pointer">Logout</a></li>
                 </ul>
@@ -31,10 +64,10 @@
         </div>
     </header>
 
-    <!-- Main Content Section -->
+    <!-- Main Content Section: Central area for the tool's functionality -->
     <main class="flex-grow container mx-auto p-4 sm:p-6 lg:p-8">
         <section class="bg-white p-6 sm:p-8 rounded-xl shadow-lg mb-8">
-            <h2 class="text-2xl sm:text-3xl font-semibold text-center text-green-700 mb-4">
+            <h2 class="text-2xl sm:text-3xl font-semibold text-center text-blue-700 mb-4">
                 Validate Your Excel Data Against Custom Rules
             </h2>
             <p class="text-lg text-gray-700 text-center mb-6">
@@ -42,104 +75,72 @@
             </p>
             <div class="max-w-xl mx-auto text-gray-600 text-base mb-6 p-4 border border-gray-200 rounded-lg bg-gray-50">
                 <p class="font-semibold text-gray-800 mb-2">About This Tool:</p>
-                <p>The **Validation Engine** helps you define and enforce data quality standards for your Excel files. You can specify various types of rules to check for common data issues, ensuring that your spreadsheets contain accurate, complete, and consistent information. This tool is perfect for pre-processing data before analysis, reporting, or database imports.</p>
-                <ul class="list-disc list-inside mt-3">
-                    <li>**Required Fields:** Ensure critical cells are not left blank.</li>
-                    <li>**Data Type Check:** Verify that columns contain expected data types (e.g., numbers, dates, text).</li>
-                    <li>**Value Range/List:** Confirm numeric values are within a specified range or text values are from a predefined list.</li>
-                    <li>**Unique Values:** Identify and flag duplicate entries in a specific column.</li>
+                <p>The **Validation Engine** helps you define and enforce data quality standards for your Excel files. It performs a comprehensive analysis of your data to identify common issues such as blank cells, "NULL" string entries, and dates that fall in the future. Additionally, it identifies duplicate rows within your sheets, ensuring data uniqueness. You can selectively ignore ("override") specific column issues from the overall Pass/Fail calculation in the summary report. This tool is ideal for pre-processing data for analysis, reporting, or database imports, ensuring your datasets are clean and reliable.</p>
+                <ul class="list-disc list-inside mt-3 ml-5">
+                    <li>**Blank Cells:** Detects and counts empty cells.</li>
+                    <li>**"NULL" Strings:** Flags cells containing the literal string "NULL" (case-insensitive).</li>
+                    <li>**Future Dates:** Identifies dates that are set after today's date.</li>
+                    <li>**Duplicate Rows:** Pinpoints entire rows that are identical, indicating redundant entries.</li>
+                    <li>**Override Issues:** Allows you to exclude specific column issues from the final data quality score if they are intentional.</li>
                 </ul>
-                <p class="mt-3">Upload your file, define your rules, and get a detailed report of any validation failures, allowing you to easily fix issues.</p>
+                <p class="mt-3">Upload your file, review the real-time analysis results, override irrelevant issues, and generate a detailed summary report. You can then print the report or export it along with your original data to a new Excel file.</p>
             </div>
 
             <div class="max-w-xl mx-auto bg-green-50 p-6 rounded-lg shadow-md border border-green-200">
-                <h3 class="text-xl font-bold text-green-600 mb-4">Upload File & Define Rules</h3>
-                <form id="validationForm" class="space-y-4">
+                <h3 class="text-xl font-bold text-green-600 mb-4">Upload File & Analyze</h3>
+                <form id="analyzeForm" class="space-y-4">
                     <div>
-                        <label for="excelFile" class="block text-sm font-medium text-gray-700">Select File (.xlsx, .xls)</label>
-                        <input type="file" id="excelFile" name="excelFile" accept=".xlsx, .xls" required
+                        <label for="excelFile" class="block text-sm font-medium text-gray-700">Select Excel or CSV File</label>
+                        <input type="file" id="excelFile" accept=".xlsx, .xls, .csv" required
                                class="mt-1 block w-full text-sm text-gray-900 border border-gray-300 rounded-lg cursor-pointer bg-white focus:outline-none focus:border-green-500">
                     </div>
-
-                    <div class="border-t border-gray-200 pt-4">
-                        <p class="block text-sm font-medium text-gray-700 mb-2">Validation Rules:</p>
-                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            <div class="flex items-center">
-                                <input id="requiredFields" name="requiredFields" type="checkbox"
-                                       class="h-4 w-4 text-green-600 border-gray-300 rounded focus:ring-green-500">
-                                <label for="requiredFields" class="ml-2 block text-sm text-gray-900">Required Fields (e.g., Column A must not be empty)</label>
-                            </div>
-                            <div class="flex items-center">
-                                <input id="dataTypeCheck" name="dataTypeCheck" type="checkbox"
-                                       class="h-4 w-4 text-green-600 border-gray-300 rounded focus:ring-green-500">
-                                <label for="dataTypeCheck" class="ml-2 block text-sm text-gray-900">Data Type Check (e.g., Column B is numeric)</label>
-                            </div>
-                            <div class="flex items-center">
-                                <input id="valueRange" name="valueRange" type="checkbox"
-                                       class="h-4 w-4 text-green-600 border-gray-300 rounded focus:ring-green-500">
-                                <label for="valueRange" class="ml-2 block text-sm text-gray-900">Value Range/List (e.g., 1-100 or "Yes/No")</label>
-                            </div>
-                            <div class="flex items-center">
-                                <input id="uniqueValues" name="uniqueValues" type="checkbox"
-                                       class="h-4 w-4 text-green-600 border-gray-300 rounded focus:ring-green-500">
-                                <label for="uniqueValues" class="ml-2 block text-sm text-gray-900">Unique Values (e.g., Column C has no duplicates)</label>
-                            </div>
-                        </div>
-                    </div>
-
-                    <button type="submit" id="validateButton"
-                            class="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-lg text-lg font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition duration-300 ease-in-out transform hover:-translate-y-0.5">
-                        Run Validation
+                    <button type="submit" id="analyzeFileBtn"
+                            class="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-lg text-lg font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition duration-300 ease-in-out transform hover:-translate-y-0.5">
+                        Analyze File
                     </button>
                 </form>
 
-                <div id="statusMessage" class="mt-4 text-center text-gray-700 hidden"></div>
-                <div id="validationResults" class="mt-4 p-4 bg-green-100 rounded-lg hidden">
-                    <p class="font-semibold text-green-800 mb-2">Validation Results:</p>
-                    <ul class="text-green-700 text-sm list-disc list-inside">
-                        <li id="totalChecks"></li>
-                        <li id="failedChecks"></li>
-                        <li id="passedChecks"></li>
-                    </ul>
-                    <p class="text-xs text-gray-600 mt-2">
-                        *A more detailed report with specific errors and row numbers would be provided by the backend.
-                    </p>
+                <div class="loader" id="loader"></div>
+
+                <div id="results" class="mt-8 hidden">
+                    <h2 class="text-xl font-bold text-gray-800 mb-4">Analysis Results</h2>
+                    <p id="fileName" class="text-gray-700 font-medium mb-4"></p>
+                    <div id="overallCounts" class="bg-gray-100 p-4 rounded-lg shadow-inner mb-6">
+                        <p id="totalBlankCellsDisplay" class="text-gray-800 text-base font-medium"></p>
+                        <p id="totalNullCountDisplay" class="text-gray-800 text-base font-medium"></p>
+                        <p id="totalFutureDatesDisplay" class="text-gray-800 text-base font-medium"></p>
+                        <p id="totalDuplicateRowsDisplay" class="text-gray-800 text-base font-medium"></p>
+                    </div>
+                    <div id="sheetResults"></div>
+                    <button id="generateSummaryBtn" class="mt-6 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg shadow-md transition duration-300 hidden">View Summary Report</button>
                 </div>
-                <div id="downloadSection" class="mt-6 text-center hidden">
-                    <p class="text-green-700 font-semibold mb-3">Validation Report Ready!</p>
-                    <a id="downloadLink" href="#" download="validation_report.xlsx"
-                       class="inline-block bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-6 rounded-full shadow-lg transition duration-300 ease-in-out transform hover:-translate-y-0.5">
-                        Download Report
-                    </a>
-                </div>
+            </div>
+
+            <div id="summaryReportContainer" class="content-box mt-8" style="display:none;">
             </div>
         </section>
     </main>
 
     <!-- Footer Section -->
-    <footer class="bg-gray-800 text-white p-4 mt-8">
+    <footer class="bg-gray-800 text-white p-4 mt-8 print-hidden">
         <div class="container mx-auto text-center text-sm">
             &copy; 2025 Excel Buddy. All rights reserved.
         </div>
     </footer>
 
     <script>
-        // --- Authentication Check on Page Load ---
+        // --- Authentication Check and Logout Functionality (Adapted for consistency with existing project) ---
         document.addEventListener('DOMContentLoaded', async () => {
             const token = localStorage.getItem('jwtToken');
             if (!token) {
-                window.location.href = '/';
+                window.location.href = '/'; // Redirects to index.html
                 return;
             }
-
             try {
                 const response = await fetch('/api/protected', {
                     method: 'GET',
-                    headers: {
-                        'Authorization': `Bearer ${token}`
-                    }
+                    headers: { 'Authorization': `Bearer ${token}` }
                 });
-
                 if (!response.ok) {
                     localStorage.removeItem('jwtToken');
                     window.location.href = '/';
@@ -149,115 +150,596 @@
                 localStorage.removeItem('jwtToken');
                 window.location.href = '/';
             }
+            updateDynamicDateDisplay(); // Call this here as it depends on DOM being ready
         });
 
-        // --- Logout Functionality ---
-        document.getElementById('logoutBtn').addEventListener('click', () => {
-            localStorage.removeItem('jwtToken');
-            window.location.href = '/';
-        });
+        const logoutButton = document.getElementById('logoutBtn');
+        if (logoutButton) {
+            logoutButton.addEventListener('click', function() {
+                localStorage.removeItem('jwtToken');
+                window.location.href = '/';
+            });
+        }
+        // --- End of Authentication consistency adaptation ---
 
-        // --- Profile Link Placeholder ---
-        document.getElementById('profileLink').addEventListener('click', (e) => {
-            e.preventDefault();
-            alert('This would navigate to a detailed user profile page.');
-        });
 
-        // --- Validation Engine Tool Logic ---
-        const validationForm = document.getElementById('validationForm');
-        const excelFile = document.getElementById('excelFile');
-        const validateButton = document.getElementById('validateButton');
-        const statusMessage = document.getElementById('statusMessage');
-        const validationResults = document.getElementById('validationResults');
-        const totalChecks = document.getElementById('totalChecks');
-        const failedChecks = document.getElementById('failedChecks');
-        const passedChecks = document.getElementById('passedChecks');
-        const downloadSection = document.getElementById('downloadSection');
-        const downloadLink = document.getElementById('downloadLink');
+        let workbookData = {}; // Stores all parsed data and analysis results
+        let originalExcelWorkbook = null; // Stores the original XLSX.js workbook object
+        let currentFileName = "ReviewedData.xlsx"; // Default filename for export
+        // Overall statistics, dynamically updated based on user overrides
+        let overallStats = { blankCells: 0, nullValues: 0, futureDates: 0, duplicateRowCount: 0, totalProcessedDataCells: 0, totalRowsProcessedForDuplicates: 0 };
+        const TODAY = new Date();
+        TODAY.setUTCHours(0, 0, 0, 0); // Normalize today's date to UTC midnight for consistent date comparisons
+        const CLEAN_RATE_PASS_THRESHOLD = 95; // Threshold for "Pass" status in clean rate
+        let hasDingedForHighPercentageCurrentFile = false; // Flag to prevent repeated speech notifications
 
-        validationForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
+        /**
+         * Updates the display element with the current date, used for future date flagging info.
+         */
+        function updateDynamicDateDisplay() {
+            const options = { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' };
+            const dateElement = document.getElementById('dynamicTodayDate');
+            if (dateElement) {
+                dateElement.textContent = TODAY.toLocaleDateString('en-US', options);
+            }
+        }
 
-            // Reset UI for new submission
-            statusMessage.textContent = 'Running validation... This may take a moment.';
-            statusMessage.className = 'mt-4 text-center text-gray-700';
-            validationResults.classList.add('hidden');
-            downloadSection.classList.add('hidden');
-            validateButton.disabled = true;
+        /**
+         * Shows the loading spinner and hides results sections, resetting global state for a new analysis.
+         */
+        function showLoader() {
+            document.getElementById('loader').style.display = 'block';
+            document.getElementById('results').style.display = 'none';
+            document.getElementById('summaryReportContainer').style.display = 'none';
+            document.getElementById('generateSummaryBtn').style.display = 'none';
+            document.getElementById('sheetResults').innerHTML = '';
+            document.getElementById('fileName').textContent = '';
+            
+            // Reset all global data and stats for a fresh analysis
+            workbookData = {};
+            originalExcelWorkbook = null;
+            overallStats = { blankCells: 0, nullValues: 0, futureDates: 0, duplicateRowCount: 0, totalProcessedDataCells: 0, totalRowsProcessedForDuplicates: 0 };
+            hasDingedForHighPercentageCurrentFile = false;
+            updateInitialOverallCountsDisplay(); // Clear display of previous overall counts
+        }
 
-            const file = excelFile.files[0];
-            if (!file) {
-                statusMessage.textContent = 'Please select an Excel file to upload.';
-                statusMessage.className = 'mt-4 text-center text-red-700';
-                validateButton.disabled = false;
+        /**
+         * Hides the loading spinner.
+         */
+        function hideLoader() {
+            document.getElementById('loader').style.display = 'none';
+        }
+        
+        /**
+         * Updates the overall issue counts displayed prominently above the detailed sheet results.
+         */
+        function updateInitialOverallCountsDisplay() {
+            document.getElementById('totalBlankCellsDisplay').textContent = `Overall Total Blank Cells (active): ${overallStats.blankCells}`;
+            document.getElementById('totalNullCountDisplay').textContent = `Overall Total "NULL" Cells (active): ${overallStats.nullValues}`;
+            document.getElementById('totalFutureDatesDisplay').textContent = `Overall Total Future Dates (active): ${overallStats.futureDates}`;
+            document.getElementById('totalDuplicateRowsDisplay').textContent = `Overall Duplicate Rows Found: ${overallStats.duplicateRowCount}`;
+        }
+        
+        /**
+         * Renders the detailed analysis results for each worksheet and column into the UI.
+         */
+        function renderSheetResultsHTML() {
+            const sheetResultsDiv = document.getElementById('sheetResults');
+            sheetResultsDiv.innerHTML = ''; // Clear any previously rendered results
+            
+            Object.keys(workbookData).forEach(sheetName => {
+                const sheetData = workbookData[sheetName];
+                const sheetResultsContainer = document.createElement('div');
+                sheetResultsContainer.classList.add('mb-8'); /* Add margin-bottom for spacing between sheets */
+                sheetResultsContainer.innerHTML = `<h3 class="text-xl font-bold text-gray-800 mb-3">Sheet: ${sheetName}</h3>`; /* Styled heading */
+                const columnsListUL = document.createElement('ul');
+                columnsListUL.classList.add('space-y-4'); /* Add space between column list items */
+
+                // Iterate through columns to render their specific issues and controls
+                if (sheetData.columns && Object.keys(sheetData.columns).length > 0) {
+                    Object.keys(sheetData.columns).forEach(columnName => {
+                        const stats = sheetData.columns[columnName];
+                        const listItem = document.createElement('li');
+                        listItem.classList.add('p-3', 'bg-gray-50', 'rounded-lg', 'shadow-sm', 'border', 'border-gray-200'); /* Card-like style for each column */
+                        
+                        let issueDescriptions = [];
+                        if (stats.blankCount > 0) issueDescriptions.push("blanks");
+                        if (stats.nullStringCount > 0) issueDescriptions.push("NULLs");
+                        if (stats.futureDateCount > 0) issueDescriptions.push("future dates");
+                        
+                        // Construct the descriptive text for column issues
+                        let issueTextHTML = issueDescriptions.length > 0 ?
+                            `<span class="text-red-600 font-semibold">Column "<strong>${columnName}</strong>" contains: ${issueDescriptions.join(', ')}.</span>` :
+                            `<span class="text-green-600 font-semibold">Column "<strong>${columnName}</strong>" is clean.</span>`;
+                        
+                        // Sanitize column name for use in HTML IDs and data attributes (important for valid HTML)
+                        const safeColumnName = columnName.replace(/[^a-zA-Z0-9]/g, "_");
+                        const overrideCheckboxId = `override-${sheetName.replace(/[^a-zA-Z0-9]/g, "_")}-${safeColumnName}`;
+                        
+                        // Display individual issue counts (e.g., Blank=5 | NULL=2)
+                        let countsDisplayParts = [];
+                        if (stats.blankCount > 0) countsDisplayParts.push(`Blank=${stats.blankCount}`);
+                        if (stats.nullStringCount > 0) countsDisplayParts.push(`NULL=${stats.nullStringCount}`);
+                        if (stats.futureDateCount > 0) countsDisplayParts.push(`FutureDates=${stats.futureDateCount}`);
+                        const countsDisplayHTML = countsDisplayParts.join(' | ');
+
+                        // Build the HTML for each column's summary, including override checkbox and show/hide values button
+                        listItem.innerHTML = `
+                            <div class="flex flex-col md:flex-row md:items-center justify-between column-summary ${stats.isOverridden ? 'opacity-50 line-through' : ''}">
+                                <div class="flex items-center mb-2 md:mb-0">
+                                    <input type="checkbox" id="${overrideCheckboxId}" class="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 mr-2 override-checkbox" data-sheet="${sheetName}" data-column="${safeColumnName}" ${stats.isOverridden ? 'checked' : ''}>
+                                    <label for="${overrideCheckboxId}" class="text-sm text-gray-700 mr-4">Override Issues</label>
+                                    <span class="text-gray-900 text-base font-medium">${issueTextHTML}</span>
+                                </div>
+                                <div class="text-sm text-gray-600 italic">${countsDisplayHTML}</div>
+                                <button class="ml-auto px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded-md text-sm font-medium">Show Values</button>
+                            </div>
+                            <div class="column-values-container p-3 mt-3 bg-white border border-gray-300 rounded-lg shadow-inner" style="display:none; max-height: 250px; overflow-y: auto;"></div>
+                        `;
+                        columnsListUL.appendChild(listItem);
+                    });
+                } else {
+                    const emptyColMsg = document.createElement('li');
+                    emptyColMsg.textContent = "No columns found or processed for this sheet.";
+                    emptyColMsg.classList.add('p-3', 'bg-gray-50', 'rounded-lg', 'text-gray-600');
+                    columnsListUL.appendChild(emptyColMsg);
+                }
+                sheetResultsContainer.appendChild(columnsListUL);
+
+                if (sheetData.duplicateInfo && sheetData.duplicateInfo.count > 0) {
+                    const dupeInfoP = document.createElement('p');
+                    dupeInfoP.classList.add('mt-4', 'text-gray-700', 'font-medium', 'text-center');
+                    dupeInfoP.innerHTML = `<strong>Duplicate Rows Found in this sheet: ${sheetData.duplicateInfo.count}</strong> (see summary report for details)`;
+                    sheetResultsContainer.appendChild(dupeInfoP);
+                }
+                sheetResultsDiv.appendChild(sheetResultsContainer);
+            });
+        }
+
+        function analyzeFile() {
+            const fileInput = document.getElementById('excelFile');
+            if (fileInput.files.length === 0) {
+                alert("Please select a file first.");
                 return;
             }
+            showLoader();
+            const file = fileInput.files[0];
+            currentFileName = file.name.replace(/\.(xlsx|xls|csv)$/i, '') + "_Reviewed.xlsx";
+            document.getElementById('fileName').textContent = `File: ${file.name}`;
 
-            // Create FormData object to send file and selected rules
-            const formData = new FormData();
-            formData.append('excelFile', file);
-            formData.append('requiredFields', document.getElementById('requiredFields').checked);
-            formData.append('dataTypeCheck', document.getElementById('dataTypeCheck').checked);
-            formData.append('valueRange', document.getElementById('valueRange').checked);
-            formData.append('uniqueValues', document.getElementById('uniqueValues').checked);
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                try {
+                    const data = new Uint8Array(event.target.result);
+                    originalExcelWorkbook = XLSX.read(data, { type: 'array', cellNF: true, cellDates: false });
+                    
+                    document.getElementById('results').style.display = 'block';
+                    
+                    overallStats.totalProcessedDataCells = 0;
+                    overallStats.totalRowsProcessedForDuplicates = 0;
+
+                    originalExcelWorkbook.SheetNames.forEach(sheetName => {
+                        const worksheet = originalExcelWorkbook.Sheets[sheetName];
+                        workbookData[sheetName] = { columns: {}, duplicateInfo: { count: 0, rows: [] } };
+                        
+                        const jsonDataForDuplicates = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: null });
+                        
+                        if (jsonDataForDuplicates.length > 0 || worksheet['!ref']) {
+                            const seenRowStrings = new Map();
+                            if (jsonDataForDuplicates.length > 1) {
+                                overallStats.totalRowsProcessedForDuplicates += (jsonDataForDuplicates.length - 1);
+                                for (let i = 1; i < jsonDataForDuplicates.length; i++) {
+                                    const currentRowData = jsonDataForDuplicates[i];
+                                    const rowString = currentRowData ? currentRowData.map(cell => cell === null || cell === undefined ? "" : String(cell).trim()).join('~!~') : null;
+                                    
+                                    if (rowString !== null) {
+                                        if (seenRowStrings.has(rowString)) {
+                                            const firstSeenJsonIndex = seenRowStrings.get(rowString);
+                                            const alreadyRecorded = workbookData[sheetName].duplicateInfo.rows.some(r => r.originalRowIndex === (i + 1) && !r.isFirstOccurrence);
+                                            
+                                            if (!alreadyRecorded) {
+                                                workbookData[sheetName].duplicateInfo.count++;
+                                                overallStats.duplicateRowCount++;
+                                                workbookData[sheetName].duplicateInfo.rows.push({
+                                                    originalRowIndex: i + 1,
+                                                    isFirstOccurrence: false,
+                                                    duplicateOf: firstSeenJsonIndex + 1,
+                                                    data: currentRowData
+                                                });
+                                                if (!workbookData[sheetName].duplicateInfo.rows.find(r => r.originalRowIndex === (firstSeenJsonIndex + 1))) {
+                                                    workbookData[sheetName].duplicateInfo.rows.push({
+                                                        originalRowIndex: firstSeenJsonIndex + 1,
+                                                        isFirstOccurrence: true,
+                                                        duplicateOf: null,
+                                                        data: jsonDataForDuplicates[firstSeenJsonIndex]
+                                                    });
+                                                }
+                                            }
+                                        } else {
+                                            seenRowStrings.set(rowString, i);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        const headers = jsonDataForDuplicates[0] || [];
+                        const sheetColumnStats = {};
+                        const range = XLSX.utils.decode_range(worksheet['!ref'] || "A1:A1");
+                        const maxCols = (headers.length > 0) ? headers.length : (range.e.c + 1);
+
+                        for (let C = 0; C < maxCols; C++) {
+                            const columnName = (headers[C] !== null && headers[C] !== undefined) ? String(headers[C]) : `Column ${XLSX.utils.encode_col(C)}`;
+                            sheetColumnStats[columnName] = { blankCount: 0, nullStringCount: 0, futureDateCount: 0, hasIssue: false, values: [], isOverridden: false };
+                        }
+                        
+                        const actualHeaderKeys = Object.keys(sheetColumnStats);
+
+                        if (range.e.r >= range.s.r + 1 && actualHeaderKeys.length > 0) {
+                            overallStats.totalProcessedDataCells += (range.e.r - range.s.r) * actualHeaderKeys.length;
+                        }
+
+                        for (let R = range.s.r + 1; R <= range.e.r; ++R) {
+                            for (let C = range.s.c; C <= Math.min(range.e.c, maxCols - 1); ++C) {
+                                const cellAddress = XLSX.utils.encode_cell({ r: R, c: C });
+                                const cell = worksheet[cellAddress];
+                                let cellValueToStore = cell ? cell.v : null;
+                                let processedCellValue = cellValueToStore;
+                                const columnName = actualHeaderKeys[C];
+
+                                if (!columnName) continue;
+
+                                if (cell && cell.t === 'n' && cell.z && XLSX.SSF.is_date(cell.z)) {
+                                    const dateInfo = XLSX.SSF.parse_date_code(cell.v);
+                                    if (dateInfo) {
+                                        processedCellValue = new Date(Date.UTC(dateInfo.y, dateInfo.m - 1, dateInfo.d, dateInfo.H || 0, dateInfo.M || 0, dateInfo.S || 0));
+                                        cellValueToStore = processedCellValue;
+                                    } else {
+                                        processedCellValue = cell.v;
+                                    }
+                                }
+
+                                sheetColumnStats[columnName].values.push({ value: cellValueToStore, originalDataRow: R });
+
+                                if (processedCellValue instanceof Date && !isNaN(processedCellValue.getTime())) {
+                                    const cellDateOnly = new Date(Date.UTC(processedCellValue.getUTCFullYear(), processedCellValue.getUTCMonth(), processedCellValue.getUTCDate()));
+                                    if (cellDateOnly > TODAY) {
+                                        sheetColumnStats[columnName].futureDateCount++;
+                                        sheetColumnStats[columnName].hasIssue = true;
+                                    }
+                                } else if (processedCellValue !== null && processedCellValue !== undefined && String(processedCellValue).trim().toUpperCase() === "NULL") {
+                                    sheetColumnStats[columnName].nullStringCount++;
+                                    sheetColumnStats[columnName].hasIssue = true;
+                                } else if (processedCellValue === null || String(processedCellValue).trim() === "") {
+                                    sheetColumnStats[columnName].blankCount++;
+                                    sheetColumnStats[columnName].hasIssue = true;
+                                }
+                            }
+                        }
+                        workbookData[sheetName].columns = sheetColumnStats;
+                    });
+                    
+                    recalculateGlobalOverallStatsFromWorkbookData();
+                    renderSheetResultsHTML();
+                    updateInitialOverallCountsDisplay();
+                    document.getElementById('generateSummaryBtn').style.display = 'inline-block';
+                } catch (error) {
+                    console.error("Error processing file:", error);
+                    document.getElementById('sheetResults').innerHTML = `<p class="text-red-600">Error processing file: ${error.message}. Make sure it's a valid Excel/CSV file.</p>`;
+                    updateInitialOverallCountsDisplay();
+                } finally {
+                    hideLoader();
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        }
+        
+        function generateSummaryReport(shouldScrollToReport = true) {
+            const summaryContainer = document.getElementById('summaryReportContainer');
+            summaryContainer.innerHTML = '';
+            recalculateGlobalOverallStatsFromWorkbookData();
+
+            const totalCellLevelIssues = overallStats.blankCells + overallStats.nullValues + overallStats.futureDates;
+            const totalEffectiveIssues = totalCellLevelIssues + overallStats.duplicateRowCount;
+            const issueRateDenominator = (overallStats.totalProcessedDataCells + overallStats.totalRowsProcessedForDuplicates) || 1;
+            const issueRate = (totalEffectiveIssues / issueRateDenominator) * 100;
+            const cleanRate = Math.max(0, 100 - issueRate);
+            const passFailStatus = cleanRate >= CLEAN_RATE_PASS_THRESHOLD ? "Pass" : "Fail";
+            const passFailClass = passFailStatus === "Pass" ? "text-green-600" : "text-red-600";
+
+            if (passFailStatus === "Pass" && !hasDingedForHighPercentageCurrentFile) {
+                if ('speechSynthesis' in window) {
+                    window.speechSynthesis.speak(new SpeechSynthesisUtterance("Validation passed"));
+                }
+                hasDingedForHighPercentageCurrentFile = true;
+            } else if (passFailStatus === "Fail") {
+                hasDingedForHighPercentageCurrentFile = false;
+            }
+
+            let reportHTML = `<h1 class="text-2xl font-bold text-blue-700 mb-4 text-center">Data Quality Summary Report</h1><div class="bg-gray-50 p-6 rounded-lg shadow-sm mb-6"><h2>Overall Statistics (Column Issue Overrides Applied)</h2>`;
+            reportHTML += `<p class="text-gray-700"><strong>File:</strong> ${document.getElementById('fileName').textContent.replace('File: ', '')}</p>`;
+            reportHTML += `<p class="text-gray-700"><strong>Total Processed Data Cells:</strong> ${overallStats.totalProcessedDataCells}</p>`;
+            reportHTML += `<p class="text-gray-700"><strong>Total Rows Processed (for duplicates):</strong> ${overallStats.totalRowsProcessedForDuplicates}</p>`;
+            reportHTML += `<p class="text-gray-700"><strong>Total Blank Cells (effective):</strong> ${overallStats.blankCells}</p>`;
+            reportHTML += `<p class="text-gray-700"><strong>Total "NULL" Cells (effective):</strong> ${overallStats.nullValues}</p>`;
+            reportHTML += `<p class="text-gray-700"><strong>Total Future Dates (effective):</strong> ${overallStats.futureDates}</p>`;
+            reportHTML += `<p class="text-gray-700"><strong>Total Duplicate Rows Found:</strong> ${overallStats.duplicateRowCount}</p>`;
+            reportHTML += `<p class="text-gray-700"><strong>Total Cell-Level Issues (effective):</strong> ${totalCellLevelIssues}</p>`;
+            reportHTML += `<p class="text-gray-700"><strong>Total Effective Issues (Cells + Duplicates):</strong> ${totalEffectiveIssues}</p>`;
+            reportHTML += `<p class="text-gray-700"><strong>Issue Rate (approximate):</strong> ${issueRate.toFixed(2)}%</p>`;
+            reportHTML += `<p class="text-gray-700"><strong>Clean Rate (approximate):</strong> ${cleanRate.toFixed(2)}%</p>`;
+            reportHTML += `<p class="text-lg font-semibold mt-4"><strong>Status: <span class="${passFailClass}">${passFailStatus}</span></strong> (Threshold: ${CLEAN_RATE_PASS_THRESHOLD}% clean)</p></div>`;
             
-            try {
-                const token = localStorage.getItem('jwtToken');
-                if (!token) {
-                    throw new Error('User not authenticated. Please log in again.');
+            reportHTML += `<div class="bg-gray-50 p-6 rounded-lg shadow-sm mb-6"><h2>Detailed Issues by Column (Raw Counts)</h2><table class="w-full text-left table-auto border-collapse"><thead><tr class="bg-gray-200"><th>Sheet</th><th>Column</th><th>Blanks</th><th>NULLs</th><th>Future Dates</th><th>Overridden</th></tr></thead><tbody>`;
+            
+            let issuesFoundDetails = false;
+            Object.keys(workbookData).forEach(sheetName => {
+                const sheetColData = workbookData[sheetName].columns;
+                if (sheetColData) {
+                    Object.keys(sheetColData).forEach(columnName => {
+                        const stats = sheetColData[columnName];
+                        if (stats.blankCount > 0 || stats.nullStringCount > 0 || stats.futureDateCount > 0 || stats.isOverridden) {
+                            issuesFoundDetails = true;
+                            const safeColName = columnName.replace(/[^a-zA-Z0-9]/g, "_");
+                            const overriddenMarker = stats.isOverridden ? ' <span class="text-gray-500 text-xs italic">(Overridden)</span>' : '';
+                            const overriddenClass = stats.isOverridden ? 'opacity-50 line-through' : '';
+                            reportHTML += `<tr class="border-b border-gray-200"><td>${sheetName}</td><td>${columnName}${overriddenMarker}</td><td contenteditable="true" class="p-2 bg-yellow-50 rounded ${overriddenClass}" data-sheet="${sheetName}" data-column="${safeColName}" data-type="blankCount">${stats.blankCount}</td><td contenteditable="true" class="p-2 bg-yellow-50 rounded ${overriddenClass}" data-sheet="${sheetName}" data-column="${safeColName}" data-type="nullStringCount">${stats.nullStringCount}</td><td contenteditable="true" class="p-2 bg-yellow-50 rounded ${overriddenClass}" data-sheet="${sheetName}" data-column="${safeColName}" data-type="futureDateCount">${stats.futureDateCount}</td><td>${stats.isOverridden ? "Yes" : "No"}</td></tr>`;
+                        }
+                    });
                 }
+            });
+            if (!issuesFoundDetails) reportHTML += `<tr><td colspan="6" class="text-center text-gray-500 py-4">No specific column issues found or overridden.</td></tr>`;
+            reportHTML += `</tbody></table></div>`;
 
-                // --- ACTIVATE THE REAL BACKEND CALL ---
-                const response = await fetch('/api/validate-excel', { // TARGETS YOUR NEW BACKEND FUNCTION
-                    method: 'POST',
-                    headers: {
-                        'Authorization': `Bearer ${token}` // Include JWT for authentication
-                    },
-                    body: formData // Send the FormData object
-                });
+            reportHTML += `<div class="bg-gray-50 p-6 rounded-lg shadow-sm mb-6"><h3>Duplicate Row Details</h3><table class="w-full text-left table-auto border-collapse"><thead><tr class="bg-gray-200"><th>Sheet</th><th>Duplicate Row #</th><th>First Seen At Row #</th><th>Sample Data (First 3 Cells)</th></tr></thead><tbody>`;
+            
+            let duplicatesListed = false;
+            Object.keys(workbookData).forEach(sheetName => {
+                const { duplicateInfo } = workbookData[sheetName];
+                if (duplicateInfo && duplicateInfo.rows) {
+                    const sortedDuplicates = [...duplicateInfo.rows].sort((a, b) => {
+                        if (a.originalRowIndex !== b.originalRowIndex) {
+                            return a.originalRowIndex - b.originalRowIndex;
+                        }
+                        return a.isFirstOccurrence ? -1 : 1;
+                    });
 
-                const result = await response.json(); // Parse the JSON response from the backend
+                    sortedDuplicates.forEach(dupeRow => {
+                        if (!dupeRow.isFirstOccurrence) {
+                            duplicatesListed = true;
+                            const sample = dupeRow.data.slice(0, 3).map(d => {
+                                if (d === null || d === undefined) return "";
+                                if (d instanceof Date) return d.toLocaleDateString('en-US', {timeZone: 'UTC'});
+                                return String(d);
+                            }).join(', ');
+                            reportHTML += `<tr class="border-b border-gray-200"><td>${sheetName}</td><td>${dupeRow.originalRowIndex}</td><td>${dupeRow.duplicateOf}</td><td>${sample}...</td></tr>`;
+                        }
+                    });
+                }
+            });
+            if (!duplicatesListed) reportHTML += `<tr><td colspan="4" class="text-center text-gray-500 py-4">No duplicate rows found.</td></tr>`;
+            reportHTML += `</tbody></table></div>`;
 
-                if (response.ok) {
-                    statusMessage.textContent = 'Validation complete!';
-                    statusMessage.className = 'mt-4 text-center text-green-700';
+            reportHTML += `<div class="flex justify-center space-x-4 print-hidden">`;
+            reportHTML += `<button id="printSummaryBtn" onclick="window.print()" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-lg shadow-md transition duration-300">Print Report</button>`;
+            reportHTML += `<button id="exportExcelBtn" onclick="exportExcelWithSummary()" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-6 rounded-lg shadow-md transition duration-300">Export Excel w/ Summary</button>`;
+            reportHTML += `</div>`;
+            
+            summaryContainer.innerHTML = reportHTML;
+            summaryContainer.style.display = 'block';
+            if (shouldScrollToReport) summaryContainer.scrollIntoView({ behavior: 'smooth' });
+        }
 
-                    // Display validation summary from backend result
-                    totalChecks.textContent = `Total Checks: ${result.summary.totalChecks}`;
-                    failedChecks.textContent = `Failed Checks: ${result.summary.failedChecks}`;
-                    passedChecks.textContent = `Passed Checks: ${result.summary.passedChecks}`;
-                    validationResults.classList.remove('hidden');
-
-                    // Convert the base64-encoded report from the backend into a Blob
-                    const binaryString = atob(result.validationReportBase64); // Decode base64 string
-                    const len = binaryString.length;
-                    const bytes = new Uint8Array(len); // Create a Uint8Array
-                    for (let i = 0; i < len; i++) {
-                        bytes[i] = binaryString.charCodeAt(i); // Populate with byte values
+        document.getElementById('sheetResults').addEventListener('click', function(event) {
+            const target = event.target;
+            if (target.classList.contains('override-checkbox')) {
+                const { sheet, column } = target.dataset;
+                const originalColName = findOriginalColumnName(sheet, column);
+                if (workbookData[sheet]?.columns?.[originalColName]) {
+                    workbookData[sheet].columns[originalColName].isOverridden = target.checked;
+                    target.closest('.column-summary').classList.toggle('opacity-50', target.checked);
+                    target.closest('.column-summary').classList.toggle('line-through', target.checked);
+                    recalculateGlobalOverallStatsFromWorkbookData();
+                    updateInitialOverallCountsDisplay();
+                    if (document.getElementById('summaryReportContainer').style.display !== 'none') {
+                        generateSummaryReport(false);
                     }
-                    const blob = new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }); // .xlsx MIME type
-                    const url = URL.createObjectURL(blob); // Create a temporary URL for the Blob
-
-                    // Set the download link properties
-                    downloadLink.href = url; // Assign the Blob URL to the link
-                    downloadLink.download = result.fileName; // Use filename suggested by backend
-                    downloadSection.classList.remove('hidden'); // Show download section
-
-                } else {
-                    // Handle errors returned from the backend (e.g., 400 Bad Request, 500 Internal Server Error)
-                    statusMessage.textContent = `Error: ${result.message || 'Failed to run validation.'}`;
-                    statusMessage.className = 'mt-4 text-center text-red-700';
-                    console.error('Backend error:', result.error || result.message);
                 }
-            } catch (error) {
-                // Handle network errors or issues before the backend call
-                statusMessage.textContent = `Network or authentication error: ${error.message}`;
-                statusMessage.className = 'mt-4 text-center text-red-700';
-                console.error('Frontend fetch error:', error);
-            } finally {
-                validateButton.disabled = false; // Always re-enable the button after processing
+            } else if (target.classList.contains('toggle-values-btn')) {
+                const { sheet, column } = target.dataset;
+                const originalColName = findOriginalColumnName(sheet, column);
+                const valuesContainer = target.closest('li').querySelector('.column-values-container');
+                if (!workbookData[sheet]?.columns?.[originalColName]) {
+                    console.error("Data not found for:", sheet, originalColName);
+                    return;
+                }
+                if (valuesContainer.style.display === 'none') {
+                    valuesContainer.innerHTML = '';
+                    const stats = workbookData[sheet].columns[originalColName];
+                    const sortableValues = stats.values.map(item => {
+                        const val = item.value;
+                        const stringValue = (val === null || val === undefined) ? "" : String(val).trim();
+                        const isFuture = (val instanceof Date && !isNaN(val.getTime()) && new Date(Date.UTC(val.getUTCFullYear(), val.getUTCMonth(), val.getUTCDate())) > TODAY);
+                        const isBlank = (val === null || stringValue === "");
+                        const isNullString = (val !== null && val !== undefined && stringValue.toUpperCase() === "NULL");
+                        const isInvalidDate = (val instanceof Date && isNaN(val.getTime()));
+                        const hasAnyIssue = isFuture || isBlank || isNullString || isInvalidDate;
+                        return { ...item, value: val, isFuture, isBlank, isNullString, isInvalidDate, hasAnyIssue };
+                    });
+                    sortableValues.sort((a, b) => (a.hasAnyIssue === b.hasAnyIssue) ? a.originalDataRow - b.originalDataRow : a.hasAnyIssue ? -1 : 1);
+
+                    if (sortableValues.length > 0) {
+                        const ul = document.createElement('ul');
+                        ul.classList.add('space-y-1');
+                        sortableValues.forEach(item => {
+                            const { value, originalDataRow } = item;
+                            const li = document.createElement('li');
+                            let displayValue;
+                            let valueClass = '';
+
+                            if (item.isFuture) { valueClass = 'text-red-500 font-bold'; displayValue = `Row ${originalDataRow + 1}: Future Date - ${value.toLocaleDateString('en-US', {timeZone: 'UTC'})}`; }
+                            else if (item.isBlank) { valueClass = 'text-orange-500 italic'; displayValue = `Row ${originalDataRow + 1}: Blank Cell (${value === null ? 'null' : 'empty string'})`; }
+                            else if (item.isNullString) { valueClass = 'text-red-500 italic'; displayValue = `Row ${originalDataRow + 1}: NULL String Issue - "${value}"`; }
+                            else if (item.isInvalidDate) { valueClass = 'text-red-500 italic'; displayValue = `Row ${originalDataRow + 1}: Invalid Date Object - "${String(value)}"`; }
+                            else if (value instanceof Date) { valueClass = 'text-blue-600'; displayValue = `Row ${originalDataRow + 1}: ${value.toLocaleDateString('en-US', {timeZone: 'UTC'})}`; }
+                            else if (typeof value === 'object' && value !== null) { try { displayValue = `Row ${originalDataRow + 1}: Value: ${JSON.stringify(value)}`; } catch (e) { displayValue = `Row ${originalDataRow + 1}: Value: [Object]`; } }
+                            else { displayValue = `Row ${originalDataRow + 1}: Value: ${value}`; }
+
+                            li.textContent = displayValue;
+                            if (valueClass) li.classList.add(valueClass);
+                            else if(item.hasAnyIssue) li.classList.add('text-orange-600', 'font-bold');
+                            ul.appendChild(li);
+                        });
+                        valuesContainer.appendChild(ul);
+                    } else {
+                        valuesContainer.innerHTML = '<p class="text-gray-500 italic">This column has no data rows.</p>';
+                    }
+                    valuesContainer.style.display = 'block';
+                    target.textContent = 'Hide Values';
+                } else {
+                    valuesContainer.style.display = 'none';
+                    valuesContainer.innerHTML = '';
+                    target.textContent = 'Show Values';
+                }
             }
         });
+
+        function findOriginalColumnName(sheet, colFromDataset) {
+            const cols = workbookData[sheet]?.columns;
+            if (!cols) return colFromDataset;
+            if (cols[colFromDataset]) return colFromDataset;
+            return Object.keys(cols).find(k => k.replace(/[^a-zA-Z0-9]/g, "_") === colFromDataset) || colFromDataset;
+        }
+
+        function recalculateGlobalOverallStatsFromWorkbookData() {
+            let newBlank = 0, newNull = 0, newFuture = 0;
+            Object.values(workbookData).forEach(({ columns }) => {
+                if(columns) Object.values(columns).forEach(stats => {
+                    if (!stats.isOverridden) {
+                        newBlank += parseInt(stats.blankCount, 10) || 0;
+                        newNull += parseInt(stats.nullStringCount, 10) || 0;
+                        newFuture += parseInt(stats.futureDateCount, 10) || 0;
+                    }
+                });
+            });
+            overallStats.blankCells = newBlank;
+            overallStats.nullValues = newNull;
+            overallStats.futureDates = newFuture;
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('summaryReportContainer')?.addEventListener('blur', function(event) {
+                if (event.target.classList.contains('editable-stat')) {
+                    const td = event.target;
+                    const { sheet, column, type } = td.dataset;
+                    const originalColName = findOriginalColumnName(sheet, column);
+                    const newValue = parseInt(td.textContent.trim(), 10);
+
+                    if (workbookData[sheet]?.columns?.[originalColName]) {
+                        const stats = workbookData[sheet].columns[originalColName];
+                        if (isNaN(newValue) || newValue < 0 || td.textContent.trim() === "") {
+                            alert("Please enter a valid non-negative number.");
+                            td.textContent = stats[type];
+                            return;
+                        }
+                        stats[type] = newValue;
+                        stats.hasIssue = (stats.blankCount > 0 || stats.nullStringCount > 0 || stats.futureDateCount > 0); 
+                        recalculateGlobalOverallStatsFromWorkbookData();
+                        if (document.getElementById('summaryReportContainer').style.display !== 'none') {
+                            generateSummaryReport(false);
+                        } else {
+                            updateInitialOverallCountsDisplay();
+                        }
+                    } else {
+                        console.error("Editable cell event: Could not find column data for update:", sheet, originalColName);
+                    }
+                }
+            }, true);
+        });
+
+        function exportExcelWithSummary() {
+            if (!originalExcelWorkbook) {
+                alert("Please analyze a file first to generate data for export.");
+                return;
+            }
+            recalculateGlobalOverallStatsFromWorkbookData();
+
+            const wb = XLSX.utils.book_new();
+
+            originalExcelWorkbook.SheetNames.forEach(sheetName => {
+                const sheetData = XLSX.utils.sheet_to_json(originalExcelWorkbook.Sheets[sheetName], {header:1, defval:null});
+                XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(sheetData), sheetName);
+            });
+
+            const summaryAoA = [];
+            const { blankCells, nullValues, futureDates, duplicateRowCount, totalProcessedDataCells, totalRowsProcessedForDuplicates } = overallStats;
+            const totalCellIssues = blankCells + nullValues + futureDates;
+            const totalEffectiveIssues = totalCellIssues + duplicateRowCount;
+            const denominator = (totalProcessedDataCells + totalRowsProcessedForDuplicates) || 1;
+            const issueRate = (totalEffectiveIssues / denominator) * 100;
+            const cleanRate = Math.max(0, 100 - issueRate);
+            const status = cleanRate >= CLEAN_RATE_PASS_THRESHOLD ? "Pass" : "Fail";
+
+            summaryAoA.push(["Data Quality Summary Report"]);
+            summaryAoA.push([]);
+            summaryAoA.push(["Overall Statistics"]);
+            summaryAoA.push(["File:", document.getElementById('fileName').textContent.replace('File: ', '')]);
+            summaryAoA.push(["Total Processed Data Cells:", totalProcessedDataCells]);
+            summaryAoA.push(["Total Rows Processed (for duplicates):", totalRowsProcessedForDuplicates]);
+            summaryAoA.push(["Total Blank Cells (effective):", blankCells]);
+            summaryAoA.push(["Total \"NULL\" Cells (effective):", nullValues]);
+            summaryAoA.push(["Total Future Dates (effective):", futureDates]);
+            summaryAoA.push(["Total Duplicate Rows Found:", duplicateRowCount]);
+            summaryAoA.push(["Total Cell-Level Issues (effective):", totalCellIssues]);
+            summaryAoA.push(["Total Effective Issues (Cells + Duplicates):", totalEffectiveIssues]);
+            summaryAoA.push(["Issue Rate (approximate):", `${issueRate.toFixed(2)}%`]);
+            summaryAoA.push(["Clean Rate (approximate):", `${cleanRate.toFixed(2)}%`]);
+            summaryAoA.push(["Status:", `${status} (Threshold: ${CLEAN_RATE_PASS_THRESHOLD}% clean)`]);
+            summaryAoA.push([]);
+
+            summaryAoA.push(["Detailed Issues by Column (Raw Counts)"]);
+            summaryAoA.push(["Sheet", "Column", "Blanks", "NULLs", "Future Dates", "Overridden"]);
+            
+            let detailsAdded = false;
+            Object.entries(workbookData).forEach(([sheetName, { columns }]) => {
+                if (columns) {
+                    Object.entries(columns).forEach(([columnName, stats]) => {
+                        if (stats.blankCount > 0 || stats.nullStringCount > 0 || stats.futureDateCount > 0 || stats.isOverridden) {
+                            detailsAdded = true;
+                            summaryAoA.push([sheetName, columnName, stats.blankCount, stats.nullStringCount, stats.futureDateCount, stats.isOverridden ? "Yes" : "No"]);
+                        }
+                    });
+                }
+            });
+            if (!detailsAdded) summaryAoA.push(["No columns with issues or overrides to report."]);
+            summaryAoA.push([]);
+
+            summaryAoA.push(["Duplicate Row Details"]);
+            summaryAoA.push(["Sheet", "Duplicate Row #", "First Seen At Row #", "Sample Data (First 3 Cells)"]);
+            
+            let duplicatesExported = false;
+            Object.entries(workbookData).forEach(([sheetName, { duplicateInfo }]) => {
+                if (duplicateInfo && duplicateInfo.rows) {
+                    const duplicatesToExport = duplicateInfo.rows.filter(dupe => !dupe.isFirstOccurrence).sort((a, b) => a.originalRowIndex - b.originalRowIndex);
+
+                    duplicatesToExport.forEach(dupe => {
+                        duplicatesExported = true;
+                        const sample = dupe.data.slice(0, 3).map(d => {
+                            if (d === null || d === undefined) return "";
+                            if (d instanceof Date) return d.toLocaleDateString('en-US', {timeZone: 'UTC'});
+                            return String(d);
+                        }).join(', ');
+                        summaryAoA.push([sheetName, dupe.originalRowIndex, dupe.duplicateOf, `${sample}...`]);
+                    });
+                }
+            });
+            if (!duplicatesExported) summaryAoA.push(["No duplicate rows found."]);
+
+            const summaryWS = XLSX.utils.aoa_to_sheet(summaryAoA);
+            XLSX.utils.book_append_sheet(wb, summaryWS, "Summary Report");
+
+            XLSX.writeFile(wb, currentFileName);
+        }
     </script>
 </body>
 </html>
