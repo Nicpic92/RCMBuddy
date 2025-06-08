@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Excel Buddy - File Manager</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts - Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f4f8; /* Light background */
+        }
+        /* Optional: Styles for file list items */
+        .file-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 16px;
+            background-color: #e2e8f0; /* Light gray-blue */
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            transition: background-color 0.2s ease-in-out;
+        }
+        .file-item:hover {
+            background-color: #cbd5e1; /* Slightly darker on hover */
+        }
+        .file-info {
+            flex-grow: 1;
+        }
+        .file-name {
+            font-weight: 600;
+            color: #2d3748; /* Darker text */
+        }
+        .file-meta {
+            font-size: 0.85em;
+            color: #4a5568; /* Slightly lighter text */
+        }
+        .file-actions {
+            margin-left: 20px;
+        }
+        .file-action-btn {
+            background-color: #4299e1; /* Blue */
+            color: white;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 0.9em;
+            transition: background-color 0.2s;
+        }
+        .file-action-btn:hover {
+            background-color: #3182ce; /* Darker blue */
+        }
+        .file-action-btn.delete {
+            background-color: #ef4444; /* Red */
+        }
+        .file-action-btn.delete:hover {
+            background-color: #dc2626; /* Darker red */
+        }
+    </style>
+</head>
+<body class="flex flex-col min-h-screen text-gray-800">
+    <!-- Header Section -->
+    <header class="bg-gradient-to-r from-blue-600 to-indigo-700 p-4 shadow-lg">
+        <div class="container mx-auto flex flex-col sm:flex-row items-center justify-between">
+            <h1 class="text-white text-3xl font-bold mb-2 sm:mb-0">File Manager</h1>
+            <nav>
+                <ul class="flex space-x-4">
+                    <li><a href="/dashboard.html" class="text-white hover:text-blue-200 transition duration-300">Dashboard</a></li>
+                    <li><a href="/tools.html" class="text-white hover:text-blue-200 transition duration-300">Tools List</a></li>
+                    <li><a href="#" id="profileLink" class="text-white hover:text-blue-200 transition duration-300">Profile</a></li>
+                    <li><a href="#" id="logoutBtn" class="text-white hover:text-blue-200 transition duration-300 cursor-pointer">Logout</a></li>
+                </ul>
+            </nav>
+        </div>
+    </header>
+
+    <!-- Main Content Section -->
+    <main class="flex-grow container mx-auto p-4 sm:p-6 lg:p-8">
+        <section class="bg-white p-6 sm:p-8 rounded-xl shadow-lg mb-8">
+            <h2 class="text-2xl sm:text-3xl font-semibold text-center text-blue-700 mb-4">
+                Upload & Manage Your Company Files
+            </h2>
+            <p class="text-lg text-gray-700 text-center mb-6">
+                Securely store and access your Excel files and other documents, accessible only by your company.
+            </p>
+
+            <div class="max-w-xl mx-auto bg-blue-50 p-6 rounded-lg shadow-md border border-blue-200">
+                <h3 class="text-xl font-bold text-blue-600 mb-4">Upload New File</h3>
+                <form id="uploadForm" class="space-y-4">
+                    <div>
+                        <label for="documentFile" class="block text-sm font-medium text-gray-700">Select File</label>
+                        <input type="file" id="documentFile" name="file" required
+                               class="mt-1 block w-full text-sm text-gray-900 border border-gray-300 rounded-lg cursor-pointer bg-white focus:outline-none focus:border-blue-500">
+                    </div>
+                    <button type="submit" id="uploadButton"
+                            class="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-lg text-lg font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition duration-300 ease-in-out transform hover:-translate-y-0.5">
+                        Upload File
+                    </button>
+                </form>
+
+                <div id="statusMessage" class="mt-4 text-center text-gray-700 hidden"></div>
+            </div>
+
+            <!-- File List Section -->
+            <div class="mt-8 bg-white p-6 sm:p-8 rounded-xl shadow-lg">
+                <h3 class="text-2xl font-bold text-blue-700 mb-4">Your Files</h3>
+                <div id="fileList" class="space-y-3">
+                    <p class="text-gray-500 italic">No files uploaded yet, or loading...</p>
+                    <!-- Files will be listed here dynamically -->
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Footer Section -->
+    <footer class="bg-gray-800 text-white p-4 mt-8">
+        <div class="container mx-auto text-center text-sm">
+            &copy; 2025 Excel Buddy. All rights reserved.
+        </div>
+    </footer>
+
+    <script>
+        // --- Utility Functions ---
+        function formatBytes(bytes, decimals = 2) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const dm = decimals < 0 ? 0 : decimals;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+        }
+
+        // --- Authentication Check on Page Load ---
+        document.addEventListener('DOMContentLoaded', async () => {
+            const token = localStorage.getItem('jwtToken');
+            if (!token) {
+                window.location.href = '/'; // Redirects to index.html
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/protected', {
+                    method: 'GET',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (!response.ok) {
+                    localStorage.removeItem('jwtToken');
+                    window.location.href = '/';
+                } else {
+                    // User is authenticated, fetch and display files
+                    fetchFiles();
+                }
+            } catch (error) {
+                console.error('Error verifying token on File Manager page:', error);
+                localStorage.removeItem('jwtToken');
+                window.location.href = '/';
+            }
+        });
+
+        // --- Logout Functionality ---
+        document.getElementById('logoutBtn').addEventListener('click', () => {
+            localStorage.removeItem('jwtToken');
+            window.location.href = '/';
+        });
+
+        // --- Profile Link Placeholder ---
+        document.getElementById('profileLink').addEventListener('click', (e) => {
+            e.preventDefault();
+            alert('This would navigate to a detailed user profile page.');
+        });
+
+        // --- File Upload Logic ---
+        const uploadForm = document.getElementById('uploadForm');
+        const documentFile = document.getElementById('documentFile');
+        const uploadButton = document.getElementById('uploadButton');
+        const statusMessage = document.getElementById('statusMessage');
+        const fileListContainer = document.getElementById('fileList');
+
+        uploadForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            statusMessage.textContent = 'Uploading file...';
+            statusMessage.className = 'mt-4 text-center text-gray-700';
+            uploadButton.disabled = true;
+
+            const file = documentFile.files[0];
+            if (!file) {
+                statusMessage.textContent = 'Please select a file to upload.';
+                statusMessage.className = 'mt-4 text-center text-red-700';
+                uploadButton.disabled = false;
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('file', file); // 'file' matches the fieldname in upload-file.js
+
+            try {
+                const token = localStorage.getItem('jwtToken');
+                if (!token) {
+                    throw new Error('User not authenticated. Please log in again.');
+                }
+
+                const response = await fetch('/api/upload-file', { // Target the upload function
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}` // Send JWT for authentication
+                    },
+                    body: formData
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    statusMessage.textContent = `File "${result.fileName}" uploaded successfully to Neon!`;
+                    statusMessage.className = 'mt-4 text-center text-green-700';
+                    documentFile.value = ''; // Clear file input
+                    fetchFiles(); // Refresh the file list after successful upload
+                } else {
+                    statusMessage.textContent = `Error: ${result.message || 'Failed to upload file.'}`;
+                    statusMessage.className = 'mt-4 text-center text-red-700';
+                    console.error('Upload error:', result.error || result.message);
+                }
+            } catch (error) {
+                statusMessage.textContent = `Network or authentication error: ${error.message}`;
+                statusMessage.className = 'mt-4 text-center text-red-700';
+                console.error('Frontend upload error:', error);
+            } finally {
+                uploadButton.disabled = false;
+            }
+        });
+
+        // --- File Listing Logic ---
+        async function fetchFiles() {
+            fileListContainer.innerHTML = '<p class="text-gray-500 italic">Loading files...</p>'; // Show loading message
+
+            const token = localStorage.getItem('jwtToken');
+            if (!token) {
+                fileListContainer.innerHTML = '<p class="text-red-500 italic">Authentication required to load files.</p>';
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/list-files', { // Target the new list-files function
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${token}` // Send JWT for authentication
+                    }
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    if (result.files && result.files.length > 0) {
+                        renderFiles(result.files); // Render the fetched files
+                    } else {
+                        fileListContainer.innerHTML = '<p class="text-gray-500 italic">No files uploaded yet.</p>';
+                    }
+                } else {
+                    fileListContainer.innerHTML = `<p class="text-red-500 italic">Error loading files: ${result.message || 'Unknown error'}</p>`;
+                    console.error('Error fetching files:', result.error || result.message);
+                }
+            } catch (error) {
+                fileListContainer.innerHTML = `<p class="text-red-500 italic">Network error fetching files: ${error.message}</p>`;
+                console.error('Frontend fetch files error:', error);
+            }
+        }
+
+        function renderFiles(files) {
+            fileListContainer.innerHTML = ''; // Clear previous content
+            files.forEach(file => {
+                const fileItem = document.createElement('div');
+                fileItem.className = 'file-item'; // Apply Tailwind-like styles from CSS
+
+                const uploadedDate = new Date(file.uploaded_at).toLocaleString(); // Format date
+
+                fileItem.innerHTML = `
+                    <div class="file-info">
+                        <div class="file-name">${file.filename}</div>
+                        <div class="file-meta">${formatBytes(file.size_bytes)} | Uploaded: ${uploadedDate}</div>
+                    </div>
+                    <div class="file-actions">
+                        <button class="file-action-btn download-btn" data-file-id="${file.id}">Download</button>
+                        <button class="file-action-btn delete-btn delete ml-2" data-file-id="${file.id}">Delete</button>
+                    </div>
+                `;
+                fileListContainer.appendChild(fileItem);
+            });
+
+            // Add event listeners for download and delete buttons (using event delegation)
+            // It's better to attach this listener once to the parent container
+            // and use event delegation for dynamically added buttons.
+            // This specific listener should ideally be outside renderFiles if called multiple times,
+            // or ensure it's only attached once. For this example, assuming it's part of initial script load.
+            // If it's re-rendered, ensure old listeners are cleaned up or only add once.
+            // For simplicity in this direct code, it's fine for now as it's triggered on upload.
+            // Future enhancement: Move this to a dedicated setup function or ensure single attachment.
+            const existingClickListener = fileListContainer._clickListener; // Check if listener exists
+            if (!existingClickListener) {
+                const clickHandler = (e) => {
+                    const target = e.target;
+                    if (target.classList.contains('download-btn')) {
+                        const fileId = target.dataset.fileId;
+                        downloadFile(fileId, target);
+                    } else if (target.classList.contains('delete-btn')) {
+                        const fileId = target.dataset.fileId;
+                        if (confirm('Are you sure you want to delete this file? This action cannot be undone.')) {
+                            deleteFile(fileId, target);
+                        }
+                    }
+                };
+                fileListContainer.addEventListener('click', clickHandler);
+                fileListContainer._clickListener = clickHandler; // Store reference to prevent re-attaching
+            }
+        }
+
+        // --- Placeholder functions for Download and Delete ---
+        async function downloadFile(fileId, buttonElement) {
+            console.log(`Attempting to download file with ID: ${fileId}`);
+            alert('Download functionality coming soon! File ID: ' + fileId);
+        }
+
+        async function deleteFile(fileId, buttonElement) {
+            console.log(`Attempting to delete file with ID: ${fileId}`);
+            alert('Delete functionality coming soon! File ID: ' + fileId);
+        }
+
+        // Initial fetch of files when the page loads (after authentication check)
+        // This call is placed inside the DOMContentLoaded authentication block.
+    </script>
+</body>
+</html>
