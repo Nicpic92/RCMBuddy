@@ -243,7 +243,7 @@
             }
 
             try {
-                const response = await fetch('/api/list-files', { // Target the new list-files function
+                const response = await fetch('/api/list-files', { // Target the list-files function
                     method: 'GET',
                     headers: {
                         'Authorization': `Bearer ${token}` // Send JWT for authentication
@@ -282,7 +282,7 @@
                         <div class="file-meta">${formatBytes(file.size_bytes)} | Uploaded: ${uploadedDate}</div>
                     </div>
                     <div class="file-actions">
-                        <button class="file-action-btn download-btn" data-file-id="${file.id}">Download</button>
+                        <button class="file-action-btn download-btn" data-file-id="${file.id}" data-file-name="${file.filename}" data-file-mimetype="${file.mimetype}">Download</button>
                         <button class="file-action-btn delete-btn delete ml-2" data-file-id="${file.id}">Delete</button>
                     </div>
                 `;
@@ -290,45 +290,122 @@
             });
 
             // Add event listeners for download and delete buttons (using event delegation)
-            // It's better to attach this listener once to the parent container
-            // and use event delegation for dynamically added buttons.
-            // This specific listener should ideally be outside renderFiles if called multiple times,
-            // or ensure it's only attached once. For this example, assuming it's part of initial script load.
-            // If it's re-rendered, ensure old listeners are cleaned up or only add once.
-            // For simplicity in this direct code, it's fine for now as it's triggered on upload.
-            // Future enhancement: Move this to a dedicated setup function or ensure single attachment.
-            const existingClickListener = fileListContainer._clickListener; // Check if listener exists
-            if (!existingClickListener) {
-                const clickHandler = (e) => {
-                    const target = e.target;
-                    if (target.classList.contains('download-btn')) {
-                        const fileId = target.dataset.fileId;
-                        downloadFile(fileId, target);
-                    } else if (target.classList.contains('delete-btn')) {
-                        const fileId = target.dataset.fileId;
-                        if (confirm('Are you sure you want to delete this file? This action cannot be undone.')) {
-                            deleteFile(fileId, target);
-                        }
+            // Remove any existing listener to prevent duplicate attachments if renderFiles is called multiple times
+            const existingClickListener = fileListContainer._clickListener;
+            if (existingClickListener) {
+                fileListContainer.removeEventListener('click', existingClickListener);
+            }
+            const clickHandler = (e) => {
+                const target = e.target;
+                if (target.classList.contains('download-btn')) {
+                    const fileId = target.dataset.fileId;
+                    const fileName = target.dataset.fileName;
+                    const fileMimeType = target.dataset.fileMimetype;
+                    downloadFile(fileId, fileName, fileMimeType, target);
+                } else if (target.classList.contains('delete-btn')) {
+                    const fileId = target.dataset.fileId;
+                    // Confirm before deleting
+                    if (confirm('Are you sure you want to delete this file? This action cannot be undone.')) {
+                        deleteFile(fileId, target);
                     }
-                };
-                fileListContainer.addEventListener('click', clickHandler);
-                fileListContainer._clickListener = clickHandler; // Store reference to prevent re-attaching
+                }
+            };
+            fileListContainer.addEventListener('click', clickHandler);
+            fileListContainer._clickListener = clickHandler; // Store reference to the attached listener
+        }
+
+        // --- Functions for Download and Delete ---
+        async function downloadFile(fileId, fileName, fileMimeType, buttonElement) {
+            buttonElement.disabled = true; // Disable button during download
+            buttonElement.textContent = 'Downloading...';
+            try {
+                const token = localStorage.getItem('jwtToken');
+                if (!token) {
+                    throw new Error('User not authenticated. Please log in again.');
+                }
+
+                const response = await fetch(`/api/get-file?fileId=${fileId}`, { // Target the get-file function
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                if (response.ok) {
+                    // Assuming the backend sends base64 encoded file data in a JSON response
+                    const result = await response.json(); // Read as JSON first
+                    
+                    // Decode the base64 string to a binary string
+                    const binaryString = atob(result.fileData); 
+                    const len = binaryString.length;
+                    const bytes = new Uint8Array(len);
+                    for (let i = 0; i < len; i++) {
+                        bytes[i] = binaryString.charCodeAt(i);
+                    }
+                    
+                    // Create a Blob from the binary data with the correct MIME type
+                    const blob = new Blob([bytes], { type: fileMimeType }); 
+                    const url = URL.createObjectURL(blob); // Create a temporary URL for the Blob
+
+                    // Create a temporary anchor tag to trigger the download
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = fileName; // Set the download filename
+                    document.body.appendChild(a);
+                    a.click(); // Programmatically click the link to trigger download
+                    document.body.removeChild(a); // Clean up the temporary link
+                    URL.revokeObjectURL(url); // Release the object URL
+
+                    alert(`File "${fileName}" downloaded successfully!`);
+                } else {
+                    const errorResult = await response.json();
+                    alert(`Error downloading file: ${errorResult.message || 'Unknown error'}`);
+                    console.error('Download error:', errorResult.error || errorResult.message);
+                }
+            } catch (error) {
+                alert(`Network error during download: ${error.message}`);
+                console.error('Frontend download error:', error);
+            } finally {
+                buttonElement.disabled = false;
+                buttonElement.textContent = 'Download';
             }
         }
 
-        // --- Placeholder functions for Download and Delete ---
-        async function downloadFile(fileId, buttonElement) {
-            console.log(`Attempting to download file with ID: ${fileId}`);
-            alert('Download functionality coming soon! File ID: ' + fileId);
-        }
-
         async function deleteFile(fileId, buttonElement) {
-            console.log(`Attempting to delete file with ID: ${fileId}`);
-            alert('Delete functionality coming soon! File ID: ' + fileId);
-        }
+            buttonElement.disabled = true; // Disable button during deletion
+            buttonElement.textContent = 'Deleting...';
+            try {
+                const token = localStorage.getItem('jwtToken');
+                if (!token) {
+                    throw new Error('User not authenticated. Please log in again.');
+                }
 
-        // Initial fetch of files when the page loads (after authentication check)
-        // This call is placed inside the DOMContentLoaded authentication block.
+                const response = await fetch('/api/delete-file', { // Target the delete-file function
+                    method: 'DELETE',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ fileId: fileId })
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    alert(`File deleted successfully!`);
+                    fetchFiles(); // Refresh the file list after deletion
+                } else {
+                    alert(`Error deleting file: ${result.message || 'Unknown error'}`);
+                    console.error('Delete error:', result.error || result.message);
+                }
+            } catch (error) {
+                alert(`Network error during deletion: ${error.message}`);
+                console.error('Frontend delete error:', error);
+            } finally {
+                buttonElement.disabled = false;
+                buttonElement.textContent = 'Delete';
+            }
+        }
     </script>
 </body>
 </html>
