@@ -40,7 +40,7 @@ exports.handler = async (event, context) => {
     try {
         requestBody = JSON.parse(event.body);
         console.log("save-data-dictionary.js: Request body parsed successfully.");
-        // console.log("save-data-dictionary.js: Request body content:", JSON.stringify(requestBody, null, 2)); // Detailed log of request body (uncomment if needed)
+        console.log("save-data-dictionary.js: Request body content:", JSON.stringify(requestBody, null, 2)); // Detailed log of request body
     } catch (error) {
         console.error("save-data-dictionary.js: Invalid JSON body received:", error.message);
         return { statusCode: 400, body: JSON.stringify({ message: 'Invalid JSON body.' }) };
@@ -74,10 +74,8 @@ exports.handler = async (event, context) => {
     try {
         console.log("save-data-dictionary.js: Attempting to connect to DB pool.");
         client = await pool.connect();
-        console.log("save-data-dictionary.js: Successfully connected to DB pool.");
-
+        console.log("save-data-dictionary.js: Successfully connected to DB pool. Starting transaction.");
         await client.query('BEGIN'); // Start transaction
-        console.log("save-data-dictionary.js: Database transaction began.");
 
         let queryText;
         let queryValues;
@@ -95,9 +93,12 @@ exports.handler = async (event, context) => {
             queryValues = [dictionaryName, rulesToSave, sourceHeadersToSave, id, company_id];
             actionMessage = 'updated';
 
-            // Verify if the update actually affected a row belonging to this company
+            console.log("save-data-dictionary.js: UPDATE Query text:", queryText.replace(/\s+/g, ' ').trim()); // Log query
+            console.log("save-data-dictionary.js: UPDATE Query values:", queryValues); // Log values
+
             const updateResult = await client.query(queryText, queryValues);
             if (updateResult.rowCount === 0) {
+                console.warn("save-data-dictionary.js: Update failed: Data dictionary not found or not authorized for ID:", id);
                 await client.query('ROLLBACK');
                 return {
                     statusCode: 404,
@@ -105,6 +106,8 @@ exports.handler = async (event, context) => {
                 };
             }
             savedDictionaryId = id;
+            console.log("save-data-dictionary.js: Dictionary updated successfully. Affected rows:", updateResult.rowCount);
+
 
         } else {
             // Insert new data dictionary (UPSERT style to leverage unique constraint for company_id, name)
@@ -113,7 +116,7 @@ exports.handler = async (event, context) => {
                 INSERT INTO data_dictionaries (company_id, user_id, name, rules_json, source_headers_json)
                 VALUES ($1, $2, $3, $4::jsonb, $5::jsonb)
                 ON CONFLICT (company_id, name) DO UPDATE SET
-                    user_id = EXCLUDED.user_id, -- Keep user_id of the current updater if desired
+                    user_id = EXCLUDED.user_id,
                     rules_json = EXCLUDED.rules_json,
                     source_headers_json = EXCLUDED.source_headers_json,
                     updated_at = CURRENT_TIMESTAMP
@@ -122,14 +125,18 @@ exports.handler = async (event, context) => {
             queryValues = [company_id, user_id, dictionaryName, rulesToSave, sourceHeadersToSave];
             actionMessage = 'saved';
 
+            console.log("save-data-dictionary.js: INSERT/UPSERT Query text:", queryText.replace(/\s+/g, ' ').trim()); // Log query
+            console.log("save-data-dictionary.js: INSERT/UPSERT Query values:", queryValues); // Log values
+
             const insertResult = await client.query(queryText, queryValues);
             savedDictionaryId = insertResult.rows[0].id;
+            console.log("save-data-dictionary.js: New dictionary inserted/upserted successfully. New ID:", savedDictionaryId);
         }
 
         await client.query('COMMIT'); // Commit the transaction
         console.log("save-data-dictionary.js: Database transaction committed successfully.");
 
-        console.log(`save-data-dictionary.js: Data dictionary ${actionMessage} successfully. ID:`, savedDictionaryId);
+        console.log(`save-data-dictionary.js: Data dictionary ${actionMessage} successfully. Final ID:`, savedDictionaryId);
 
         return {
             statusCode: 200,
@@ -153,6 +160,7 @@ exports.handler = async (event, context) => {
         }
 
         console.error('save-data-dictionary.js: Specific error message from DB:', dbError.message);
+        console.error('save-data-dictionary.js: DB Error Code:', dbError.code); // Log error code
 
         // Handle specific PostgreSQL unique constraint violation error (for INSERT path)
         if (dbError.code === '23505') {
