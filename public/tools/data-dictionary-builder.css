@@ -3,26 +3,42 @@
 /* General Body and Main Content Styling */
 body {
     font-family: 'Inter', sans-serif; /* Ensures Google Font is applied */
-    @apply bg-gray-50; /* A very light grey background for the whole page */
+    background-color: #f0f4f8; /* A very light grey background for the whole page */
+    color: #333; /* Default text color */
 }
 
 main {
-    @apply flex-grow container mx-auto p-4 sm:p-6 lg:p-8; /* Centers content with responsive padding */
+    display: flex;
+    flex-grow: 1;
+    justify-content: center;
+    align-items: flex-start; /* Align content to top */
+    padding: 1rem; /* Responsive padding */
+    width: 100%;
+    box-sizing: border-box;
 }
 
 section {
-    @apply bg-white p-6 sm:p-8 rounded-xl shadow-lg mb-8; /* White background with shadow and rounded corners */
+    background-color: #ffffff;
+    padding: 1.5rem 2rem; /* Responsive padding */
+    border-radius: 0.75rem; /* Rounded corners */
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+    margin-bottom: 2rem; /* Spacing at the bottom */
+    width: 100%;
+    max-width: 900px; /* Max width for content */
+    box-sizing: border-box;
 }
 
-/* Loader Styling (consistent with other tools) */
+h2, h3, h4 { color: #2c3e50; }
+
+/* Loader Styling (consistent across tools) */
 .loader {
     border: 4px solid #f3f3f3; /* Light grey border */
     border-top: 4px solid #3498db; /* Blue border for the spinning part */
     border-radius: 50%;
     width: 40px;
     height: 40px;
-    animation: spin 1s linear infinite; /* Animation for spinning effect */
-    margin: 20px auto; /* Centers the loader horizontally */
+    animation: spin 0.8s linear infinite; /* Animation for spinning effect */
+    margin: 25px auto;
     display: none; /* Hidden by default, shown by JavaScript */
 }
 
@@ -31,24 +47,77 @@ section {
     100% { transform: rotate(360deg); }
 }
 
-/* Status Message Styles (consistent with other tools) */
-.text-gray-600 { /* For info messages */
-    color: #4a5568;
+/* Status Message Styles (consistent across tools) */
+#existingDictStatus, #newDictStatus, #uploadStatus, #saveStatus {
+    margin-top: 10px;
+    font-size: 0.9em;
+    padding: 8px 12px;
+    border-radius: 4px;
+    display: none; /* Hidden by default */
 }
 
-.text-red-600 { /* For error messages */
-    color: #e53e3e;
+/* These styles are applied by JS dynamically manipulating inline style,
+   but defining them here provides a fallback/reference */
+#existingDictStatus[style*="color: rgb(220, 53, 69)"], #newDictStatus[style*="color: rgb(220, 53, 69)"], #uploadStatus[style*="color: rgb(220, 53, 69)"], #saveStatus[style*="color: rgb(220, 53, 69)"] {
+    background-color: #f8d7da; /* light red */
+    border: 1px solid #dc3545; /* darker red */
 }
 
-.text-green-600 { /* For success messages */
-    color: #38a169;
+#existingDictStatus[style*="color: rgb(40, 167, 69)"], #newDictStatus[style*="color: rgb(40, 167, 69)"], #uploadStatus[style*="color: rgb(40, 167, 69)"], #saveStatus[style*="color: rgb(40, 167, 69)"] {
+    background-color: #d4edda; /* light green */
+    border: 1px solid #28a745; /* darker green */
 }
+
+#existingDictStatus[style*="color: rgb(73, 80, 87)"], #newDictStatus[style*="color: rgb(73, 80, 87)"], #uploadStatus[style*="color: rgb(73, 80, 87)"], #saveStatus[style*="color: rgb(73, 80, 87)"] {
+    background-color: #e2e6ea; /* light gray */
+    border: 1px solid #adb5bd; /* darker gray */
+}
+
+
+/* Form Element & Button Styling (adapted from Tailwind for Poppins) */
+button, select, input[type="text"], input[type="file"] {
+    padding: 10px 18px;
+    border: 1px solid #ced4da;
+    border-radius: 6px;
+    font-size: 1.0em;
+    font-family: 'Poppins', sans-serif;
+    transition: all 0.2s ease;
+    box-sizing: border-box;
+}
+
+button {
+    background-color: #2D62B3;
+    color: white;
+    border: none;
+    cursor: pointer;
+}
+button:hover {
+    background-color: #2756A5;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 10px rgba(45, 98, 179, 0.2);
+}
+
+select, input[type="text"] {
+    background-color: white;
+}
+select:focus, input[type="text"]:focus {
+    border-color: #2D62B3;
+    box-shadow: 0 0 0 0.2rem rgba(45, 98, 179, 0.25);
+    outline: none;
+}
+input[type="file"] {
+    padding: 8px; /* Adjust padding for file input */
+    line-height: normal; /* Ensure text aligns properly */
+    min-height: 42px; /* Match button height */
+}
+
 
 /* Specific styling for the data dictionary builder table */
 #headersTableContainer {
     max-height: 500px; /* Limit height for scrollability */
     overflow-y: auto; /* Enable vertical scrolling */
     border: 1px solid #e2e8f0; /* Light border around the table container */
+    border-radius: 0.5rem; /* Rounded corners for table container */
 }
 
 #headersTable {
@@ -81,13 +150,15 @@ section {
     background-color: #fdfdfe; /* Slightly off-white for even rows (zebra striping) */
 }
 
-#headersTable td input[type="text"],
-#headersTable td select {
-    @apply mt-1 block w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-gray-800; /* Input and select basic styling */
+#headersTable td .validation-type-select,
+#headersTable td .validation-value-input,
+#headersTable td .failure-message-input {
+    width: 100%;
     min-width: 150px; /* Ensure inputs have a minimum width */
 }
 
-/* Adjust select arrow color if needed (Tailwind might handle this) */
+
+/* Adjust select arrow color if needed */
 #headersTable td select {
     appearance: none; /* Remove default browser arrow */
     background-image: url("data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none' stroke='%234a5568'%3E%3Cpath d='M7 7l3 3 3-3' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
@@ -100,10 +171,38 @@ section {
 
 /* Specific styles for the rule options */
 .rule-description {
-    @apply text-xs text-gray-500 mt-1; /* Smaller text for rule descriptions */
+    font-size: 0.75rem; /* Smaller text for rule descriptions */
+    color: #6c757d; /* Lighter color */
+    margin-top: 0.25rem;
 }
 
 /* Hide helper fields until they are relevant */
 .hidden-rule-value {
     display: none;
+}
+
+/* Responsive adjustments */
+@media (max-width: 640px) {
+    .flex-col.sm\\:flex-row {
+        flex-direction: column !important;
+    }
+    .gap-2 {
+        gap: 0.5rem !important;
+    }
+    button[id$="Btn"] { /* Target specific buttons like loadExistingDictionaryBtn */
+        width: 100%;
+        margin-right: 0;
+    }
+    .flex.flex-col.sm\:flex-row.gap-4 { /* For save/delete buttons */
+        flex-direction: column !important;
+        gap: 1rem !important;
+    }
+    .flex-1.w-full {
+        width: 100% !important;
+    }
+}
+
+/* Utility to hide elements */
+.hidden {
+    display: none !important;
 }
