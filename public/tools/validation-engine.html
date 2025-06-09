@@ -159,7 +159,7 @@
     <main>
         <div class="container">
             <div class="page-header">
-                <h1>Excel Validation Score</h1>
+                <h1>RCM Data Validation</h1> <!-- FIX: Changed H1 from Excel Validation Score to RCM Data Validation -->
             </div>
 
             <div class="content-box">
@@ -637,17 +637,20 @@
                             duplicateRows: [] // Stores row numbers of duplicates
                         };
                         
-                        // NEW: Update overallStats.totalProcessedRowsForDuplicates
+                        // Update overallStats.totalProcessedRowsForDuplicates (for the *sheet*)
                         if (sheetData.length > 0) {
                             overallStats.totalProcessedRowsForDuplicates += sheetData.length;
                         }
 
                         // --- Duplicate Rows Detection (RETAINED) ---
-                        // This applies to the entire row content
+                        // This applies to the entire row content across all cells in the row
                         const seenRowStrings = new Map();
                         sheetData.forEach((row, index) => {
-                            // Create a string representation of the row for hashing, trimming cells
-                            const rowString = row ? row.map(cell => (cell === null || cell === undefined) ? "" : String(cell).trim()).join('~!~') : null;
+                            // Create a string representation of the row for hashing, trimming each cell
+                            const rowString = row ? row.map(cell => {
+                                const val = (cell === null || cell === undefined) ? "" : String(cell);
+                                return typeof val === 'string' ? val.trim() : val;
+                            }).join('~!~') : null;
                             if (rowString !== null) {
                                 if (seenRowStrings.has(rowString)) {
                                     currentSheetIssues.duplicateRows.push({
@@ -666,35 +669,37 @@
                         if (parsedDataDictionaryRules && Object.keys(validationRules).length > 0) {
                             sheetHeader.forEach((header, colIndex) => {
                                 const columnName = String(header).trim();
-                                if (validationRules[columnName]) { // Check if there are rules defined for this column
+                                // Rules for this specific column
+                                const columnRules = validationRules[columnName];
+
+                                if (columnRules && columnRules.length > 0) {
                                     currentSheetIssues.customValidation[columnName] = [];
-                                    const uniqueColumnValues = new Set(); // For UNIQUE rule check
                                     
-                                    validationRules[columnName].forEach(rule => {
+                                    // Process non-UNIQUE rules first
+                                    columnRules.filter(r => String(r['Validation Type']).trim().toUpperCase() !== 'UNIQUE').forEach(rule => {
                                         const ruleType = String(rule['Validation Type']).trim().toUpperCase();
                                         const ruleValue = rule['Validation Value'];
                                         const failureMessage = rule['Failure Message'] || `Validation failed for ${columnName} (Rule: ${ruleType})`;
 
                                         sheetData.forEach((row, rowIndex) => {
                                             const cellValue = row[colIndex];
-                                            const isCellEmptyOrWhitespace = (cellValue === undefined || cellValue === null || String(cellValue).trim() === '');
+                                            // More robust check for empty/whitespace
+                                            const isCellEmptyOrWhitespace = (cellValue === undefined || cellValue === null || (typeof cellValue === 'string' && cellValue.trim() === ''));
                                             let isValid = true;
                                             
-                                            // Increment processed cells count only if it's not a UNIQUE check (which counts later)
-                                            // and if it's not an empty cell for non-REQUIRED rules
+                                            // Increment processed cells count only if it's not a UNIQUE rule (handled separately)
+                                            // and if the cell is NOT empty/whitespace, OR if it's a REQUIRED rule (which checks for emptiness)
                                             if (ruleType !== 'UNIQUE' && (!isCellEmptyOrWhitespace || ruleType === 'REQUIRED')) {
                                                 overallStats.totalProcessedCells++;
                                             }
 
                                             // NEW LOGIC: Skip non-REQUIRED rules for empty/whitespace cells
                                             if (ruleType !== 'REQUIRED' && isCellEmptyOrWhitespace) {
-                                                // If cell is empty, and it's not a REQUIRED rule, it's considered valid for this specific non-REQUIRED rule.
-                                                // We proceed to next cell/rule.
-                                                return; // continue to next iteration of sheetData.forEach
+                                                return; // Skip validation for this cell/rule
                                             }
 
                                             let issueDetails = {
-                                                row: rowIndex + 2, // Excel row number
+                                                row: rowIndex + 2, // Excel row number (1-indexed data + 1 for header)
                                                 value: cellValue,
                                                 message: failureMessage,
                                                 ruleType: ruleType
@@ -708,14 +713,14 @@
                                                     if (ruleValue) {
                                                         const allowed = String(ruleValue).split(',').map(s => s.trim().toLowerCase());
                                                         isValid = allowed.includes(String(cellValue).trim().toLowerCase());
-                                                    } else { isValid = false; } // Rule value missing
+                                                    } else { isValid = false; }
                                                     break;
                                                 case 'NUMERIC_RANGE':
                                                     if (ruleValue) {
                                                         const [min, max] = String(ruleValue).split('-').map(Number);
                                                         const numericValue = parseFloat(cellValue);
                                                         isValid = !isNaN(numericValue) && numericValue >= min && numericValue <= max;
-                                                    } else { isValid = false; } // Rule value missing
+                                                    } else { isValid = false; }
                                                     break;
                                                 case 'REGEX':
                                                     if (ruleValue) {
@@ -724,36 +729,21 @@
                                                             isValid = regex.test(String(cellValue));
                                                         } catch (e) {
                                                             console.warn(`Invalid regex for column ${columnName}: ${ruleValue}. Skipping rule.`);
-                                                            isValid = true; // Don't fail if regex is malformed
+                                                            isValid = true;
                                                         }
-                                                    } else { isValid = false; } // Rule value missing
+                                                    } else { isValid = false; }
                                                     break;
                                                 case 'DATE_PAST':
                                                     try {
                                                         let processedDate = cellValue;
                                                         if (typeof cellValue === 'number' && !isNaN(cellValue)) {
-                                                            processedDate = new Date(Math.round((cellValue - 25569) * 86400 * 1000)); // Convert OLE Automation date
+                                                            processedDate = new Date(Math.round((cellValue - 25569) * 86400 * 1000));
                                                         } else if (typeof cellValue === 'string') {
-                                                            processedDate = new Date(cellValue); // Attempt to parse string date
+                                                            processedDate = new Date(cellValue);
                                                         }
                                                         isValid = processedDate instanceof Date && !isNaN(processedDate.getTime()) && processedDate < TODAY;
                                                     } catch (e) {
-                                                        isValid = false; // Treat invalid date strings/formats as failure
-                                                    }
-                                                    break;
-                                                case 'UNIQUE':
-                                                    // Handle UNIQUE rule separately after all column values are collected
-                                                    // This part of UNIQUE logic is for non-empty values
-                                                    if (!isCellEmptyOrWhitespace) {
-                                                        const lowerCaseVal = String(cellValue).trim().toLowerCase();
-                                                        if (uniqueColumnValues.has(lowerCaseVal)) {
-                                                            isValid = false;
-                                                        } else {
-                                                            uniqueColumnValues.add(lowerCaseVal);
-                                                            isValid = true;
-                                                        }
-                                                    } else {
-                                                        isValid = true; // Empty cells are not considered for UNIQUE violation by themselves
+                                                        isValid = false;
                                                     }
                                                     break;
                                                 default:
@@ -766,38 +756,42 @@
                                                 overallStats.customIssueCount++;
                                             }
                                         });
-                                        // After iterating all rows for a UNIQUE rule, re-check and add the original duplicate values too
-                                        if (ruleType === 'UNIQUE') {
-                                            const allValues = sheetData.map(row => row[colIndex]);
-                                            const seenForUnique = new Set();
-                                            const uniqueDuplicates = [];
-                                            allValues.forEach((val, idx) => {
-                                                if (val !== undefined && val !== null && String(val).trim() !== '') {
-                                                    const lowerCaseVal = String(val).trim().toLowerCase();
-                                                    if (seenForUnique.has(lowerCaseVal)) {
-                                                        // Only add if not already marked as duplicate in this rule
-                                                        const alreadyFlagged = uniqueDuplicates.some(issue =>
-                                                            issue.row === idx + 2 && issue.value === val && issue.ruleType === 'UNIQUE'
-                                                        );
-                                                        if (!alreadyFlagged) {
-                                                            uniqueDuplicates.push({
-                                                                row: idx + 2,
-                                                                value: val,
-                                                                message: `Value '${val}' in column '${columnName}' is not unique.`,
-                                                                ruleType: 'UNIQUE'
-                                                            });
-                                                            overallStats.customIssueCount++; // Increment for each actual duplicate instance
-                                                        }
-                                                    } else {
-                                                        seenForUnique.add(lowerCaseVal);
-                                                    }
-                                                }
-                                            });
-                                            if (uniqueDuplicates.length > 0) {
-                                                currentSheetIssues.customValidation[columnName] = currentSheetIssues.customValidation[columnName].concat(uniqueDuplicates);
-                                            }
-                                        } // End UNIQUE specific logic
                                     });
+
+                                    // NEW LOGIC: Dedicated pass for UNIQUE rule after all single-cell rules
+                                    const uniqueRule = columnRules.find(r => String(r['Validation Type']).trim().toUpperCase() === 'UNIQUE');
+                                    if (uniqueRule) {
+                                        const failureMessage = uniqueRule['Failure Message'] || `Validation failed for ${columnName} (Rule: UNIQUE)`;
+                                        const allColumnValues = sheetData.map(row => row[colIndex]);
+                                        const seenForUnique = new Set();
+                                        
+                                        allColumnValues.forEach((val, idx) => {
+                                            const isValEmpty = (val === undefined || val === null || (typeof val === 'string' && String(val).trim() === ''));
+                                            
+                                            // Only consider non-empty, non-whitespace values for uniqueness
+                                            if (!isValEmpty) {
+                                                const lowerCaseVal = String(val).trim().toLowerCase();
+                                                // Increment processed cells for unique rules too, but only for non-empty ones
+                                                overallStats.totalProcessedCells++; 
+                                                if (seenForUnique.has(lowerCaseVal)) {
+                                                    const alreadyFlagged = currentSheetIssues.customValidation[columnName].some(issue =>
+                                                        issue.row === idx + 2 && String(issue.value).trim().toLowerCase() === lowerCaseVal && issue.ruleType === 'UNIQUE'
+                                                    );
+                                                    if (!alreadyFlagged) {
+                                                        currentSheetIssues.customValidation[columnName].push({
+                                                            row: idx + 2,
+                                                            value: val,
+                                                            message: `Value '${val}' in column '${columnName}' is not unique.`,
+                                                            ruleType: 'UNIQUE'
+                                                        });
+                                                        overallStats.customIssueCount++;
+                                                    }
+                                                } else {
+                                                    seenForUnique.add(lowerCaseVal);
+                                                }
+                                            }
+                                        });
+                                    }
                                 }
                             });
                         }
@@ -806,7 +800,6 @@
                         displaySheetResults(sheetName, currentSheetIssues, sheetHeader);
                     });
 
-                    // Update UI counts after processing all sheets
                     updateInitialOverallCountsDisplay();
 
                     document.getElementById('results').style.display = 'block';
@@ -906,8 +899,8 @@
 
             let reportHTML = `<h1>Data Quality Summary Report</h1><div class="summary-section"><h2>Overall Statistics (Overrides Applied)</h2>`;
             reportHTML += `<p><strong>File:</strong> ${excelFileName}</p>`;
-            reportHTML += `<p><strong>Total Cells Processed (for custom rules):</strong> ${overallStats.totalProcessedCells}</p>`; // Updated text
-            reportHTML += `<p><strong>Total Rows Processed (for duplicates):</strong> ${overallStats.totalProcessedRowsForDuplicates}</p>`; // Updated text
+            reportHTML += `<p><strong>Total Cells Processed (for custom rules):</strong> ${overallStats.totalProcessedCells}</p>`;
+            reportHTML += `<p><strong>Total Rows Processed (for duplicates):</strong> ${overallStats.totalProcessedRowsForDuplicates}</p>`;
             reportHTML += `<p><strong>Total Custom Validation Issues (effective):</strong> ${overallStats.customIssueCount}</p>`;
             reportHTML += `<p><strong>Total Duplicate Rows Found:</strong> ${overallStats.duplicateRowCount}</p>`;
             reportHTML += `<p><strong>Total Effective Issues (Custom + Duplicates):</strong> ${totalEffectiveIssues}</p>`;
@@ -1079,7 +1072,7 @@
                 const { duplicateRows } = analysisResults[sheetName];
                 if (duplicateRows && duplicateRows.length > 0) {
                     duplicatesExported = true;
-                    duplicateRows.forEach(dupeRow => {
+                    duplicates.forEach(dupeRow => {
                         const rowData = parsedExcelData.Sheets[sheetName] ? XLSX.utils.sheet_to_json(parsedExcelData.Sheets[sheetName], {header:1, defval:null})[dupeRow.originalRowIndex - 1] : [];
                         if (rowData) {
                             const sample = rowData.slice(0, 3).map(d => d ?? "").join(', ');
