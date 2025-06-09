@@ -38,7 +38,8 @@ exports.handler = async (event, context) => {
             `SELECT id, name, created_at, updated_at, user_id, source_headers_json
              FROM data_dictionaries
              WHERE company_id = $1
-             ORDER BY name ASC`, -- Order by name for easy lookup
+             ORDER BY name ASC` // Corrected: Removed JavaScript comment from SQL string
+             , // Added comma to separate string from values array
             [company_id]
         );
 
