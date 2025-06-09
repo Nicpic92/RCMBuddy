@@ -51,7 +51,7 @@ exports.handler = async (event, context) => {
             return { statusCode: 404, body: JSON.stringify({ message: 'Data dictionary not found or not accessible.' }) };
         }
 
-        // Return the full dictionary details, including rules_json
+        // Return the full dictionary details, including rules_json and updated_at
         return {
             statusCode: 200,
             headers: { 'Content-Type': 'application/json' },
@@ -62,7 +62,7 @@ exports.handler = async (event, context) => {
                 rules_json: dictionary.rules_json, // This is the actual JSON object/array
                 source_headers_json: dictionary.source_headers_json, // Also a JSON object/array
                 created_at: dictionary.created_at,
-                updated_at: dictionary.updated_at,
+                updated_at: dictionary.updated_at, // NEW: Include updated_at
                 user_id: dictionary.user_id
             })
         };
