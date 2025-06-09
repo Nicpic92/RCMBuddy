@@ -7,7 +7,7 @@
     <!-- XLSX library for client-side Excel file parsing -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <style>
-        /* Your provided CSS styles */
+        /* Your provided CSS styles, combined and optimized */
         @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap');
 
         body, html {
@@ -43,7 +43,7 @@
 
         h2, h3, h4 { color: #2c3e50; }
         .intro-text { margin-bottom: 0.8em; font-size: 1rem; color: #495057; }
-        input[type="file"] { margin-bottom: 20px; font-family: 'Poppins', sans-serif; display: block; }
+        input[type="file"] { margin-bottom: 20px; font-family: 'Poppins', sans-serif; display: block; width: 100%; box-sizing: border-box; } /* Added width */
         
         /* Updated button and select styles for consistency */
         button, .action-button, select, input[type="text"] {
@@ -53,6 +53,7 @@
             font-size: 1.0em;
             font-family: 'Poppins', sans-serif;
             transition: all 0.2s ease;
+            box-sizing: border-box; /* Include padding/border in element's total width/height */
         }
         button, .action-button {
             background-color: #2D62B3;
@@ -201,7 +202,7 @@
 
                 {/* Analyze Button */}
                 <div id="analyzeFileBtnContainer" style="text-align: center; margin-top: 30px;">
-                    <button **id="analyzeFileBtn"** onclick="analyzeFile()">Analyze File</button>
+                    <button id="analyzeFileBtn" onclick="analyzeFile()">Analyze File</button>
                 </div>
                 <div class="loader" id="loader"></div>
 
@@ -610,8 +611,8 @@
             overallStats = { // Reset overall stats for each analysis
                 customIssueCount: 0,
                 duplicateRowCount: 0,
-                totalProcessedDataCells: 0, // Used for overall stats denominator
-                totalRowsProcessedForDuplicates: 0 // Used for overall stats denominator
+                totalProcessedDataCells: 0, // This might need re-evaluation based on what defines a "cell" for custom rules
+                totalRowsProcessedForDuplicates: 0 
             };
 
             document.getElementById('fileName').textContent = `File: ${fileName}`;
@@ -1046,10 +1047,10 @@
             for (const sheetName in analysisResults) {
                 const { duplicateRows } = analysisResults[sheetName];
                 if (duplicateRows && duplicateRows.length > 0) {
+                    duplicatesExported = true;
                     duplicateRows.forEach(dupeRow => {
                         const rowData = parsedExcelData.Sheets[sheetName] ? XLSX.utils.sheet_to_json(parsedExcelData.Sheets[sheetName], {header:1, defval:null})[dupeRow.originalRowIndex - 1] : [];
                         if (rowData) {
-                            duplicatesExported = true;
                             const sample = rowData.slice(0, 3).map(d => d ?? "").join(', ');
                             summaryAoA.push([sheetName, dupeRow.originalRowIndex, dupeRow.duplicateOf, `${sample}...`]);
                         }
@@ -1098,38 +1099,43 @@
             document.getElementById('loadDataDictionaryBtn').addEventListener('click', loadDataDictionary);
             
             // Analyze button (uses onclick in HTML, but can be added here too for consistency)
-            // document.getElementById('analyzeFileBtn').addEventListener('click', analyzeFile); // If you prefer
+            // The onclick="analyzeFile()" is already on the HTML button, so no need to duplicate this:
+            // document.getElementById('analyzeFileBtn').addEventListener('click', analyzeFile); 
             
             // Delegate event for override checkboxes and show values buttons
             document.getElementById('sheetResults').addEventListener('click', function(event) {
                 const target = event.target;
                 if (target.classList.contains('override-checkbox')) {
                     const { sheet, column } = target.dataset;
-                    // For the new structure, column name is direct from dataset.
-                    if (analysisResults[sheet]?.customValidation?.[column]) {
-                        // The current `analysisResults` structure doesn't have an `isOverridden` flag per column.
-                        // We will recalculate based on checkbox state when generating summary.
-                        // So, no direct update to workbookData[sheet].columns[column].isOverridden needed here.
-                        // The visual update is handled by CSS class toggling in displaySheetResults.
-                        
-                        // Visually toggle 'column-overridden' class for immediate feedback
-                        target.closest('.column-summary').classList.toggle('column-overridden', target.checked);
+                    
+                    // Visually toggle 'column-overridden' class for immediate feedback
+                    // This finds the parent .column-summary div and applies the class
+                    const columnSummaryElement = target.closest('.column-summary');
+                    if (columnSummaryElement) {
+                        columnSummaryElement.classList.toggle('column-overridden', target.checked);
+                    } else {
+                        console.warn("Could not find parent .column-summary for override checkbox.");
+                    }
 
-                        // Recalculate summary if it's already visible
-                        if (document.getElementById('summaryReportContainer').style.display !== 'none') {
-                            generateSummaryReport(false); // Update summary without scrolling
-                        } else {
-                            // Update overall counts for the initial display if needed (e.g. for duplicates)
-                            recalculateGlobalOverallStatsFromWorkbookData(); 
-                            updateInitialOverallCountsDisplay();
-                        }
+                    // Recalculate summary if it's already visible
+                    if (document.getElementById('summaryReportContainer').style.display !== 'none') {
+                        generateSummaryReport(false); // Update summary without scrolling
+                    } else {
+                        // Update overall counts for the initial display if needed (e.g. for duplicates)
+                        recalculateGlobalOverallStatsFromWorkbookData(); 
+                        updateInitialOverallCountsDisplay();
                     }
                 } else if (target.classList.contains('toggle-values-btn')) {
                     const { sheet, column } = target.dataset;
-                    const valuesContainer = target.closest('li').querySelector('.column-values-container');
-                    if (!analysisResults[sheet]?.customValidation?.[column]) { 
-                        console.error("No custom validation issues found for:", sheet, column); 
-                        valuesContainer.innerHTML = '<p>No custom issues for this column.</p>';
+                    const valuesContainer = target.closest('li')?.querySelector('.column-values-container'); // Use optional chaining
+                    if (!valuesContainer) {
+                        console.error("Could not find valuesContainer for toggle button.");
+                        return;
+                    }
+
+                    // Check if there are custom issues for this column to display
+                    if (!analysisResults[sheet]?.customValidation?.[column] || analysisResults[sheet].customValidation[column].length === 0) { 
+                        valuesContainer.innerHTML = '<p style="font-style: italic; color: #6c757d;">No custom issues for this column.</p>';
                         valuesContainer.style.display = 'block';
                         target.textContent = 'Hide Values';
                         return; 
@@ -1140,16 +1146,20 @@
                         const ul = document.createElement('ul');
                         const customIssuesForColumn = analysisResults[sheet].customValidation[column];
 
-                        customIssuesForColumn.forEach(issue => {
+                        // Sort issues by row number for better readability
+                        customIssuesForColumn.sort((a,b) => a.row - b.row).forEach(issue => {
                             const li = document.createElement('li');
                             let displayValue = `Row ${issue.row}: Rule: ${issue.ruleType} - Value: "${String(issue.value)}" - Message: ${issue.message}`;
+                            if (String(issue.value).trim() === '') {
+                                displayValue = `Row ${issue.row}: Rule: ${issue.ruleType} - Value: [BLANK] - Message: ${issue.message}`;
+                            } else if (issue.value === null) {
+                                displayValue = `Row ${issue.row}: Rule: ${issue.ruleType} - Value: [NULL] - Message: ${issue.message}`;
+                            }
                             li.classList.add('value-generic-issue'); // Style for custom issues
                             li.textContent = displayValue;
                             ul.appendChild(li);
                         });
-                        if (ul.children.length === 0) {
-                            ul.innerHTML = '<li>No specific custom issues to display.</li>';
-                        }
+                        
                         valuesContainer.appendChild(ul);
                         valuesContainer.style.display = 'block';
                         target.textContent = 'Hide Values';
@@ -1161,22 +1171,18 @@
                 }
             });
 
-            // Delegate event for editable stats in summary report (if you keep this functionality)
+            // Delegate event for editable stats in summary report (THIS FUNCTIONALITY WILL BE LIMITED)
             document.getElementById('summaryReportContainer')?.addEventListener('blur', function(event) {
                 if (event.target.classList.contains('editable-stat')) {
                     const td = event.target;
                     const { sheet, column, type } = td.dataset;
-                    const newValue = parseInt(td.textContent.trim(), 10); // Expecting custom issue count
                     
-                    // Note: This 'editable-stat' was primarily for the old blank/null/future date counts.
-                    // If you're only tracking custom issues, this needs careful adaptation or removal.
-                    // For now, it will only update custom issue count.
-                    
-                    // You would need to store the custom issue counts in an editable way if you want to edit them.
-                    // The overallStats.customIssueCount is calculated from `analysisResults` based on overrides.
-                    // It's generally better to rely on override checkboxes for issues rather than direct number editing.
-                    // I will leave this as is but note its limited applicability with the new logic.
+                    // ALERT: Directly editing custom issue counts is not ideal.
+                    // The numbers are derived from the analysis results and override checkboxes.
+                    // This section of code is left as is, but it will only provide a warning
+                    // and revert the text, as editing these directly isn't a good UX for custom rules.
                     alert('Editing issue counts directly is not fully supported for custom rules. Please use the "Override Issues" checkbox instead.');
+                    
                     // Revert text if they changed it
                     if (analysisResults[sheet]?.customValidation?.[column]) {
                         const originalCount = analysisResults[sheet].customValidation[column].length;
