@@ -64,66 +64,10 @@ function displayMessage(elementId, message, type = 'info') {
     }
 }
 
-// --- Authentication and Navigation (reused from other tools) ---
+// --- Authentication and Navigation (reused) ---
+async function verifyToken() { /* ... */ }
+function setupNavigation(userData) { /* ... */ }
 
-/**
- * Verifies the JWT token stored in localStorage with the backend.
- * Redirects to login if token is missing or invalid.
- * @returns {Promise<object | null>} User data if token is valid, otherwise null.
- */
-async function verifyToken() {
-    const token = localStorage.getItem('jwtToken');
-    if (!token) {
-        window.location.href = '/'; // Redirect to login if no token
-        return null;
-    }
-
-    try {
-        const response = await fetch('/api/protected', {
-            method: 'GET',
-            headers: {
-                'Authorization': `Bearer ${token}`
-            }
-        });
-
-        if (!response.ok) {
-            console.error('Token verification failed:', response.statusText);
-            localStorage.removeItem('jwtToken');
-            window.location.href = '/';
-            return null;
-        }
-
-        const data = await response.json();
-        console.log('User data:', data);
-        return data;
-    } catch (error) {
-        console.error('Error verifying token:', error);
-        localStorage.removeItem('jwtToken');
-        window.location.href = '/';
-        return null;
-    }
-}
-
-/**
- * Sets up navigation elements based on user data.
- * @param {object} userData - The user data obtained from token verification.
- */
-function setupNavigation(userData) {
-    const profileLink = document.getElementById('profileLink');
-    if (profileLink && userData) {
-        profileLink.textContent = `Hello, ${userData.username}`;
-        profileLink.href = '#'; // Placeholder, replace with actual profile page link if exists
-    }
-
-    const logoutBtn = document.getElementById('logoutBtn');
-    if (logoutBtn) {
-        logoutBtn.addEventListener('click', (e) => {
-            e.preventDefault();
-            localStorage.removeItem('jwtToken');
-            window.location.href = '/';
-        });
-    }
-}
 
 // --- Initial Setup: Populate Existing Dictionaries Dropdown & Load Existing Rules ---
 
@@ -135,7 +79,6 @@ async function populateExistingDictionariesDropdown() {
     if (!token) return;
 
     try {
-        // Use the new list-data-dictionaries API
         const listResponse = await fetch('/api/list-data-dictionaries', {
             method: 'GET',
             headers: { 'Authorization': `Bearer ${token}` }
@@ -251,12 +194,29 @@ async function loadDictionaryForEditing() {
         }
         const dictionary = await response.json();
 
+        console.log("loadDictionaryForEditing: Received dictionary data:", dictionary); // LOG THE RECEIVED DATA
+        console.log("loadDictionaryForEditing: dictionary.source_headers_json:", dictionary.source_headers_json);
+        console.log("loadDictionaryForEditing: dictionary.rules_json:", dictionary.rules_json);
+
         currentDictionaryId = dictionary.id; // Set ID for update operation
         document.getElementById('dictionaryName').value = dictionary.name; // Pre-fill name
 
         // Use source_headers_json to populate the table for editing, or fall back to an empty array
         currentHeaders = dictionary.source_headers_json || []; 
         const rulesToPreFill = dictionary.rules_json || [];
+
+        // --- Debugging check ---
+        if (currentHeaders.length === 0) {
+            console.warn("loadDictionaryForEditing: No source headers found in the loaded dictionary.");
+            displayMessage('existingDictStatus', 'Dictionary loaded, but no source headers found to build table.', 'info');
+            // You might want to allow uploading a file to get headers here, or just show an empty table.
+            // For now, it will proceed with an empty table.
+        }
+        if (rulesToPreFill.length === 0) {
+             console.warn("loadDictionaryForEditing: No rules found in the loaded dictionary.");
+             // This is fine, means user hasn't defined any yet.
+        }
+
 
         renderHeadersTable(currentHeaders, rulesToPreFill); // Pass headers and rules to pre-fill
 
@@ -370,6 +330,12 @@ async function startNewDictionaryFromUpload() {
  */
 function renderHeadersTable(headers, rulesToPreFill = []) {
     const tbody = document.querySelector('#headersTable tbody');
+    if (!tbody) {
+        console.error("renderHeadersTable: tbody element not found!");
+        // Add a user-facing message if this happens
+        displayMessage('saveStatus', 'Error: Table body not found in HTML. Please contact support.', 'error');
+        return;
+    }
     tbody.innerHTML = ''; // Clear existing rows
 
     // Create a map for quick lookup of rules by column name
@@ -391,6 +357,23 @@ function renderHeadersTable(headers, rulesToPreFill = []) {
         { value: 'DATE_PAST', text: 'Date in Past' },
         { value: 'UNIQUE', text: 'Unique Value' }
     ];
+
+    if (headers.length === 0) {
+        // Display a message if no headers are provided after filtering or from source
+        const row = tbody.insertRow();
+        const cell = row.insertCell();
+        cell.colSpan = 4; // Span across all columns
+        cell.textContent = "No headers available to define rules. Upload a file or load a dictionary with headers.";
+        cell.style.textAlign = 'center';
+        cell.style.padding = '20px';
+        console.warn("renderHeadersTable: No headers provided for rendering.");
+        // Disable save button if no headers to define rules for
+        document.getElementById('saveDictionaryBtn').disabled = true;
+        return; // Exit early if no headers
+    } else {
+        document.getElementById('saveDictionaryBtn').disabled = false; // Enable save button if headers exist
+    }
+
 
     headers.forEach((header, index) => {
         const row = tbody.insertRow();
