@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Excel Validate - MirraBuddy</title>
+    <!-- XLSX library for client-side Excel file parsing -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <style>
         /* Your provided CSS styles */
@@ -200,7 +201,7 @@
 
                 {/* Analyze Button */}
                 <div id="analyzeFileBtnContainer" style="text-align: center; margin-top: 30px;">
-                    <button onclick="analyzeFile()">Analyze File</button>
+                    <button **id="analyzeFileBtn"** onclick="analyzeFile()">Analyze File</button>
                 </div>
                 <div class="loader" id="loader"></div>
 
@@ -224,6 +225,7 @@
         </div>
     </main>
     
+    <!-- Footer Section: Keeping consistency -->
     <footer style="background-color: #333; color: white; padding: 20px; text-align: center; margin-top: auto;">
         <div class="container" style="max-width: 1200px; margin: 0 auto; padding: 0;">
             &copy; 2025 Excel Buddy. All rights reserved.
@@ -567,7 +569,7 @@
             console.log("Extracted Validation Rules:", validationRules);
         }
 
-        // --- Main File Analysis Logic (MODIFIED to only use custom rules) ---
+        // --- Main File Analysis Logic (MODIFIED to only use custom rules and duplicates) ---
 
         async function analyzeFile() {
             const fileInput = document.getElementById('excelFile');
@@ -590,6 +592,13 @@
                 alert('Please select an Excel or CSV file to validate, either from your local machine or from your uploaded files.');
                 return;
             }
+            
+            // Check if a data dictionary is loaded if custom rules are the only validation
+            if (!parsedDataDictionaryRules || Object.keys(validationRules).length === 0) {
+                alert('Please select and load a Data Dictionary to apply custom validation rules.');
+                return;
+            }
+
 
             if (!fileToAnalyze) {
                 alert('No file available for analysis.');
@@ -601,8 +610,8 @@
             overallStats = { // Reset overall stats for each analysis
                 customIssueCount: 0,
                 duplicateRowCount: 0,
-                totalProcessedDataCells: 0,
-                totalRowsProcessedForDuplicates: 0 
+                totalProcessedDataCells: 0, // Used for overall stats denominator
+                totalRowsProcessedForDuplicates: 0 // Used for overall stats denominator
             };
 
             document.getElementById('fileName').textContent = `File: ${fileName}`;
@@ -616,6 +625,17 @@
                     document.getElementById('results').style.display = 'block';
                     document.getElementById('sheetResults').innerHTML = '';
 
+                    // Recalculate totalRowsProcessedForDuplicates based on actual data
+                    let totalRowsForDuplicateCheck = 0;
+                    parsedExcelData.SheetNames.forEach(sheetName => {
+                        const worksheet = parsedExcelData.Sheets[sheetName];
+                        const jsonData = XLSX.utils.sheet_to_json(worksheet, {header:1, defval:null});
+                        if (jsonData.length > 1) { // If there's more than just a header
+                            totalRowsForDuplicateCheck += (jsonData.length - 1); // Exclude header row
+                        }
+                    });
+                    overallStats.totalRowsProcessedForDuplicates = totalRowsForDuplicateCheck;
+
                     parsedExcelData.SheetNames.forEach(sheetName => {
                         const worksheet = parsedExcelData.Sheets[sheetName];
                         const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: null });
@@ -623,7 +643,7 @@
                         if (jsonData.length === 0) return; // Skip empty sheets
 
                         const sheetHeader = jsonData[0] || [];
-                        const sheetData = jsonData.slice(1); // Data rows
+                        const sheetData = jsonData.slice(1); // Data rows (excluding header)
 
                         const currentSheetIssues = {
                             customValidation: {}, // Stores custom rule violations per column
@@ -631,30 +651,27 @@
                         };
                         
                         // --- Duplicate Rows Detection (RETAINED) ---
+                        // This applies to the entire row content
                         const seenRowStrings = new Map();
-                        if (sheetData.length > 0) {
-                            overallStats.totalRowsProcessedForDuplicates += sheetData.length; // Count rows processed for duplicates
-                            sheetData.forEach((row, index) => {
-                                // Create a string representation of the row for hashing, trimming cells
-                                const rowString = row ? row.map(cell => (cell === null || cell === undefined) ? "" : String(cell).trim()).join('~!~') : null;
-                                if (rowString !== null) {
-                                    if (seenRowStrings.has(rowString)) {
-                                        // If this row is a duplicate, add to duplicates list
-                                        const firstSeenIndex = seenRowStrings.get(rowString);
-                                        currentSheetIssues.duplicateRows.push({
-                                            originalRowIndex: index + 2, // Excel row number (1-indexed data + 1 for header)
-                                            duplicateOf: firstSeenIndex + 2 // Row where first seen
-                                        });
-                                    } else {
-                                        seenRowStrings.set(rowString, index); // Store index of first occurrence
-                                    }
+                        sheetData.forEach((row, index) => {
+                            // Create a string representation of the row for hashing, trimming cells
+                            const rowString = row ? row.map(cell => (cell === null || cell === undefined) ? "" : String(cell).trim()).join('~!~') : null;
+                            if (rowString !== null) {
+                                if (seenRowStrings.has(rowString)) {
+                                    currentSheetIssues.duplicateRows.push({
+                                        originalRowIndex: index + 2, // Excel row number (1-indexed data + 1 for header)
+                                        duplicateOf: seenRowStrings.get(rowString) + 2 // Row where first seen
+                                    });
+                                } else {
+                                    seenRowStrings.set(rowString, index); // Store index of first occurrence
                                 }
-                            });
-                        }
+                            }
+                        });
                         overallStats.duplicateRowCount += currentSheetIssues.duplicateRows.length;
 
 
                         // --- Custom Validation from Data Dictionary (PRIMARY VALIDATION) ---
+                        // Only perform this if a dictionary is loaded and rules are extracted
                         if (parsedDataDictionaryRules && Object.keys(validationRules).length > 0) {
                             sheetHeader.forEach((header, colIndex) => {
                                 const columnName = String(header).trim();
@@ -662,13 +679,13 @@
                                     currentSheetIssues.customValidation[columnName] = [];
                                     const uniqueColumnValues = new Set(); // For UNIQUE rule check
                                     
+                                    // Track cells processed for custom rules for overallStats
+                                    overallStats.totalProcessedDataCells += sheetData.length; 
+
                                     validationRules[columnName].forEach(rule => {
                                         const ruleType = String(rule['Validation Type']).trim().toUpperCase();
                                         const ruleValue = rule['Validation Value'];
                                         const failureMessage = rule['Failure Message'] || `Validation failed for ${columnName} (Rule: ${ruleType})`;
-
-                                        // Ensure totalProcessedDataCells counts cells subject to custom rules
-                                        overallStats.totalProcessedDataCells += sheetData.length;
 
                                         sheetData.forEach((row, rowIndex) => {
                                             const cellValue = row[colIndex];
@@ -688,14 +705,14 @@
                                                     if (ruleValue) {
                                                         const allowed = String(ruleValue).split(',').map(s => s.trim().toLowerCase());
                                                         isValid = allowed.includes(String(cellValue || '').trim().toLowerCase());
-                                                    } else { isValid = false; } // Rule value missing
+                                                    } else { isValid = false; }
                                                     break;
                                                 case 'NUMERIC_RANGE':
                                                     if (ruleValue) {
                                                         const [min, max] = String(ruleValue).split('-').map(Number);
                                                         const numericValue = parseFloat(cellValue);
                                                         isValid = !isNaN(numericValue) && numericValue >= min && numericValue <= max;
-                                                    } else { isValid = false; } // Rule value missing
+                                                    } else { isValid = false; }
                                                     break;
                                                 case 'REGEX':
                                                     if (ruleValue) {
@@ -704,35 +721,34 @@
                                                             isValid = regex.test(String(cellValue || ''));
                                                         } catch (e) {
                                                             console.warn(`Invalid regex for column ${columnName}: ${ruleValue}. Skipping rule.`);
-                                                            isValid = true; // Don't fail if regex is malformed
+                                                            isValid = true;
                                                         }
-                                                    } else { isValid = false; } // Rule value missing
+                                                    } else { isValid = false; }
                                                     break;
                                                 case 'DATE_PAST':
                                                     try {
-                                                        const dateValue = new Date(cellValue); // Excel dates are numbers (OLE automation dates)
-                                                        // Convert OLE Automation date to JS Date if it's a number
                                                         let processedDate = cellValue;
                                                         if (typeof cellValue === 'number' && !isNaN(cellValue)) {
-                                                            processedDate = new Date(Math.round((cellValue - 25569) * 86400 * 1000));
+                                                            processedDate = new Date(Math.round((cellValue - 25569) * 86400 * 1000)); // Convert OLE Automation date
+                                                        } else if (typeof cellValue === 'string') {
+                                                            processedDate = new Date(cellValue); // Attempt to parse string date
                                                         }
-                                                        isValid = processedDate instanceof Date && !isNaN(processedDate) && processedDate < TODAY;
+                                                        isValid = processedDate instanceof Date && !isNaN(processedDate.getTime()) && processedDate < TODAY;
                                                     } catch (e) {
-                                                        isValid = false; // Treat invalid date strings as failure
+                                                        isValid = false; // Treat invalid date strings/formats as failure
                                                     }
                                                     break;
                                                 case 'UNIQUE':
                                                     if (cellValue !== undefined && cellValue !== null && String(cellValue).trim() !== '') {
                                                         const lowerCaseVal = String(cellValue).trim().toLowerCase();
                                                         if (uniqueColumnValues.has(lowerCaseVal)) {
-                                                            // This specific cell is a duplicate for this rule
                                                             isValid = false;
                                                         } else {
                                                             uniqueColumnValues.add(lowerCaseVal);
-                                                            isValid = true; // No issue if first occurrence
+                                                            isValid = true;
                                                         }
                                                     } else {
-                                                        isValid = true; // Blanks/nulls generally not considered for uniqueness
+                                                        isValid = true;
                                                     }
                                                     break;
                                                 default:
@@ -762,7 +778,7 @@
 
                 } catch (error) {
                     console.error('Error processing file:', error);
-                    alert('Error processing file. Please ensure it is a valid Excel or CSV file.');
+                    alert('Error processing file: ' + error.message + '. Please ensure it is a valid Excel or CSV file.');
                     document.getElementById('results').style.display = 'none';
                     document.getElementById('generateSummaryBtn').style.display = 'none';
                 } finally {
@@ -783,9 +799,10 @@
             sheetResultsContainer.innerHTML = `<h3>Sheet: ${sheetName}</h3>`;
 
             const columnsListUL = document.createElement('ul');
-            const issuesFoundInSheet = Object.keys(issues.customValidation).some(col => issues.customValidation[col].length > 0) || issues.duplicateRows.length > 0;
+            const hasCustomIssues = Object.keys(issues.customValidation).some(col => issues.customValidation[col].length > 0);
+            const hasDuplicates = issues.duplicateRows.length > 0;
 
-            if (issuesFoundInSheet) {
+            if (hasCustomIssues || hasDuplicates) {
                 header.forEach(colName => {
                     const customIssues = issues.customValidation[String(colName).trim()] || [];
                     const listItem = document.createElement('li');
@@ -818,19 +835,11 @@
                 });
             } else {
                 const cleanMsg = document.createElement('li');
-                cleanMsg.textContent = "No custom validation issues found for this sheet.";
+                cleanMsg.textContent = "No custom validation issues or duplicate rows found for this sheet.";
                 columnsListUL.appendChild(cleanMsg);
             }
             
             sheetResultsContainer.appendChild(columnsListUL);
-
-            // Display duplicate rows for the sheet
-            if (issues.duplicateRows && issues.duplicateRows.length > 0) {
-                const dupeInfoP = document.createElement('p');
-                dupeInfoP.style.marginTop = "10px";
-                dupeInfoP.innerHTML = `<strong>Duplicate Rows Found in this sheet: ${issues.duplicateRows.length}</strong> (see summary report for details)`;
-                sheetResultsContainer.appendChild(dupeInfoP);
-            }
 
             sheetResultsDiv.appendChild(sheetResultsContainer);
         }
@@ -874,8 +883,7 @@
             let customDetailsAdded = false;
             for (const sheetName in analysisResults) {
                 const sheetIssues = analysisResults[sheetName];
-                // Check if the whole column is overridden
-                const currentSheetHeader = parsedExcelData.Sheets[sheetName] ? XLSX.utils.sheet_to_json(parsedExcelData.Sheets[sheetName], {header:1})[0] : [];
+                // Get override status for columns on this sheet
                 const overrideCheckboxes = document.querySelectorAll(`.override-checkbox[data-sheet="${sheetName.replace(/[^a-zA-Z0-9]/g, "_")}"]`);
                 const overriddenColsForSheet = {};
                 overrideCheckboxes.forEach(cb => {
@@ -884,13 +892,13 @@
 
                 for (const columnName in sheetIssues.customValidation) {
                     const isColumnOverridden = overriddenColsForSheet[columnName] === true;
-                    if (isColumnOverridden) { // If column is overridden, just list it as such
+                    if (isColumnOverridden) { 
                          customDetailsAdded = true;
                          reportHTML += `<tr><td>${sheetName}</td><td>${columnName}</td><td colspan="4" style="text-align: center;">ALL ISSUES OVERRIDDEN FOR THIS COLUMN</td><td>Yes</td></tr>`;
-                    } else { // List individual issues if not overridden
+                    } else { 
                         sheetIssues.customValidation[columnName].forEach(issue => {
                             customDetailsAdded = true;
-                            reportHTML += `<tr><td>${sheetName}</td><td>${columnName}</td><td>${issue.ruleType}</td><td>${issue.message}</td><td>${issue.value}</td><td>${issue.row}</td><td>No</td></tr>`;
+                            reportHTML += `<tr><td>${sheetName}</td><td>${columnName}</td><td>${issue.ruleType}</td><td>${issue.message}</td><td>${String(issue.value) === '' ? '[Blank]' : String(issue.value)}</td><td>${issue.row}</td><td>No</td></tr>`;
                         });
                     }
                 }
@@ -905,12 +913,11 @@
                 const { duplicateRows } = analysisResults[sheetName];
                 if (duplicateRows && duplicateRows.length > 0) {
                     duplicateRows.forEach(dupeRow => {
-                        // Assuming dupeRow here is {originalRowIndex: ..., duplicateOf: ...} from `currentSheetIssues.duplicateRows`
-                        // We need the data from the original Excel workbook to show sample data
-                        const rowData = parsedExcelData.Sheets[sheetName] ? XLSX.utils.sheet_to_json(parsedExcelData.Sheets[sheetName], {header:1, defval:null})[dupeRow.originalRowIndex -1] : []; // -1 because jsonData is 0-indexed after skipping header
+                        // Get original row data from parsedExcelData for sample
+                        const rowData = parsedExcelData.Sheets[sheetName] ? XLSX.utils.sheet_to_json(parsedExcelData.Sheets[sheetName], {header:1, defval:null})[dupeRow.originalRowIndex -1] : [];
                         if (rowData) {
                             duplicatesListed = true;
-                            const sample = rowData.slice(0, 3).map(d => (d === null || d === undefined) ? "" : String(d)).join(', ');
+                            const sample = rowData.slice(0, 3).map(d => d ?? "").join(', ');
                             reportHTML += `<tr><td>${sheetName}</td><td>${dupeRow.originalRowIndex}</td><td>${dupeRow.duplicateOf}</td><td>${sample}...</td></tr>`;
                         }
                     });
@@ -928,14 +935,13 @@
 
 
         /**
-         * Recalculates overall stats based on current workbookData and override checkboxes.
+         * Recalculates overall stats based on current analysisResults and override checkboxes.
          * Now focuses only on custom issues and duplicates.
          */
         function recalculateGlobalOverallStatsFromWorkbookData() {
             let newCustom = 0;
-            let newDuplicates = 0; // Duplicates are calculated once in analyzeFile, not overridden here
-            let newTotalProcessedCells = 0;
-
+            let newDuplicates = 0; 
+            
             for (const sheetName in analysisResults) {
                 const sheetIssues = analysisResults[sheetName];
                 const overrideCheckboxes = document.querySelectorAll(`.override-checkbox[data-sheet="${sheetName.replace(/[^a-zA-Z0-9]/g, "_")}"]`);
@@ -953,32 +959,15 @@
                     }
                 }
                 
-                // Duplicates are not typically overridden by column; they're global to the sheet/file structure
-                newDuplicates += sheetIssues.duplicateRows.length; // Already accounted for in analyzeFile, just summing here
-
-                // This is a rough estimate for total processed cells relevant to custom rules.
-                // Could be more precise if we tracked cells per custom rule.
-                const sheetDataRows = parsedExcelData.Sheets[sheetName] ? XLSX.utils.sheet_to_json(parsedExcelData.Sheets[sheetName], {header:1}).slice(1).length : 0;
-                const sheetHeaderCols = parsedExcelData.Sheets[sheetName] ? (XLSX.utils.sheet_to_json(parsedExcelData.Sheets[sheetName], {header:1})[0] || []).length : 0;
-                newTotalProcessedCells += sheetDataRows * sheetHeaderCols; // Total cells processed for custom rules is total data cells
+                // Duplicates are counted directly from analysisResults
+                newDuplicates += sheetIssues.duplicateRows.length; 
             }
 
             overallStats.customIssueCount = newCustom;
             overallStats.duplicateRowCount = newDuplicates;
-            overallStats.totalProcessedDataCells = newTotalProcessedCells; // Update based on actual data
-            overallStats.totalRowsProcessedForDuplicates = Object.values(analysisResults).reduce((sum, sheet) => sum + sheet.duplicateRows.length, 0); // This is just the count of duplicates, not total rows for dupe check.
-            
-            // Recalculate based on actual total rows for duplicate check, which is done once in analyzeFile
-            // overallStats.totalRowsProcessedForDuplicates = total rows in all sheets - headers
-            let totalRowsForDuplicateCheck = 0;
-            parsedExcelData.SheetNames.forEach(sheetName => {
-                const worksheet = parsedExcelData.Sheets[sheetName];
-                const jsonData = XLSX.utils.sheet_to_json(worksheet, {header:1, defval:null});
-                if (jsonData.length > 1) { // If there's more than just a header
-                    totalRowsForDuplicateCheck += (jsonData.length - 1);
-                }
-            });
-            overallStats.totalRowsProcessedForDuplicates = totalRowsForDuplicateCheck;
+            // totalProcessedDataCells and totalRowsProcessedForDuplicates are calculated once in analyzeFile,
+            // as they represent the scale of the input data, not the issues
+            // They are not directly affected by overrides.
         }
 
         // --- Export Functionality (UPDATED for custom issues) ---
@@ -990,7 +979,6 @@
 
             // Add original data sheets
             parsedExcelData.SheetNames.forEach(sheetName => {
-                // Read sheet again to ensure original formatting is mostly preserved (cellNF: true)
                 const ws = XLSX.utils.aoa_to_sheet(XLSX.utils.sheet_to_json(parsedExcelData.Sheets[sheetName], {header:1, defval:null}));
                 XLSX.utils.book_append_sheet(wb, ws, sheetName);
             });
@@ -1042,7 +1030,7 @@
                     } else {
                         sheetIssues.customValidation[columnName].forEach(issue => {
                             customDetailsExported = true;
-                            summaryAoA.push([sheetName, columnName, issue.ruleType, issue.message, String(issue.value), issue.row, "No"]);
+                            summaryAoA.push([sheetName, columnName, issue.ruleType, issue.message, String(issue.value) === '' ? '[Blank]' : String(issue.value), issue.row, "No"]);
                         });
                     }
                 }
