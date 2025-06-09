@@ -33,13 +33,13 @@ exports.handler = async (event, context) => {
     try {
         client = await pool.connect();
         // Query to get all data dictionaries for the current company_id
-        // Select only necessary metadata, not the full rules_json yet for a list
+        // Select only necessary metadata for a list view (e.g., id, name, creation/update dates, source headers preview)
+        // We do NOT fetch the full rules_json here for performance
         const dictionariesResult = await client.query(
             `SELECT id, name, created_at, updated_at, user_id, source_headers_json
              FROM data_dictionaries
              WHERE company_id = $1
-             ORDER BY name ASC` // Corrected: Removed JavaScript comment from SQL string
-             , // Added comma to separate string from values array
+             ORDER BY name ASC`, // Order alphabetically by name
             [company_id]
         );
 
@@ -49,7 +49,7 @@ exports.handler = async (event, context) => {
             created_at: dict.created_at,
             updated_at: dict.updated_at,
             user_id: dict.user_id, // Who created it
-            source_headers_json: dict.source_headers_json // Optionally include source headers preview
+            source_headers_json: dict.source_headers_json // Optionally include source headers preview for info
         }));
 
         return {
