@@ -5,78 +5,71 @@ This document provides a complete overview of the "Excel Buddy" web application'
 To provide a web application named "Excel Buddy" focused on Excel file manipulation, data validation, and process automation. Key features include:
 
 User Management: Secure user registration and login.
-
 Multi-Company Support: Allows multiple companies to use the application, with strict data isolation ensuring each company can only access its own data. Multiple users can belong to the same company.
-
-File Management: Users can securely upload, store, list, download, and delete files (like Excel data dictionaries and other documents) directly within the Neon (PostgreSQL) database.
-
-Data Validation Tool: An interactive client-side tool to analyze Excel/CSV files for data quality issues, including integration with uploaded data dictionaries for custom validation rules.
-
+File Management: Users can securely upload, store, list, download, and delete general Excel files and other documents directly within the company_files table in the Neon (PostgreSQL) database.
+Data Dictionary Builder: A new tool allowing users to upload Excel/CSV files, extract headers, define custom validation rules for these headers, and save these structured data dictionaries to a separate dedicated database table (data_dictionaries). The original uploaded file is not stored on the server for this process. It also filters out already defined headers when building new dictionaries.
+Data Validation Tool: An interactive client-side tool to analyze Excel/CSV files for data quality issues, including integration with saved data dictionaries (from the data_dictionaries table) for custom validation rules.
 Clean Data Tool: A client-side tool for basic Excel data cleaning (duplicates, trimming, case standardization).
-
 Deployment: Automated deployment via Netlify, leveraging Netlify Functions for backend logic.
-
 Version Control: GitHub.
-
 2. Core Technologies Used
 Frontend: HTML, CSS (Tailwind CSS for styling), JavaScript
-
 Backend: Node.js (running as Netlify Functions)
-
-Database: Neon (PostgreSQL) for user data, company data, and binary file data.
-
+Database: Neon (PostgreSQL) for user data, company data, general uploaded files (company_files table), and structured data dictionaries (data_dictionaries table).
 Deployment Platform: Netlify
-
 Version Control: GitHub
-
 Authentication: JSON Web Tokens (JWT) for secure, stateless user sessions.
-
 Password Hashing: bcryptjs.
-
 File Upload Parsing: busboy (Node.js library for multipart/form-data).
-
-Excel Processing (Client-side): xlsx.full.min.js (for Validation Engine analysis and report generation).
-
+Excel Processing (Client-side): xlsx.full.min.js (for Validation Engine analysis, Data Dictionary Builder header extraction, and report generation).
 Excel Processing (Backend): exceljs (for Data Cleaner processing).
-
 3. Current Project File Structure
 rcm-buddy-app/ (or excel-buddy-app/)
 ├── public/                                 <-- Static frontend files
 │   ├── index.html                          <-- Login/Registration page
-│   ├── dashboard.html                      <-- User dashboard
-│   ├── tools.html                          <-- List of all tools
-│   ├── file-manager.html                   <-- File upload and listing page
+│   ├── dashboard.html                      <-- User dashboard with quick tool access
+│   ├── tools.html                          <-- List of all tools (secondary access)
+│   ├── file-manager.html                   <-- General file upload and listing page
 │   └── tools/                              <-- Sub-directory for individual tool pages
 │       ├── data-cleaner.html               <-- Data Cleaner UI
-│       ├── validation-engine.html          <-- Validation Engine UI (HTML only)
+│       ├── validation-engine.html          <-- Validation Engine UI
 │       ├── validation-engine.css           <-- Validation Engine custom CSS
-│       └── validation-engine.js            <-- Validation Engine client-side logic
+│       ├── validation-engine.js            <-- Validation Engine client-side logic
+│       ├── data-dictionary-builder.html    <-- NEW: Data Dictionary Builder UI
+│       ├── data-dictionary-builder.css     <-- NEW: Data Dictionary Builder custom CSS
+│       └── data-dictionary-builder.js      <-- NEW: Data Dictionary Builder client-side logic
 ├── netlify/                                <-- Netlify Functions directory
 │   └── functions/
 │       ├── package.json                    <-- Function dependencies
 │       ├── register.js                     <-- User/Company registration logic
 │       ├── login.js                        <-- User login logic
 │       ├── protected.js                    <-- JWT verification for protected routes
-│       ├── upload-file.js                  <-- Handles file upload to Neon DB
-│       ├── list-files.js                   <-- Lists files from Neon DB (company-isolated)
-│       ├── get-file.js                     <-- Retrieves file data from Neon DB (company-isolated)
-│       └── delete-file.js                  <-- Deletes file from Neon DB (company-isolated)
-│       └── clean-excel.js                  <-- Backend for Data Cleaner tool
+│       ├── upload-file.js                  <-- Handles general file upload to company_files DB
+│       ├── list-files.js                   <-- Lists general files from company_files DB
+│       ├── get-file.js                     <-- Retrieves general file data from company_files DB
+│       ├── delete-file.js                  <-- Deletes general file from company_files DB
+│       ├── clean-excel.js                  <-- Backend for Data Cleaner tool
+│       ├── save-data-dictionary.js         <-- NEW: Saves structured data dictionary to data_dictionaries DB
+│       ├── list-data-dictionaries.js       <-- NEW: Lists data dictionaries from data_dictionaries DB
+│       ├── get-data-dictionary.js          <-- NEW: Retrieves specific data dictionary from data_dictionaries DB
+│       └── delete-data-dictionary.js       <-- NEW: Deletes data dictionary from data_dictionaries DB
 ├── netlify.toml                            <-- Netlify build configuration
 └── .gitignore                              <-- Git ignore rules
-
 4. Database Schema
 The application uses a PostgreSQL database (Neon) with the following tables:
 
 companies table: Stores information about each client company.
+
+SQL
 
 CREATE TABLE companies (
     id SERIAL PRIMARY KEY,
     name VARCHAR(255) UNIQUE NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
-
 users table: Stores user credentials and links to their company.
+
+SQL
 
 -- Assuming existing users table, alter to add company_id
 ALTER TABLE users
@@ -85,8 +78,9 @@ ADD COLUMN company_id INTEGER REFERENCES companies(id) ON DELETE RESTRICT;
 -- Optional: If you want to enforce that every user MUST belong to a company
 -- ALTER TABLE users
 -- ALTER COLUMN company_id SET NOT NULL;
+company_files table: Stores metadata and the binary data of general uploaded files (e.g., Excel, CSV documents, not data dictionaries generated by the builder), with strict company and user ownership.
 
-company_files table: Stores metadata and the binary data of uploaded files, with strict company and user ownership.
+SQL
 
 CREATE TABLE company_files (
     id SERIAL PRIMARY KEY,
@@ -95,14 +89,33 @@ CREATE TABLE company_files (
     original_filename VARCHAR(255) NOT NULL,
     mimetype VARCHAR(100),
     size_bytes BIGINT,
-    file_data BYTEA NOT NULL, -- Stores the actual file content as binary data (suitable for smaller files)
-    is_data_dictionary BOOLEAN DEFAULT FALSE, -- NEW: Flag to identify data dictionary files
+    file_data BYTEA NOT NULL, -- Stores the actual file content as binary data
+    -- is_data_dictionary BOOLEAN DEFAULT FALSE, -- REMOVED/MOVED: Data dictionaries now have their own table
     uploaded_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
+data_dictionaries table: NEW. Stores structured data dictionary definitions (validation rules) created by the Data Dictionary Builder. This table is separate from company_files and does not store the original source Excel files.
 
+SQL
+
+CREATE TABLE data_dictionaries (
+    id SERIAL PRIMARY KEY,
+    company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    name VARCHAR(255) NOT NULL, -- The user-given name for the data dictionary
+    rules_json JSONB NOT NULL, -- Stores the array of validation rules as JSON
+    source_headers_json JSONB, -- Stores ALL headers from the original file (optional, for reference)
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Constraint to ensure dictionary names are unique per company
+ALTER TABLE data_dictionaries
+ADD CONSTRAINT unique_company_dictionary_name UNIQUE (company_id, name);
 5. Key Code Components & Their Roles
 5.1. netlify.toml
 The primary configuration for Netlify deployment. It defines build directories, function paths, and API redirects.
+
+Ini, TOML
 
 [build]
   publish = "public"
@@ -115,154 +128,63 @@ The primary configuration for Netlify deployment. It defines build directories, 
 
 [[plugins]]
 package = "@netlify/plugin-functions-install-core"
-
 5.2. Frontend Pages (public/ and public/tools/)
-index.html:
-
-Registration: Form collects company_name, username, email, password. Sends data to /api/register.
-
-Login: Form accepts username or email as identifier, plus password. Sends data to /api/login.
-
-Stores jwtToken in localStorage on successful login.
-
-dashboard.html:
-
-Authenticates via JWT.
-
-Displays logged-in user's username, email, and company_name (fetched from /api/protected).
-
-Provides links to tools.html.
-
-tools.html:
-
-Lists all available tools (File Manager, Data Cleaner, Validation Engine, etc.).
-
-Tools can be hidden using data-status="development" attribute on their div elements combined with a CSS rule.
-
-file-manager.html:
-
-File Upload: Form for selecting a file and a checkbox to Mark as Data Dictionary. Sends FormData to /api/upload-file.
-
-File Listing: Fetches file metadata from /api/list-files and displays it.
-
-File Download: Calls /api/get-file to retrieve and download binary file data.
-
-File Delete: Calls /api/delete-file to delete file metadata and binary data from Neon.
-
-Includes defensive parsing in renderFiles to handle original_filename potentially stored as a JSON string from earlier versions.
-
-tools/data-cleaner.html:
-
-UI for uploading Excel files and applying cleaning options.
-
-Calls clean-excel.js backend function for processing and download.
-
+index.html: Login/Registration page. Handles user authentication.
+dashboard.html: The primary user dashboard. Authenticates via JWT, displays user and company information, and provides quick access (tool cards) to the main application features.
+tools.html: A secondary page listing all available tools. It provides a more comprehensive overview of tools, including placeholders for those under development.
+file-manager.html: Handles uploading, listing, downloading, and deleting general files from the company_files table.
+tools/data-cleaner.html: Provides the UI for client-side Excel data cleaning.
 tools/validation-engine.html:
-
-Client-side Validation: Uses xlsx.full.min.js to perform all Excel file analysis, rule application, and report generation directly in the browser.
-
-Data Dictionary Selection: Loads dropdown with files marked is_data_dictionary from /api/list-files. Allows user to select and load a dictionary.
-
-Dynamic Rules: When a data dictionary is loaded, its "Validation Rules" sheet is parsed to define validation rules (e.g., REQUIRED, DATE_PAST, ALLOWED_VALUES, NUMERIC_RANGE, REGEX, UNIQUE).
-
-Rule Application: The analyzeFile function now applies these parsed data dictionary rules to the uploaded main Excel file.
-
-Downloadable Report: Generates and exports a summary report as an Excel file.
-
-Separated into validation-engine.html, validation-engine.css, and validation-engine.js for better organization.
-
+Client-side validation using xlsx.full.min.js.
+Data Dictionary Selection: Now loads dropdowns from the new list-data-dictionaries.js API.
+Loads selected dictionary rules from the new get-data-dictionary.js API.
+Applies rules and generates reports.
+tools/data-dictionary-builder.html: NEW TOOL.
+Provides UI for uploading Excel/CSV files.
+Displays extracted headers for rule definition.
+Includes a "Validation Type Key" to guide rule creation.
+tools/data-dictionary-builder.css: NEW. Custom CSS for the Data Dictionary Builder.
+tools/data-dictionary-builder.js: NEW.
+Handles client-side Excel/CSV parsing to extract headers.
+Dynamically builds the rule definition table.
+Filters headers based on rules already existing in previously saved data dictionaries (by fetching them via list-data-dictionaries.js and get-data-dictionary.js).
+Collects defined rules and a dictionary name.
+Sends data to the new save-data-dictionary.js API.
+Allows deleting the currently viewed data dictionary via the new delete-data-dictionary.js API.
 5.3. Backend Functions (netlify/functions/)
-package.json: Lists Node.js dependencies: bcryptjs, jsonwebtoken, pg, busboy, exceljs. (@google-cloud/storage was removed).
-
-register.js:
-
-Accepts company_name.
-
-Transactions: Checks if company exists, creates if new, then inserts user with company_id.
-
-login.js:
-
-Accepts identifier (username or email). Queries DB for match.
-
-Generates JWT including user.id, username, email, company_id, company_name.
-
-protected.js:
-
-Verifies JWT.
-
-Returns decoded JWT payload (including company_id, company_name) to frontend.
-
-upload-file.js:
-
-Handles file upload directly to company_files table in Neon.
-
-Authenticates via JWT to get user_id and company_id.
-
-Stores company_id, user_id, original_filename, mimetype, size_bytes, and file_data (BYTEA) in Neon.
-
-list-files.js:
-
-Authenticates via JWT to get company_id.
-
-Queries company_files table WHERE company_id = $1 to list files only for that company.
-
-Returns id, original_filename, mimetype, size_bytes, uploaded_at, user_id, and is_data_dictionary.
-
-get-file.js:
-
-Authenticates via JWT to get company_id.
-
-Retrieves file_data (binary) and metadata from company_files table WHERE id = $1 AND company_id = $2.
-
-Returns file data as base64 in a JSON response for frontend download.
-
-delete-file.js:
-
-Authenticates via JWT to get company_id.
-
-Deletes file record from company_files table WHERE id = $1 AND company_id = $2.
-
+package.json: Lists Node.js dependencies (e.g., bcryptjs, jsonwebtoken, pg, busboy, exceljs).
+register.js: Handles user and company registration.
+login.js: Handles user login and JWT generation.
+protected.js: Verifies JWTs for protected routes.
+upload-file.js: Handles general file uploads to the company_files table.
+list-files.js: Lists general files from the company_files table.
+get-file.js: Retrieves binary data of general files from the company_files table.
+delete-file.js: Deletes general files from the company_files table.
+clean-excel.js: Backend logic for the Data Cleaner tool.
+save-data-dictionary.js: NEW. Authenticated function to save a structured data dictionary (name, rules JSON, source headers JSON) into the new data_dictionaries table.
+list-data-dictionaries.js: NEW. Authenticated function to list metadata of data dictionaries from the data_dictionaries table.
+get-data-dictionary.js: NEW. Authenticated function to retrieve the full rules_json and source_headers_json for a specific data dictionary from the data_dictionaries table.
+delete-data-dictionary.js: NEW. Authenticated function to delete a data dictionary from the data_dictionaries table.
 5.4. Data Isolation Strategy (CRUCIAL)
 Company ID in JWT: company_id is embedded in the JWT upon successful login.
-
-Backend Enforcement: All backend functions that interact with company-specific data (upload-file.js, list-files.js, get-file.js, delete-file.js, clean-excel.js if it were to log to DB) MUST:
-
+Backend Enforcement: All backend functions that interact with company-specific data (e.g., upload-file.js, list-files.js, get-file.js, delete-file.js, and all the new data-dictionary- functions) MUST:
 Verify the JWT.
-
 Extract the company_id from the decoded JWT.
-
 Include a WHERE company_id = <extracted_company_id> clause in ALL database queries (SELECT, INSERT, UPDATE, DELETE) to ensure strict data isolation.
-
 6. Netlify Deployment & Configuration
 Environment Variables:
-
 DATABASE_URL: Your Neon PostgreSQL connection string.
-
-JWT_SECRET: Your strong, random secret key.
-
-These must be set in Netlify Site Settings > Build & Deploy > Environment Variables, with "Functions" scope enabled.
-
-GCS-related variables (GCS_PROJECT_ID, etc.) are no longer needed.
-
+JWT_SECRET: Your strong, random secret key. These must be set in Netlify Site Settings > Build & Deploy > Environment Variables, with "Functions" scope enabled.
 Continuous Deployment: Netlify automatically deploys changes pushed to the configured GitHub branch.
-
 Function Bundling: The @netlify/plugin-functions-install-core plugin handles Node.js dependency installation for functions.
-
 7. Common Issues & Troubleshooting
-"Network or authentication error: Unexpected token '<', "<!DOCTYPE "... is not valid JSON": Frontend expecting JSON but received HTML. Usually means backend function was not found or failed to execute.
-
-Verify netlify.toml functions path.
-
-Check netlify/functions/ for correct file names (upload-file.js, list-files.js, etc.) and content (pure JS, no HTML).
-
-Check Netlify deploy logs (under "Functions" section) for build or runtime errors specific to the function.
-
+"Network or authentication error: Unexpected token '<', "<!DOCTYPE "... is not valid JSON": Frontend expecting JSON but received HTML. Usually means backend function was not found or failed to execute. Verify netlify.toml redirects, function paths, and check Netlify deploy logs for function errors.
 Functions not showing in Netlify deploy logs: Incorrect folder paths in netlify.toml or missing plugin.
-
 Login fails (username/email): Ensure login.js correctly queries both email and username.
-
-Old filename formatting (JSON string): Old entries in company_files may have this. file-manager.html includes defensive parsing to display them correctly. New uploads should be fine.
-
-File upload/download/delete not working: Check specific function logs (upload-file.js, list-files.js, get-file.js, delete-file.js) for runtime errors. Verify authentication token is sent correctly from frontend.
-
+Old filename formatting (JSON string in original_filename of company_files): Old entries might exist. file-manager.html includes defensive parsing. New uploads using upload-file.js should store plain strings.
+Data Dictionary Filtering/Validation fails (after refactor):
+Possible Cause: Ensure all new data-dictionary- backend functions (save-data-dictionary.js, list-data-dictionaries.js, get-data-dictionary.js, delete-data-dictionary.js) are correctly deployed.
+Possible Cause: Verify frontend (data-dictionary-builder.js, validation-engine.js) are using the new API endpoints (/api/list-data-dictionaries, /api/get-data-dictionary, etc.) and correctly handling the JSON responses (no base64 decoding needed for rules_json anymore).
+Check Database: Confirm data_dictionaries table has records and their rules_json is valid JSON.
+File upload/download/delete (for general files) not working: Check specific function logs (upload-file.js, list-files.js, get-file.js, delete-file.js) for runtime errors. Verify authentication token is sent correctly from frontend.
 This document should provide a complete and up-to-date reference for your Excel Buddy project.
