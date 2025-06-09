@@ -1,29 +1,198 @@
 // public/tools/data-dictionary-builder.js
 
 // --- Global Variables ---
-let currentHeaders = [];
-let currentDictionaryId = null;
-let uploadedOriginalFileName = null;
-let existingDataDictionaryColumns = new Set();
-
+let currentHeaders = []; // Stores the headers of the currently processed file/dictionary
+let currentDictionaryId = null; // Stores the ID of the dictionary currently being edited (null for new ones)
+let uploadedOriginalFileName = null; // Stores the name of the file uploaded to extract headers for a NEW dictionary
+let isEditingExistingDictionary = false; // Flag to differentiate between creating new and editing existing
 
 // --- Helper Functions (reused and adapted) ---
-function showLoader(targetLoaderId = 'initialLoader') { /* ... */ }
-function hideLoader(targetLoaderId = 'initialLoader') { /* ... */ }
-function displayMessage(elementId, message, type = 'info') { /* ... */ }
+
+/**
+ * Displays the loading spinner and disables relevant buttons/sections.
+ * @param {string} targetLoaderId - The ID of the loader element to show.
+ */
+function showLoader(targetLoaderId = 'initialLoader') {
+    document.getElementById(targetLoaderId).style.display = 'block';
+    // Disable primary action buttons while loading
+    document.getElementById('loadExistingDictionaryBtn').disabled = true;
+    document.getElementById('createNewDictionaryBtn').disabled = true;
+    document.getElementById('saveDictionaryBtn').disabled = true;
+    document.getElementById('deleteDictionaryBtn').disabled = true;
+}
+
+/**
+ * Hides the loading spinner and enables relevant buttons/sections.
+ * @param {string} targetLoaderId - The ID of the loader element to hide.
+ */
+function hideLoader(targetLoaderId = 'initialLoader') {
+    document.getElementById(targetLoaderId).style.display = 'none';
+    // Re-enable primary action buttons, save/delete will be managed by table content
+    document.getElementById('loadExistingDictionaryBtn').disabled = false;
+    document.getElementById('createNewDictionaryBtn').disabled = false;
+    // Save/delete buttons re-enabled based on whether headers are loaded or existing dict is loaded
+    // Managed by renderHeadersTable and loadDictionaryForEditing
+}
+
+/**
+ * Displays a message on the UI.
+ * @param {string} elementId - The ID of the HTML element to display the message in.
+ * @param {string} message - The message text.
+ * @param {'info' | 'success' | 'error'} type - The type of message (influences styling via classes).
+ */
+function displayMessage(elementId, message, type = 'info') {
+    const element = document.getElementById(elementId);
+    if (element) {
+        element.textContent = message;
+        // Remove existing color classes to prevent conflicts
+        element.classList.remove('text-red-600', 'text-green-600', 'text-gray-600');
+        // Add new color class based on message type
+        if (type === 'error') {
+            element.classList.add('text-red-600');
+        } else if (type === 'success') {
+            element.classList.add('text-green-600');
+        } else {
+            element.classList.add('text-gray-600'); // Default for info
+        }
+        element.style.display = 'block'; // Ensure message is visible
+    }
+}
 
 // --- Authentication and Navigation (reused) ---
-async function verifyToken() { /* ... */ }
-function setupNavigation(userData) { /* ... */ }
+
+/**
+ * Verifies the JWT token stored in localStorage with the backend.
+ * Redirects to login if token is missing or invalid.
+ * @returns {Promise<object | null>} User data if token is valid, otherwise null.
+ */
+async function verifyToken() {
+    const token = localStorage.getItem('jwtToken');
+    if (!token) {
+        window.location.href = '/'; // Redirect to login if no token
+        return null;
+    }
+
+    try {
+        const response = await fetch('/api/protected', {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+
+        if (!response.ok) {
+            console.error('Token verification failed:', response.statusText);
+            localStorage.removeItem('jwtToken');
+            window.location.href = '/';
+            return null;
+        }
+
+        const data = await response.json();
+        console.log('User data:', data); // Log user data for debugging
+        return data; // Contains user and company info
+    } catch (error) {
+        console.error('Error verifying token:', error);
+        localStorage.removeItem('jwtToken');
+        window.location.href = '/';
+        return null;
+    }
+}
+
+/**
+ * Sets up navigation elements based on user data.
+ * @param {object} userData - The user data obtained from token verification.
+ */
+function setupNavigation(userData) {
+    const profileLink = document.getElementById('profileLink');
+    if (profileLink && userData) {
+        profileLink.textContent = `Hello, ${userData.username}`;
+        profileLink.href = '#'; // Placeholder, replace with actual profile page link if exists
+    }
+
+    const logoutBtn = document.getElementById('logoutBtn');
+    if (logoutBtn) {
+        logoutBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            localStorage.removeItem('jwtToken');
+            window.location.href = '/'; // Redirect to login page
+        });
+    }
+}
 
 // --- Initial Setup: Populate Existing Dictionaries Dropdown & Load Existing Rules ---
-async function populateExistingDictionariesDropdown() { /* ... */ }
-async function loadExistingDataDictionaryRules() { /* ... */ }
 
+/**
+ * Fetches the list of uploaded data dictionaries from the backend and populates the select dropdown.
+ */
+async function populateExistingDictionariesDropdown() {
+    const token = localStorage.getItem('jwtToken');
+    if (!token) {
+        console.warn('populateExistingDictionariesDropdown: No token found. Cannot fetch dictionaries.');
+        // The verifyToken() on DOMContentLoaded handles initial redirection, but good to prevent fetch.
+        return;
+    }
+
+    displayMessage('existingDictStatus', 'Loading existing dictionaries...', 'info');
+    const dropdown = document.getElementById('existingDictionarySelect');
+    dropdown.innerHTML = '<option value="">-- Loading --</option>'; // Temporary loading message
+
+    try {
+        // Correctly call the list-data-dictionaries API
+        const response = await fetch('/api/list-data-dictionaries', {
+            method: 'GET',
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({ message: response.statusText }));
+            console.error('populateExistingDictionariesDropdown: Failed to fetch dictionaries:', response.status, errorData.message);
+            displayMessage('existingDictStatus', `Failed to load dictionaries: ${errorData.message || 'Server error.'}`, 'error');
+            dropdown.innerHTML = '<option value="">-- Error Loading --</option>';
+            dropdown.disabled = true;
+            document.getElementById('loadExistingDictionaryBtn').disabled = true;
+            return;
+        }
+
+        const result = await response.json();
+        const dataDictionaries = result.dictionaries || []; // Ensure you're accessing the 'dictionaries' array
+
+        dropdown.innerHTML = '<option value="">-- Select an Existing Dictionary --</option>'; // Reset default option
+
+        let hasDataDictionaries = false;
+        if (dataDictionaries.length > 0) {
+            dataDictionaries.forEach(dict => {
+                const option = document.createElement('option');
+                option.value = dict.id;
+                option.textContent = dict.name;
+                dropdown.appendChild(option);
+            });
+            hasDataDictionaries = true;
+            displayMessage('existingDictStatus', `${dataDictionaries.length} dictionaries loaded.`, 'success');
+        } else {
+            displayMessage('existingDictStatus', 'No data dictionaries found for your company.', 'info');
+            dropdown.innerHTML = '<option value="">No data dictionaries available.</option>';
+        }
+
+        // Enable/disable the dropdown and its load button based on data
+        dropdown.disabled = !hasDataDictionaries;
+        document.getElementById('loadExistingDictionaryBtn').disabled = !hasDataDictionaries;
+
+    } catch (error) {
+        console.error('populateExistingDictionariesDropdown: Network or parsing error:', error);
+        displayMessage('existingDictStatus', `An unexpected error occurred: ${error.message}`, 'error');
+        dropdown.innerHTML = '<option value="">-- Error --</option>';
+        dropdown.disabled = true;
+        document.getElementById('loadExistingDictionaryBtn').disabled = true;
+    }
+}
+
+/**
+ * Loads the selected data dictionary's rules from the backend for editing.
+ */
 async function loadDictionaryForEditing() {
     const selectedDictId = document.getElementById('existingDictionarySelect').value;
     if (!selectedDictId) {
-        displayMessage('existingDictStatus', 'Please select a dictionary from the list.', 'error');
+        displayMessage('existingDictStatus', 'Please select a dictionary from the list to load for editing.', 'error');
         return;
     }
 
@@ -38,34 +207,33 @@ async function loadDictionaryForEditing() {
         });
 
         if (!response.ok) {
-            throw new Error(`Failed to load dictionary: ${response.statusText}`);
+            throw new Error(`Failed to load dictionary: ${response.statusText || 'Server error'}`);
         }
         const dictionary = await response.json();
 
         console.log("loadDictionaryForEditing: Received dictionary data:", dictionary);
-        console.log("loadDictionaryForEditing: dictionary.source_headers_json:", dictionary.source_headers_json);
-        console.log("loadDictionaryForEditing: dictionary.rules_json:", dictionary.rules_json);
 
         currentDictionaryId = dictionary.id;
         document.getElementById('dictionaryName').value = dictionary.name;
+        isEditingExistingDictionary = true; // Set flag
 
-        currentHeaders = dictionary.source_headers_json || []; 
-        const rulesToPreFill = dictionary.rules_json || [];
+        currentHeaders = dictionary.source_headers_json || []; // Ensure it's an array, even if null/empty
+        const rulesToPreFill = dictionary.rules_json || []; // Ensure it's an array, even if null/empty
 
         if (currentHeaders.length === 0) {
             console.warn("loadDictionaryForEditing: No source headers found in the loaded dictionary. This dictionary might not have been created from a file with headers.");
             displayMessage('existingDictStatus', 'Dictionary loaded, but no source headers found to build table. Consider uploading a new file to get headers, or editing an existing dictionary that has source headers.', 'info');
         }
         if (rulesToPreFill.length === 0) {
-             console.warn("loadDictionaryForEditing: No rules found in the loaded dictionary.");
+            console.warn("loadDictionaryForEditing: No rules found in the loaded dictionary.");
         }
-
 
         renderHeadersTable(currentHeaders, rulesToPreFill);
 
-        document.getElementById('initialSelectionSection').style.display = 'none';
-        document.getElementById('dictionaryBuilderSection').style.display = 'block';
-        document.getElementById('deleteDictionaryBtn').style.display = 'inline-block';
+        // Transition UI
+        document.getElementById('initialSelectionSection').classList.add('hidden');
+        document.getElementById('dictionaryBuilderSection').classList.remove('hidden');
+        document.getElementById('deleteDictionaryBtn').classList.remove('hidden'); // Show delete button for existing dict
 
         displayMessage('existingDictStatus', `Dictionary "${dictionary.name}" loaded for editing.`, 'success');
 
@@ -73,12 +241,85 @@ async function loadDictionaryForEditing() {
         console.error('Error loading dictionary for editing:', error);
         displayMessage('existingDictStatus', `Failed to load dictionary: ${error.message}`, 'error');
         currentDictionaryId = null;
+        isEditingExistingDictionary = false;
     } finally {
         hideLoader('initialLoader');
     }
 }
 
-async function startNewDictionaryFromUpload() { /* ... */ }
+/**
+ * Handles the upload of a new Excel/CSV file to extract headers for a new dictionary.
+ */
+async function startNewDictionaryFromUpload() {
+    const excelFile = document.getElementById('excelFile').files[0];
+    if (!excelFile) {
+        displayMessage('newDictStatus', 'Please select an Excel or CSV file to extract headers.', 'error');
+        return;
+    }
+
+    showLoader('initialLoader');
+    displayMessage('newDictStatus', `Extracting headers from ${excelFile.name}...`, 'info');
+
+    currentDictionaryId = null; // Reset for new dictionary
+    uploadedOriginalFileName = excelFile.name; // Store for potential default name
+    isEditingExistingDictionary = false; // Set flag
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        try {
+            const data = new Uint8Array(e.target.result);
+            const workbook = XLSX.read(data, { type: 'array' });
+
+            if (workbook.SheetNames.length === 0) {
+                throw new Error('No sheets found in the uploaded file.');
+            }
+
+            // Take headers from the first sheet (you might need to adjust this logic if multiple sheets are relevant)
+            const firstSheetName = workbook.SheetNames[0];
+            const worksheet = workbook.Sheets[firstSheetName];
+            const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: null });
+
+            if (jsonData.length === 0) {
+                throw new Error('The first sheet is empty and contains no headers.');
+            }
+
+            // Assume the first non-empty row is the header row
+            let headers = [];
+            for(let i = 0; i < jsonData.length; i++) {
+                const row = jsonData[i];
+                if (row && row.some(cell => cell !== null && String(cell).trim() !== '')) {
+                    headers = row.map(h => h === null || h === undefined ? '' : String(h).trim()).filter(h => h !== '');
+                    break;
+                }
+            }
+
+            if (headers.length === 0) {
+                throw new Error('Could not find any valid headers in the first sheet.');
+            }
+
+            currentHeaders = headers;
+            document.getElementById('dictionaryName').value = uploadedOriginalFileName.replace(/\.(xlsx|xls|csv)$/i, '').trim(); // Pre-fill name
+            
+            renderHeadersTable(currentHeaders); // Render table with empty rules
+            
+            // Transition UI
+            document.getElementById('initialSelectionSection').classList.add('hidden');
+            document.getElementById('dictionaryBuilderSection').classList.remove('hidden');
+            document.getElementById('deleteDictionaryBtn').classList.add('hidden'); // Hide delete button for new dict
+
+            displayMessage('newDictStatus', `Headers extracted from "${excelFile.name}". Define your rules.`, 'success');
+
+        } catch (error) {
+            console.error('Error processing uploaded file for headers:', error);
+            displayMessage('newDictStatus', `Failed to extract headers: ${error.message}`, 'error');
+            currentHeaders = []; // Clear headers on error
+        } finally {
+            hideLoader('initialLoader');
+            document.getElementById('excelFile').value = ''; // Clear file input
+        }
+    };
+    reader.readAsArrayBuffer(excelFile);
+}
 
 // --- Core Logic: Render Headers Table for Rule Definition ---
 
@@ -101,17 +342,19 @@ function renderHeadersTable(headers, rulesToPreFill = []) {
     tbody.innerHTML = ''; // Clear existing rows
 
     // Create a map for quick lookup of rules by column name
+    // Assuming each column will only have ONE rule defined in the UI for simplicity
+    // If multiple rules per column are needed, this structure needs to be an array of rules per column
     const rulesMap = new Map();
     rulesToPreFill.forEach(rule => {
         const colName = String(rule['Column Name']).trim();
-        console.log("renderHeadersTable: Mapping rule for column:", colName, "Rule:", rule);
-        if (!rulesMap.has(colName)) {
-            rulesMap.set(colName, []);
+        if (colName) {
+            // Store the rule object directly
+            rulesMap.set(colName, rule);
         }
-        rulesMap.get(colName).push(rule);
     });
     console.log("renderHeadersTable: Rules map created:", rulesMap);
 
+    // Ensure this list matches the backend validation types
     const validationTypes = [
         { value: '', text: 'None' },
         { value: 'REQUIRED', text: 'Required (Not Blank)' },
@@ -130,12 +373,11 @@ function renderHeadersTable(headers, rulesToPreFill = []) {
         cell.style.textAlign = 'center';
         cell.style.padding = '20px';
         console.warn("renderHeadersTable: No headers provided for rendering.");
-        document.getElementById('saveDictionaryBtn').disabled = true;
-        return; // Exit early if no headers
+        document.getElementById('saveDictionaryBtn').disabled = true; // Disable save button if no headers
+        return;
     } else {
         document.getElementById('saveDictionaryBtn').disabled = false; // Enable save button if headers exist
     }
-
 
     headers.forEach((header, index) => {
         console.log(`renderHeadersTable: Processing header: "${header}" (Index: ${index})`);
@@ -156,15 +398,16 @@ function renderHeadersTable(headers, rulesToPreFill = []) {
         typeCell.appendChild(typeSelect);
 
         const valueCell = row.insertCell();
-        const valueInput = document.createElement('input'); 
+        const valueInput = document.createElement('input');
         valueInput.type = 'text';
         valueInput.classList.add('validation-value-input', 'mt-1', 'block', 'w-full', 'p-2', 'border', 'border-gray-300', 'rounded-md', 'focus:ring-green-500', 'focus:border-green-500', 'text-gray-800');
         valueInput.name = `value_${index}`;
         valueInput.placeholder = 'e.g., Value1,Value2 or 0-100 or ^\\d{5}$';
-        valueInput.style.display = 'none'; // Initially hidden, will be managed below
+        // Use !important for display style to ensure override over Tailwind/other rules if needed
+        valueInput.style.setProperty('display', 'none', 'important'); // Initially hidden
         valueCell.appendChild(valueInput);
 
-        const descriptionDiv = document.createElement('div'); 
+        const descriptionDiv = document.createElement('div');
         descriptionDiv.classList.add('rule-description');
         valueCell.appendChild(descriptionDiv); // For dynamic hints
 
@@ -176,72 +419,38 @@ function renderHeadersTable(headers, rulesToPreFill = []) {
         messageInput.placeholder = 'e.g., Field cannot be blank.';
         messageCell.appendChild(messageInput);
 
-        // Pre-fill existing rules if available
-        const existingRulesForColumn = rulesMap.get(String(header).trim());
-        console.log(`renderHeadersTable: Checking for rules for column "${header}":`, existingRulesForColumn);
-        if (existingRulesForColumn && existingRulesForColumn.length > 0) {
-            const firstRule = existingRulesForColumn[0]; 
-            console.log(`renderHeadersTable: Pre-filling rule for "${header}":`, firstRule);
-            
-            typeSelect.value = firstRule['Validation Type'] || '';
-            valueInput.value = firstRule['Validation Value'] || '';
-            messageInput.value = firstRule['Failure Message'] || '';
+        // Pre-fill existing rules if available for this column
+        const existingRule = rulesMap.get(String(header).trim());
+        console.log(`renderHeadersTable: Checking for rule for column "${header}":`, existingRule);
+        if (existingRule) {
+            console.log(`renderHeadersTable: Pre-filling rule for "${header}":`, existingRule);
+            typeSelect.value = existingRule['Validation Type'] || '';
+            valueInput.value = existingRule['Validation Value'] || '';
+            messageInput.value = existingRule['Failure Message'] || '';
 
-            // --- Manual update of visibility and placeholder based on selectedType (REVISED with !important) ---
-            const selectedType = typeSelect.value;
-            if (['ALLOWED_VALUES', 'NUMERIC_RANGE', 'REGEX'].includes(selectedType)) {
-                valueInput.style.setProperty('display', 'block', 'important'); // Use !important
-                valueInput.required = true;
-                console.log(`renderHeadersTable: For "${header}", type "${selectedType}", setting valueInput.style.display = 'block !important'`);
-                // Placeholder and description set here
-                if (selectedType === 'ALLOWED_VALUES') {
-                    valueInput.placeholder = 'Comma-separated values (e.g., Apple,Orange,Banana)';
-                    descriptionDiv.textContent = 'Enter values separated by commas (e.g., "Yes,No").';
-                } else if (selectedType === 'NUMERIC_RANGE') {
-                    valueInput.placeholder = 'Min-Max (e.g., 0-100)';
-                    descriptionDiv.textContent = 'Enter a numeric range (e.g., "1-100").';
-                } else if (selectedType === 'REGEX') {
-                    valueInput.placeholder = 'Regular Expression (e.g., ^\\d{5}$ for 5 digits)';
-                    descriptionDiv.textContent = 'Enter a regular expression (e.g., "^\\d{5}$").';
-                }
-            } else {
-                valueInput.style.setProperty('display', 'none', 'important'); // Use !important
-                valueInput.required = false;
-                valueInput.placeholder = ''; // Clear placeholder if not needed
-                descriptionDiv.textContent = ''; // Clear description if not needed
-                console.log(`renderHeadersTable: For "${header}", type "${selectedType}", setting valueInput.style.display = 'none !important'`);
-            }
-            // Update description for types without a value input
-            if (selectedType === 'REQUIRED') {
-                descriptionDiv.textContent = 'Cell must not be empty.';
-            } else if (selectedType === 'DATE_PAST') {
-                descriptionDiv.textContent = 'Date must be in the past.';
-            } else if (selectedType === 'UNIQUE') {
-                 descriptionDiv.textContent = 'Values in this column must be unique across the sheet.';
-            }
-            // --- End manual update ---
+            // Manually trigger change to set initial visibility and placeholder
+            typeSelect.dispatchEvent(new Event('change'));
         } else {
-            // Default state for columns without pre-filled rules: hide value input
-            valueInput.style.setProperty('display', 'none', 'important'); // Use !important
+            // Default state for columns without pre-filled rules: ensure value input is hidden
+            valueInput.style.setProperty('display', 'none', 'important');
             valueInput.required = false;
             valueInput.placeholder = '';
             descriptionDiv.textContent = ''; // No description by default
-            console.log(`renderHeadersTable: No existing rules for "${header}", defaulting valueInput.style.display = 'none !important'`);
+            console.log(`renderHeadersTable: No existing rule for "${header}", defaulting valueInput.style.display = 'none !important'`);
         }
 
-        // Add event listener to toggle visibility of value input and update placeholder
-        // This listener will use the same !important logic
+        // Add event listener to toggle visibility of value input and update placeholder/description
         typeSelect.addEventListener('change', (e) => {
             const selectedType = e.target.value;
             const input = e.target.closest('tr').querySelector('.validation-value-input');
-            const descDiv = e.target.closest('tr').querySelector('.rule-description'); // Use local var
+            const descDiv = e.target.closest('tr').querySelector('.rule-description');
 
             input.value = ''; // Clear value when type changes
             descDiv.textContent = ''; // Clear description
 
             if (['ALLOWED_VALUES', 'NUMERIC_RANGE', 'REGEX'].includes(selectedType)) {
-                input.style.setProperty('display', 'block', 'important'); // Show input with !important
-                input.required = true;
+                input.style.setProperty('display', 'block', 'important'); // Show input
+                input.required = true; // Make required if it's a rule that needs a value
                 if (selectedType === 'ALLOWED_VALUES') {
                     input.placeholder = 'Comma-separated values (e.g., Apple,Orange,Banana)';
                     descDiv.textContent = 'Enter values separated by commas (e.g., "Yes,No").';
@@ -253,40 +462,233 @@ function renderHeadersTable(headers, rulesToPreFill = []) {
                     descDiv.textContent = 'Enter a regular expression (e.g., "^\\d{5}$").';
                 }
             } else {
-                input.style.setProperty('display', 'none', 'important'); // Hide input with !important
+                input.style.setProperty('display', 'none', 'important'); // Hide input
                 input.required = false;
                 input.placeholder = '';
             }
 
+            // Update description for types without a value input or with special notes
             if (selectedType === 'REQUIRED') {
                 descDiv.textContent = 'Cell must not be empty.';
             } else if (selectedType === 'DATE_PAST') {
                 descDiv.textContent = 'Date must be in the past.';
             } else if (selectedType === 'UNIQUE') {
-                 descDiv.textContent = 'Values in this column must be unique across the sheet.';
+                descDiv.textContent = 'Values in this column must be unique across the sheet.';
             }
         });
     });
     console.log("renderHeadersTable: Function finished rendering table.");
 }
 
-// --- Core Logic: Save/Update Data Dictionary (unchanged) ---
-async function saveDataDictionary() { /* ... */ }
-async function deleteDataDictionary() { /* ... */ }
-function resetBuilderUI() { /* ... */ }
+/**
+ * Collects all defined rules from the headers table.
+ * @returns {Array<object>} An array of rule objects, ready for saving.
+ */
+function collectRules() {
+    const rules = [];
+    const tbody = document.querySelector('#headersTable tbody');
+    if (!tbody) {
+        console.error("collectRules: tbody element not found!");
+        return [];
+    }
 
-// --- Event Listeners and Initial Load (unchanged) ---
+    const rows = tbody.querySelectorAll('tr');
+    rows.forEach(row => {
+        const columnName = row.cells[0].textContent.trim();
+        const validationType = row.querySelector('.validation-type-select').value;
+        const validationValueInput = row.querySelector('.validation-value-input');
+        const failureMessage = row.querySelector('.failure-message-input').value.trim();
+
+        // Only include rules where a type other than 'None' is selected
+        if (validationType && validationType !== '') {
+            const rule = {
+                "Column Name": columnName,
+                "Validation Type": validationType,
+                "Validation Value": validationValueInput.style.display !== 'none' ? validationValueInput.value.trim() : "", // Only include value if input is visible
+                "Failure Message": failureMessage
+            };
+            rules.push(rule);
+        }
+    });
+    console.log("Collected Rules:", rules);
+    return rules;
+}
+
+// --- Core Logic: Save/Update Data Dictionary ---
+
+/**
+ * Handles saving a new data dictionary or updating an existing one.
+ */
+async function saveDataDictionary() {
+    const dictionaryNameInput = document.getElementById('dictionaryName');
+    const dictionaryName = dictionaryNameInput.value.trim();
+    const rules = collectRules();
+    const sourceHeaders = currentHeaders; // Use the headers that were used to build the table
+
+    if (!dictionaryName) {
+        displayMessage('saveStatus', 'Please enter a name for your data dictionary.', 'error');
+        dictionaryNameInput.focus();
+        return;
+    }
+    if (rules.length === 0) {
+        displayMessage('saveStatus', 'Please define at least one validation rule.', 'error');
+        return;
+    }
+
+    displayMessage('saveStatus', 'Saving data dictionary...', 'info');
+    document.getElementById('saveDictionaryBtn').disabled = true;
+
+    const token = localStorage.getItem('jwtToken');
+    if (!token) {
+        displayMessage('saveStatus', 'Authentication required. Please log in again.', 'error');
+        document.getElementById('saveDictionaryBtn').disabled = false;
+        return;
+    }
+
+    // Prepare payload. Send currentDictionaryId if editing existing.
+    const payload = {
+        dictionaryName,
+        rules,
+        sourceHeaders,
+        // Only include id if we are editing an existing dictionary
+        ...(isEditingExistingDictionary && currentDictionaryId && { id: currentDictionaryId })
+    };
+
+    try {
+        const response = await fetch('/api/save-data-dictionary', { // Target the save-data-dictionary function
+            method: 'POST', // Assuming backend will handle UPDATE logic based on payload.id
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify(payload)
+        });
+
+        const result = await response.json();
+
+        if (response.ok) {
+            displayMessage('saveStatus', result.message || 'Data dictionary saved successfully!', 'success');
+            // Update currentDictionaryId if it was a new creation
+            if (!isEditingExistingDictionary && result.dictionaryId) {
+                currentDictionaryId = result.dictionaryId;
+                isEditingExistingDictionary = true; // Now it's an existing dictionary
+                document.getElementById('deleteDictionaryBtn').classList.remove('hidden'); // Show delete for newly saved
+            }
+            // Refresh the existing dictionaries list in the initial section
+            await populateExistingDictionariesDropdown();
+        } else {
+            displayMessage('saveStatus', `Error saving: ${result.message || 'Unknown error.'}`, 'error');
+            console.error('Save error:', result.error || result.message);
+        }
+    } catch (error) {
+        displayMessage('saveStatus', `Network error during save: ${error.message}`, 'error');
+        console.error('Frontend save error:', error);
+    } finally {
+        document.getElementById('saveDictionaryBtn').disabled = false;
+    }
+}
+
+/**
+ * Handles deleting the currently loaded data dictionary.
+ */
+async function deleteDataDictionary() {
+    if (!currentDictionaryId) {
+        displayMessage('saveStatus', 'No dictionary selected to delete.', 'error');
+        return;
+    }
+
+    if (!confirm('Are you sure you want to delete this data dictionary? This action cannot be undone.')) {
+        return;
+    }
+
+    displayMessage('saveStatus', 'Deleting data dictionary...', 'info');
+    document.getElementById('deleteDictionaryBtn').disabled = true;
+
+    const token = localStorage.getItem('jwtToken');
+    if (!token) {
+        displayMessage('saveStatus', 'Authentication required. Please log in again.', 'error');
+        document.getElementById('deleteDictionaryBtn').disabled = false;
+        return;
+    }
+
+    try {
+        const response = await fetch('/api/delete-data-dictionary', { // Target the delete-data-dictionary function
+            method: 'DELETE',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({ id: currentDictionaryId }) // Send ID in body for DELETE
+        });
+
+        const result = await response.json();
+
+        if (response.ok) {
+            displayMessage('saveStatus', result.message || 'Data dictionary deleted successfully!', 'success');
+            resetBuilderUI(); // Reset UI after successful deletion
+            await populateExistingDictionariesDropdown(); // Refresh list
+        } else {
+            displayMessage('saveStatus', `Error deleting: ${result.message || 'Unknown error.'}`, 'error');
+            console.error('Delete error:', result.error || result.message);
+        }
+    } catch (error) {
+        displayMessage('saveStatus', `Network error during delete: ${error.message}`, 'error');
+        console.error('Frontend delete error:', error);
+    } finally {
+        document.getElementById('deleteDictionaryBtn').disabled = false;
+    }
+}
+
+/**
+ * Resets the builder UI to its initial state (showing selection options).
+ */
+function resetBuilderUI() {
+    currentHeaders = [];
+    currentDictionaryId = null;
+    uploadedOriginalFileName = null;
+    isEditingExistingDictionary = false;
+
+    document.getElementById('dictionaryName').value = '';
+    document.querySelector('#headersTable tbody').innerHTML = ''; // Clear table
+    document.getElementById('saveDictionaryBtn').disabled = true; // Disable save until headers are present
+    document.getElementById('deleteDictionaryBtn').classList.add('hidden'); // Hide delete
+
+    document.getElementById('initialSelectionSection').classList.remove('hidden');
+    document.getElementById('dictionaryBuilderSection').classList.add('hidden');
+
+    // Clear status messages for both sections
+    displayMessage('existingDictStatus', '', 'info');
+    displayMessage('newDictStatus', '', 'info');
+    displayMessage('saveStatus', '', 'info');
+}
+
+// --- Event Listeners and Initial Load ---
 document.addEventListener('DOMContentLoaded', async () => {
+    // 1. Verify user's authentication token
     const userData = await verifyToken();
     if (userData) {
+        // 2. Set up navigation links (e.g., profile name, logout)
         setupNavigation(userData);
+        // 3. Populate the "Load Existing Dictionary" dropdown
         await populateExistingDictionariesDropdown();
     }
 
+    // 4. Attach event listeners to buttons and file inputs
     document.getElementById('loadExistingDictionaryBtn').addEventListener('click', loadDictionaryForEditing);
     document.getElementById('createNewDictionaryBtn').addEventListener('click', startNewDictionaryFromUpload);
     document.getElementById('saveDictionaryBtn').addEventListener('click', saveDataDictionary);
     document.getElementById('deleteDictionaryBtn').addEventListener('click', deleteDataDictionary);
-    document.getElementById('existingDictionarySelect').addEventListener('change', () => { /* ... */ });
-    document.getElementById('excelFile').addEventListener('change', () => { /* ... */ });
+
+    // Listener to clear old status messages when selecting a different existing dictionary
+    document.getElementById('existingDictionarySelect').addEventListener('change', () => {
+        displayMessage('existingDictStatus', '', 'info');
+    });
+
+    // Listener to clear new dict status message when selecting a file
+    document.getElementById('excelFile').addEventListener('change', () => {
+        displayMessage('newDictStatus', '', 'info');
+    });
+
+    // Handle initial reset/display of UI
+    resetBuilderUI(); // Call once on load to ensure proper initial state
 });
