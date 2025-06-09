@@ -46,7 +46,7 @@ exports.handler = async (event, context) => {
         return { statusCode: 400, body: JSON.stringify({ message: 'Invalid JSON body.' }) };
     }
 
-    const { dictionaryName, rules, sourceHeaders } = requestBody;
+    const { id, dictionaryName, rules, sourceHeaders } = requestBody; // 'id' will be present for updates
 
     // 3. Validate input data
     if (!dictionaryName || dictionaryName.trim() === '') {
@@ -66,50 +66,77 @@ exports.handler = async (event, context) => {
 
     // --- Prepare data for database storage ---
     // Critical: Explicitly stringify JSONB fields and use ::jsonb casts in query.
-    // This ensures PostgreSQL receives valid JSON strings for JSONB columns, bypassing
-    // potential ambiguities in automatic driver conversion.
-    const rulesToSave = JSON.stringify(rules); 
-    const sourceHeadersToSave = sourceHeaders ? JSON.stringify(sourceHeaders) : null; // Ensure null if not provided, or an array if provided
+    // This ensures PostgreSQL receives valid JSON strings for JSONB columns.
+    const rulesToSave = JSON.stringify(rules);
+    const sourceHeadersToSave = sourceHeaders ? JSON.stringify(sourceHeaders) : null;
 
-    // 4. Store data dictionary in the NEW 'data_dictionaries' table
     let client;
     try {
         console.log("save-data-dictionary.js: Attempting to connect to DB pool.");
-        client = await pool.connect(); 
+        client = await pool.connect();
         console.log("save-data-dictionary.js: Successfully connected to DB pool.");
 
         await client.query('BEGIN'); // Start transaction
         console.log("save-data-dictionary.js: Database transaction began.");
 
-        const queryText = `
-            INSERT INTO data_dictionaries (company_id, user_id, name, rules_json, source_headers_json)
-            VALUES ($1, $2, $3, $4::jsonb, $5::jsonb) RETURNING id
-        `;
-        // Values for parameters:
-        const queryValues = [company_id, user_id, dictionaryName, rulesToSave, sourceHeadersToSave];
+        let queryText;
+        let queryValues;
+        let actionMessage;
+        let savedDictionaryId;
 
-        // --- Critical: Log the exact values that will be sent to the DB for JSONB columns ---
-        console.log("save-data-dictionary.js: Values for INSERT query:");
-        console.log("  $1 (company_id):", queryValues[0]);
-        console.log("  $2 (user_id):", queryValues[1]);
-        console.log("  $3 (name):", queryValues[2]);
-        console.log("  $4 (rules_json - logged as string):", queryValues[3].substring(0, 500) + (queryValues[3].length > 500 ? '...' : ''));
-        console.log("  $5 (source_headers_json - logged as string):", queryValues[4] ? (queryValues[4].substring(0, 500) + (queryValues[4].length > 500 ? '...' : '')) : 'null');
-        // --- End of critical logging ---
+        if (id) {
+            // Update existing data dictionary
+            console.log(`save-data-dictionary.js: Attempting to UPDATE dictionary with ID: ${id}`);
+            queryText = `
+                UPDATE data_dictionaries
+                SET name = $1, rules_json = $2::jsonb, source_headers_json = $3::jsonb, updated_at = CURRENT_TIMESTAMP
+                WHERE id = $4 AND company_id = $5 RETURNING id;
+            `;
+            queryValues = [dictionaryName, rulesToSave, sourceHeadersToSave, id, company_id];
+            actionMessage = 'updated';
 
-        const insertResult = await client.query(queryText, queryValues);
+            // Verify if the update actually affected a row belonging to this company
+            const updateResult = await client.query(queryText, queryValues);
+            if (updateResult.rowCount === 0) {
+                await client.query('ROLLBACK');
+                return {
+                    statusCode: 404,
+                    body: JSON.stringify({ message: 'Data dictionary not found or not authorized to update.' })
+                };
+            }
+            savedDictionaryId = id;
+
+        } else {
+            // Insert new data dictionary (UPSERT style to leverage unique constraint for company_id, name)
+            console.log("save-data-dictionary.js: Attempting to INSERT new dictionary.");
+            queryText = `
+                INSERT INTO data_dictionaries (company_id, user_id, name, rules_json, source_headers_json)
+                VALUES ($1, $2, $3, $4::jsonb, $5::jsonb)
+                ON CONFLICT (company_id, name) DO UPDATE SET
+                    user_id = EXCLUDED.user_id, -- Keep user_id of the current updater if desired
+                    rules_json = EXCLUDED.rules_json,
+                    source_headers_json = EXCLUDED.source_headers_json,
+                    updated_at = CURRENT_TIMESTAMP
+                RETURNING id;
+            `;
+            queryValues = [company_id, user_id, dictionaryName, rulesToSave, sourceHeadersToSave];
+            actionMessage = 'saved';
+
+            const insertResult = await client.query(queryText, queryValues);
+            savedDictionaryId = insertResult.rows[0].id;
+        }
+
         await client.query('COMMIT'); // Commit the transaction
         console.log("save-data-dictionary.js: Database transaction committed successfully.");
 
-        const newDictionaryId = insertResult.rows[0].id;
-        console.log("save-data-dictionary.js: Data dictionary saved successfully. New ID:", newDictionaryId);
+        console.log(`save-data-dictionary.js: Data dictionary ${actionMessage} successfully. ID:`, savedDictionaryId);
 
         return {
             statusCode: 200,
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                message: 'Data dictionary saved successfully!',
-                dictionaryId: newDictionaryId,
+                message: `Data dictionary ${actionMessage} successfully!`,
+                dictionaryId: savedDictionaryId,
                 dictionaryName: dictionaryName
             })
         };
@@ -117,28 +144,28 @@ exports.handler = async (event, context) => {
     } catch (dbError) {
         console.error("save-data-dictionary.js: An error occurred during database operation or connection.");
         console.error('save-data-dictionary.js: Full dbError object (including internal fields):', JSON.stringify(dbError, Object.getOwnPropertyNames(dbError)));
-        
+
         if (client) {
             console.warn("save-data-dictionary.js: Attempting to rollback database transaction.");
             await client.query('ROLLBACK');
         } else {
             console.warn("save-data-dictionary.js: No active database client to rollback (likely connection error occurred before transaction).");
         }
-        
+
         console.error('save-data-dictionary.js: Specific error message from DB:', dbError.message);
-        
-        // Handle specific PostgreSQL unique constraint violation error
-        if (dbError.code === '23505') { 
+
+        // Handle specific PostgreSQL unique constraint violation error (for INSERT path)
+        if (dbError.code === '23505') {
             console.warn("save-data-dictionary.js: Unique constraint violation detected (Error Code: 23505).");
-            return { statusCode: 409, body: JSON.stringify({ message: 'A data dictionary with this name already exists for your company. Please choose a different name.', error: dbError.message }) };
+            return { statusCode: 409, body: JSON.stringify({ message: 'A data dictionary with this name already exists for your company. Please choose a different name, or load and update the existing one.', error: dbError.message }) };
         }
-        
+
         // Generic 500 error for all other database-related issues
         return { statusCode: 500, body: JSON.stringify({ message: 'Failed to save data dictionary to database.', error: dbError.message }) };
     } finally {
         if (client) {
             console.log("save-data-dictionary.js: Releasing DB client back to pool.");
-            client.release(); 
+            client.release();
         } else {
             console.log("save-data-dictionary.js: No DB client to release (was not connected or already released).");
         }
