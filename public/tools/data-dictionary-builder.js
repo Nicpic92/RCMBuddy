@@ -18,8 +18,7 @@ function showLoader(targetLoaderId = 'initialLoader') {
     document.getElementById('loadExistingDictionaryBtn').disabled = true;
     document.getElementById('createNewDictionaryBtn').disabled = true;
     document.getElementById('saveDictionaryBtn').disabled = true;
-    document.getElementById('deleteDictionaryBtn').disabled = true;
-    document.getElementById('printDictionaryBtn').disabled = true; // NEW: Disable print button
+    document.getElementById('printDictionaryBtn').disabled = true; // Disable print button
 }
 
 /**
@@ -28,10 +27,10 @@ function showLoader(targetLoaderId = 'initialLoader') {
  */
 function hideLoader(targetLoaderId = 'initialLoader') {
     document.getElementById(targetLoaderId).style.display = 'none';
-    // Re-enable primary action buttons, save/delete will be managed by table content
+    // Re-enable primary action buttons, save/print will be managed by table content
     document.getElementById('loadExistingDictionaryBtn').disabled = false;
     document.getElementById('createNewDictionaryBtn').disabled = false;
-    // Save/delete/print buttons re-enabled based on whether headers are loaded or existing dict is loaded
+    // Save/print buttons re-enabled based on whether headers are loaded or existing dict is loaded
     // Managed by renderHeadersTable and loadDictionaryForEditing
 }
 
@@ -234,8 +233,8 @@ async function loadDictionaryForEditing() {
         // Transition UI
         document.getElementById('initialSelectionSection').classList.add('hidden');
         document.getElementById('dictionaryBuilderSection').classList.remove('hidden');
-        document.getElementById('deleteDictionaryBtn').classList.remove('hidden'); // Show delete button for existing dict
-        document.getElementById('printDictionaryBtn').disabled = false; // NEW: Enable print button
+        // The delete button is now completely removed from HTML, so no need to manage its visibility here.
+        document.getElementById('printDictionaryBtn').disabled = false; // Enable print button
 
         displayMessage('existingDictStatus', `Dictionary "${dictionary.name}" loaded for editing.`, 'success');
 
@@ -307,8 +306,8 @@ async function startNewDictionaryFromUpload() {
             // Transition UI
             document.getElementById('initialSelectionSection').classList.add('hidden');
             document.getElementById('dictionaryBuilderSection').classList.remove('hidden');
-            document.getElementById('deleteDictionaryBtn').classList.add('hidden'); // Hide delete button for new dict
-            document.getElementById('printDictionaryBtn').disabled = false; // NEW: Enable print button
+            // The delete button is now completely removed from HTML, so no need to manage its visibility here.
+            document.getElementById('printDictionaryBtn').disabled = false; // Enable print button
 
             displayMessage('newDictStatus', `Headers extracted from "${excelFile.name}". Define your rules.`, 'success');
 
@@ -377,11 +376,11 @@ function renderHeadersTable(headers, rulesToPreFill = []) {
         cell.style.padding = '20px';
         console.warn("renderHeadersTable: No headers provided for rendering.");
         document.getElementById('saveDictionaryBtn').disabled = true; // Disable save button if no headers
-        document.getElementById('printDictionaryBtn').disabled = true; // NEW: Disable print button
+        document.getElementById('printDictionaryBtn').disabled = true; // Disable print button
         return;
     } else {
         document.getElementById('saveDictionaryBtn').disabled = false; // Enable save button if headers exist
-        document.getElementById('printDictionaryBtn').disabled = false; // NEW: Enable print button
+        document.getElementById('printDictionaryBtn').disabled = false; // Enable print button
     }
 
     headers.forEach((header, index) => {
@@ -543,14 +542,12 @@ async function saveDataDictionary() {
     displayMessage('saveStatus', 'Saving data dictionary...', 'info');
     document.getElementById('saveDictionaryBtn').disabled = true;
     document.getElementById('printDictionaryBtn').disabled = true; // Disable print button
-    document.getElementById('deleteDictionaryBtn').disabled = true; // Disable delete button
 
     const token = localStorage.getItem('jwtToken');
     if (!token) {
         displayMessage('saveStatus', 'Authentication required. Please log in again.', 'error');
         document.getElementById('saveDictionaryBtn').disabled = false;
         document.getElementById('printDictionaryBtn').disabled = false; // Re-enable
-        document.getElementById('deleteDictionaryBtn').disabled = false; // Re-enable
         return;
     }
 
@@ -581,7 +578,7 @@ async function saveDataDictionary() {
             if (!isEditingExistingDictionary && result.dictionaryId) {
                 currentDictionaryId = result.dictionaryId;
                 isEditingExistingDictionary = true; // Now it's an existing dictionary
-                document.getElementById('deleteDictionaryBtn').classList.remove('hidden'); // Show delete for newly saved
+                // The delete button is now completely removed from HTML, so no need to manage its visibility here.
             }
             // Refresh the existing dictionaries list in the initial section
             await populateExistingDictionariesDropdown();
@@ -595,75 +592,10 @@ async function saveDataDictionary() {
     } finally {
         document.getElementById('saveDictionaryBtn').disabled = false;
         document.getElementById('printDictionaryBtn').disabled = false; // Re-enable
-        document.getElementById('deleteDictionaryBtn').disabled = false; // Re-enable
     }
 }
 
-/**
- * Handles deleting the currently loaded data dictionary.
- */
-async function deleteDataDictionary() {
-    console.log("deleteDataDictionary: Function started."); // Log start
-    console.log("deleteDataDictionary: currentDictionaryId:", currentDictionaryId); // Log current ID
-
-    if (!currentDictionaryId) {
-        console.error("deleteDataDictionary: No dictionary selected for deletion.");
-        displayMessage('saveStatus', 'No dictionary selected to delete.', 'error');
-        return;
-    }
-
-    if (!confirm('Are you sure you want to delete this data dictionary? This action cannot be undone.')) {
-        console.log("deleteDataDictionary: User cancelled deletion.");
-        return;
-    }
-
-    displayMessage('saveStatus', 'Deleting data dictionary...', 'info');
-    document.getElementById('deleteDictionaryBtn').disabled = true;
-    document.getElementById('saveDictionaryBtn').disabled = true; // Disable save
-    document.getElementById('printDictionaryBtn').disabled = true; // Disable print
-
-    const token = localStorage.getItem('jwtToken');
-    if (!token) {
-        console.error("deleteDataDictionary: Authentication token missing.");
-        displayMessage('saveStatus', 'Authentication required. Please log in again.', 'error');
-        document.getElementById('deleteDictionaryBtn').disabled = false;
-        document.getElementById('saveDictionaryBtn').disabled = false; // Re-enable
-        document.getElementById('printDictionaryBtn').disabled = false; // Re-enable
-        return;
-    }
-
-    try {
-        console.log("deleteDataDictionary: Sending DELETE request to backend.");
-        const response = await fetch('/api/delete-data-dictionary', { // Target the delete-data-dictionary function
-            method: 'DELETE',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`
-            },
-            body: JSON.stringify({ id: currentDictionaryId }) // Send ID in body for DELETE
-        });
-
-        const result = await response.json();
-
-        if (response.ok) {
-            console.log("deleteDataDictionary: Deletion successful.", result);
-            displayMessage('saveStatus', result.message || 'Data dictionary deleted successfully!', 'success');
-            resetBuilderUI(); // Reset UI after successful deletion
-            await populateExistingDictionariesDropdown(); // Refresh list
-        } else {
-            console.error("deleteDataDictionary: Backend error response:", result.status, result.message, result.error);
-            displayMessage('saveStatus', `Error deleting: ${result.message || 'Unknown error.'}`, 'error');
-        }
-    } catch (error) {
-        console.error('deleteDataDictionary: Network error during delete:', error);
-        displayMessage('saveStatus', `Network error during deletion: ${error.message}`, 'error');
-    } finally {
-        console.log("deleteDataDictionary: Finalizing deletion attempt.");
-        document.getElementById('deleteDictionaryBtn').disabled = false;
-        document.getElementById('saveDictionaryBtn').disabled = false; // Re-enable
-        document.getElementById('printDictionaryBtn').disabled = false; // Re-enable
-    }
-}
+// REMOVED: deleteDataDictionary function has been completely removed.
 
 /**
  * Handles the printing of the current Data Dictionary.
@@ -825,7 +757,7 @@ function resetBuilderUI() {
     document.querySelector('#headersTable tbody').innerHTML = ''; // Clear table
     document.getElementById('saveDictionaryBtn').disabled = true; // Disable save until headers are present
     document.getElementById('printDictionaryBtn').disabled = true; // Disable print button
-    document.getElementById('deleteDictionaryBtn').classList.add('hidden'); // Hide delete
+    // The delete button is now completely removed from HTML, so no need to manage its visibility here.
 
     document.getElementById('initialSelectionSection').classList.remove('hidden');
     document.getElementById('dictionaryBuilderSection').classList.add('hidden');
@@ -851,7 +783,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('loadExistingDictionaryBtn').addEventListener('click', loadDictionaryForEditing);
     document.getElementById('createNewDictionaryBtn').addEventListener('click', startNewDictionaryFromUpload);
     document.getElementById('saveDictionaryBtn').addEventListener('click', saveDataDictionary);
-    document.getElementById('deleteDictionaryBtn').addEventListener('click', deleteDataDictionary);
+    // REMOVED: document.getElementById('deleteDictionaryBtn').addEventListener('click', deleteDataDictionary);
     document.getElementById('printDictionaryBtn').addEventListener('click', handlePrintDictionary); // Attach print handler
 
     // Listener to clear old status messages when selecting a different existing dictionary
