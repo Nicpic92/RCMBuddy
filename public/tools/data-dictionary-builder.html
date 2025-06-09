@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Data Dictionary Builder - Excel Buddy</title> <!-- FIX: Changed title from MirraBuddy to Excel Buddy -->
+    <title>Data Dictionary Builder - Excel Buddy</title>
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Google Fonts - Inter -->
@@ -144,14 +144,12 @@
                             class="flex-1 w-full justify-center py-3 px-4 border border-transparent rounded-lg shadow-lg text-lg font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition duration-300 ease-in-out transform hover:-translate-y-0.5">
                         Save Data Dictionary
                     </button>
-                    <!-- NEW: Print Button -->
+                    <!-- Print Button -->
                     <button type="button" id="printDictionaryBtn"
                             class="flex-1 w-full justify-center py-3 px-4 border border-transparent rounded-lg shadow-lg text-lg font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition duration-300 ease-in-out transform hover:-translate-y-0.5">
                         Print Report
                     </button>
-                    <button type="button" id="deleteDictionaryBtn" class="flex-1 w-full justify-center py-3 px-4 border border-gray-300 rounded-lg shadow-lg text-lg font-medium text-gray-700 bg-white hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-300 transition duration-300 ease-in-out transform hover:-translate-y-0.5 hidden">
-                        Delete This Data Dictionary
-                    </button>
+                    <!-- REMOVED: Delete This Data Dictionary Button -->
                 </div>
                 <div id="saveStatus" class="mt-4 text-center text-sm text-gray-600 hidden"></div>
             </div>
