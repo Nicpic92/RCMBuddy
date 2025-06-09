@@ -14,7 +14,7 @@ section {
     @apply bg-white p-6 sm:p-8 rounded-xl shadow-lg mb-8; /* White background with shadow and rounded corners */
 }
 
-/* Loader Styling */
+/* Loader Styling (consistent across tools) */
 .loader {
     border: 4px solid #f3f3f3; /* Light grey border */
     border-top: 4px solid #3498db; /* Blue border for the spinning part */
@@ -22,7 +22,7 @@ section {
     width: 40px;
     height: 40px;
     animation: spin 1s linear infinite; /* Animation for spinning effect */
-    margin: 20px auto; /* Centers the loader horizontally */
+    margin: 20px auto;
     display: none; /* Hidden by default, shown by JavaScript */
 }
 
@@ -31,7 +31,7 @@ section {
     100% { transform: rotate(360deg); }
 }
 
-/* Message Styles (for displayMessage function) */
+/* Status Message Styles (consistent across tools) */
 .text-gray-600 { /* For info messages */
     color: #4a5568;
 }
@@ -100,7 +100,7 @@ section {
     @apply bg-gray-50; /* Zebra striping for readability */
 }
 
-.override-checkbox {
+.results-table td input[type="checkbox"] {
     @apply ml-2; /* Margin for checkboxes */
 }
 
