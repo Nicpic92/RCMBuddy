@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Excel Validate - RCM Buddy</title>
-    <!-- XLSX library for client-side Excel file parsing -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <style>
         /* Your provided CSS styles, combined and optimized */
@@ -159,7 +158,7 @@
     <main>
         <div class="container">
             <div class="page-header">
-                <h1>RCM Data Validation</h1> <!-- FIX: Changed H1 from Excel Validation Score to RCM Data Validation -->
+                <h1>RCM Data Validation</h1>
             </div>
 
             <div class="content-box">
@@ -224,7 +223,6 @@
         </div>
     </main>
     
-    <!-- Footer Section: Keeping consistency -->
     <footer style="background-color: #333; color: white; padding: 20px; text-align: center; margin-top: auto;">
         <div class="container" style="max-width: 1200px; margin: 0 auto; padding: 0;">
             &copy; 2025 RCM Buddy. All rights reserved.
@@ -572,6 +570,7 @@
         async function analyzeFile() {
             const fileInput = document.getElementById('excelFile');
             const localExcelFile = fileInput.files[0];
+            const MAX_ROWS_TO_PROCESS = 5000; // Define the row limit
 
             let fileToAnalyze = null;
             let fileName = null;
@@ -630,7 +629,15 @@
                         if (jsonData.length === 0) return; // Skip empty sheets
 
                         const sheetHeader = jsonData[0] || [];
-                        const sheetData = jsonData.slice(1); // Data rows (excluding header)
+                        let sheetData = jsonData.slice(1); // All data rows (excluding header)
+
+                        // NEW: Apply row limit
+                        if (sheetData.length > MAX_ROWS_TO_PROCESS) {
+                            console.warn(`Validation Tool: Sheet "${sheetName}" has ${sheetData.length} data rows. Processing only the first ${MAX_ROWS_TO_PROCESS} rows.`);
+                            sheetData = sheetData.slice(0, MAX_ROWS_TO_PROCESS);
+                            displayMessage('mainFileStatus', `Warning: Sheet "${sheetName}" exceeds ${MAX_ROWS_TO_PROCESS} rows. Only first ${MAX_ROWS_TO_PROCESS} rows processed.`, 'info');
+                        }
+
 
                         const currentSheetIssues = {
                             customValidation: {}, // Stores custom rule violations per column
@@ -648,9 +655,10 @@
                         sheetData.forEach((row, index) => {
                             // Create a string representation of the row for hashing, trimming each cell
                             const rowString = row ? row.map(cell => {
+                                // Ensure cell is converted to string for trimming, handle null/undefined
                                 const val = (cell === null || cell === undefined) ? "" : String(cell);
                                 return typeof val === 'string' ? val.trim() : val;
-                            }).join('~!~') : null;
+                            }).join('~!~') : null; // Added trim for cell values inside rowString
                             if (rowString !== null) {
                                 if (seenRowStrings.has(rowString)) {
                                     currentSheetIssues.duplicateRows.push({
@@ -683,7 +691,7 @@
 
                                         sheetData.forEach((row, rowIndex) => {
                                             const cellValue = row[colIndex];
-                                            // More robust check for empty/whitespace
+                                            // More robust check for empty/whitespace: explicitly ensure string before trim
                                             const isCellEmptyOrWhitespace = (cellValue === undefined || cellValue === null || (typeof cellValue === 'string' && cellValue.trim() === ''));
                                             let isValid = true;
                                             
@@ -746,6 +754,20 @@
                                                         isValid = false;
                                                     }
                                                     break;
+                                                case 'UNIQUE':
+                                                    // This part of UNIQUE logic is for non-empty values
+                                                    if (!isCellEmptyOrWhitespace) {
+                                                        const lowerCaseVal = String(cellValue).trim().toLowerCase();
+                                                        if (uniqueColumnValues.has(lowerCaseVal)) {
+                                                            isValid = false;
+                                                        } else {
+                                                            uniqueColumnValues.add(lowerCaseVal);
+                                                            isValid = true;
+                                                        }
+                                                    } else {
+                                                        isValid = true; // Empty cells are not considered for UNIQUE violation by themselves
+                                                    }
+                                                    break;
                                                 default:
                                                     console.warn(`Unknown validation type: ${ruleType} for column ${columnName}. Skipping.`);
                                                     isValid = true;
@@ -759,21 +781,31 @@
                                     });
 
                                     // NEW LOGIC: Dedicated pass for UNIQUE rule after all single-cell rules
-                                    const uniqueRule = columnRules.find(r => String(r['Validation Type']).trim().toUpperCase() === 'UNIQUE');
-                                    if (uniqueRule) {
-                                        const failureMessage = uniqueRule['Failure Message'] || `Validation failed for ${columnName} (Rule: UNIQUE)`;
+                                    const uniqueRuleDefined = columnRules.some(r => String(r['Validation Type']).trim().toUpperCase() === 'UNIQUE');
+                                    if (uniqueRuleDefined) {
                                         const allColumnValues = sheetData.map(row => row[colIndex]);
-                                        const seenForUnique = new Set();
+                                        const seenForUniqueFinal = new Set();
                                         
                                         allColumnValues.forEach((val, idx) => {
                                             const isValEmpty = (val === undefined || val === null || (typeof val === 'string' && String(val).trim() === ''));
                                             
-                                            // Only consider non-empty, non-whitespace values for uniqueness
-                                            if (!isValEmpty) {
+                                            if (!isValEmpty) { // Only consider non-empty values for uniqueness
                                                 const lowerCaseVal = String(val).trim().toLowerCase();
                                                 // Increment processed cells for unique rules too, but only for non-empty ones
-                                                overallStats.totalProcessedCells++; 
-                                                if (seenForUnique.has(lowerCaseVal)) {
+                                                // Only add to totalProcessedCells if it hasn't been counted by another rule for this cell
+                                                // This is a rough estimation to avoid overcounting processed cells.
+                                                // A more precise count would require tracking per-cell unique rule applications.
+                                                // For now, if a cell is processed by a unique rule, we count it.
+                                                if (columnRules.length === 1 && uniqueRuleDefined) { // If UNIQUE is the ONLY rule for the column
+                                                    overallStats.totalProcessedCells++; 
+                                                } else if (columnRules.length > 1 && uniqueRuleDefined && !columnRules.some(r => String(r['Validation Type']).trim().toUpperCase() !== 'UNIQUE' && !isValEmpty )) {
+                                                    // If there are other rules, but they were skipped for this non-empty cell because it was empty
+                                                    // then count it for the unique rule. This is getting complex.
+                                                    // A simpler approach for totalProcessedCells is to count *all* non-empty cells
+                                                    // that pass through any validation attempt. The current increment handles this.
+                                                }
+                                                
+                                                if (seenForUniqueFinal.has(lowerCaseVal)) {
                                                     const alreadyFlagged = currentSheetIssues.customValidation[columnName].some(issue =>
                                                         issue.row === idx + 2 && String(issue.value).trim().toLowerCase() === lowerCaseVal && issue.ruleType === 'UNIQUE'
                                                     );
@@ -787,7 +819,7 @@
                                                         overallStats.customIssueCount++;
                                                     }
                                                 } else {
-                                                    seenForUnique.add(lowerCaseVal);
+                                                    seenForUniqueFinal.add(lowerCaseVal);
                                                 }
                                             }
                                         });
@@ -1200,7 +1232,7 @@
                     const td = event.target;
                     const { sheet, column, type } = td.dataset;
                     
-                    // ALERT: Directly editing custom issue counts is not ideal.
+                    // ALERT: Directly editing issue counts is not ideal.
                     // The numbers are derived from the analysis results and override checkboxes.
                     // This section of code is left as is, but it will only provide a warning
                     // and revert the text, as editing these directly isn't a good UX for custom rules.
