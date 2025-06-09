@@ -7,38 +7,111 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        body { font-family: 'Inter', sans-serif; @apply bg-gray-50 text-gray-800; }
-        header { @apply bg-gradient-to-r from-blue-600 to-indigo-700 p-4 shadow-lg; }
-        main { @apply flex-grow container mx-auto p-4 sm:p-6 lg:p-8; }
-        .tool-card { @apply bg-white p-6 rounded-lg shadow-md hover:shadow-xl transition-shadow duration-300; }
-        .tool-card h2 { @apply text-xl font-semibold text-blue-700 mb-2; }
-        .tool-card p { @apply text-gray-600 text-sm; }
-        .tool-card a { @apply inline-block mt-4 text-blue-600 hover:text-blue-800 font-medium; }
-        /* Style for development status */
+        /* General body and font styling */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f4f8; /* Light background */
+            text-gray-800; /* Default text color */
+        }
+        /* Header styling (consistent with other pages) */
+        header {
+            @apply bg-gradient-to-r from-blue-600 to-indigo-700 p-4 shadow-lg;
+        }
+        /* Main content area styling */
+        main {
+            @apply flex-grow container mx-auto p-4 sm:p-6 lg:p-8;
+        }
+        /* Section styling for the main content block */
+        section {
+            @apply bg-white p-6 sm:p-8 rounded-xl shadow-lg mb-8; /* FIX: Added section styling for consistency with dashboard */
+        }
+        /* Styles for individual tool cards on the dashboard (now applied to tools.html) */
+        .tool-card {
+            @apply p-6 rounded-lg shadow-md border transform hover:scale-105 transition-transform duration-300;
+            display: flex; /* FIX: Use flexbox for better alignment of content */
+            flex-direction: column; /* FIX: Stack content vertically */
+            justify-content: space-between; /* FIX: Push launch button to bottom */
+        }
+        .tool-card h2 {
+            @apply text-xl font-bold mb-3; /* FIX: Changed to h2 as per dashboard.html card structure */
+        }
+        .tool-card p {
+            @apply text-gray-600 mb-4 flex-grow; /* FIX: flex-grow to push button down */
+        }
+        .tool-card a {
+            @apply inline-block font-bold py-2 px-4 rounded-full transition duration-300 text-center;
+            color: white; /* Default button text color will be white */
+        }
+
+        /* Specific color themes for each tool card (copied from dashboard.html) */
+        .tool-card.file-manager {
+            border-color: theme('colors.blue.200');
+            background-color: theme('colors.blue.50');
+        }
+        .tool-card.file-manager h2 { color: theme('colors.blue.600'); }
+        .tool-card.file-manager a { background-color: theme('colors.blue.500'); }
+        .tool-card.file-manager a:hover { background-color: theme('colors.blue.600'); }
+
+        .tool-card.data-cleaner {
+            border-color: theme('colors.indigo.200');
+            background-color: theme('colors.indigo.50');
+        }
+        .tool-card.data-cleaner h2 { color: theme('colors.indigo.600'); }
+        .tool-card.data-cleaner a { background-color: theme('colors.indigo.500'); }
+        .tool-card.data-cleaner a:hover { background-color: theme('colors.indigo.600'); }
+
+        .tool-card.validation-engine {
+            border-color: theme('colors.green.200');
+            background-color: theme('colors.green.50');
+        }
+        .tool-card.validation-engine h2 { color: theme('colors.green.600'); }
+        .tool-card.validation-engine a { background-color: theme('colors.green.500'); }
+        .tool-card.validation-engine a:hover { background-color: theme('colors.green.600'); }
+
+        .tool-card.data-dictionary-builder {
+            border-color: theme('colors.purple.200');
+            background-color: theme('colors.purple.50');
+        }
+        .tool-card.data-dictionary-builder h2 { color: theme('colors.purple.600'); }
+        .tool-card.data-dictionary-builder a { background-color: theme('colors.purple.500'); }
+        .tool-card.data-dictionary-builder a:hover { background-color: theme('colors.purple.600'); }
+
+        /* Styles for tools marked as 'development' (Coming Soon) */
         .development-tool {
             opacity: 0.7; /* Make it slightly faded */
             filter: grayscale(20%); /* Slight grayscale effect */
             position: relative;
+            background-color: theme('colors.gray.100'); /* FIX: Lighter background for development tools */
+            border-color: theme('colors.gray.300'); /* FIX: Grey border for development tools */
             pointer-events: none; /* FIX: Disable clicks on the entire card */
         }
+        .development-tool h2, .development-tool p { /* FIX: Target h2 instead of h3 */
+            color: theme('colors.gray.500'); /* FIX: Grey out text */
+        }
+        .development-tool a {
+            display: none; /* FIX: Hide the "Launch Tool" button */
+        }
+        .development-tool span { /* FIX: Target span for "Coming Soon" text */
+            @apply inline-block text-sm text-gray-500 italic; /* FIX: Style the "Coming Soon" text */
+            margin-top: auto; /* FIX: Push to bottom if flex-grow on p doesn't work */
+        }
         .development-tool::after {
-            content: "Coming Soon"; /* Or "Development" */
+            content: "Coming Soon";
             position: absolute;
             top: 10px;
             right: 10px;
-            background-color: #ffc107; /* Amber/Yellow */
+            background-color: #ffc107; /* Amber/Yellow badge */
             color: #333;
             padding: 4px 8px;
             border-radius: 4px;
             font-size: 0.75rem;
             font-weight: bold;
-        }
-        .development-tool a {
-             display: none; /* FIX: Hide the "Launch Tool" button */
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1); /* FIX: Added shadow for consistency */
         }
     </style>
 </head>
 <body class="flex flex-col min-h-screen">
+    <!-- Header Section -->
     <header class="bg-gradient-to-r from-blue-600 to-indigo-700 p-4 shadow-lg">
         <div class="container mx-auto flex flex-col sm:flex-row items-center justify-between">
             <h1 class="text-white text-3xl font-bold mb-2 sm:mb-0">Tools</h1>
@@ -54,54 +127,60 @@
     </header>
 
     <main class="flex-grow container mx-auto p-4 sm:p-6 lg:p-8">
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <section class="bg-white p-6 sm:p-8 rounded-xl shadow-lg mb-8"> <!-- FIX: Added section wrapper for consistent styling -->
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
 
-            <div class="tool-card">
-                <h2>File Manager</h2>
-                <p>Securely upload, list, download, and delete your company files.</p>
-                <a href="/file-manager.html">Go to File Manager &rarr;</a>
-            </div>
+                <!-- Tool Card: File Manager -->
+                <div class="tool-card file-manager" data-status="ready"> <!-- FIX: Added data-status and file-manager class -->
+                    <h2>File Manager</h2>
+                    <p>Securely upload, list, download, and delete your company files.</p>
+                    <a href="/file-manager.html">Go to File Manager &rarr;</a>
+                </div>
 
-            <div class="tool-card">
-                <h2>Data Cleaner</h2>
-                <p>Client-side tool for basic Excel data cleaning (duplicates, trimming, case standardization).</p>
-                <a href="/tools/data-cleaner.html">Go to Data Cleaner &rarr;</a>
-            </div>
+                <!-- Tool Card: Data Cleaner -->
+                <div class="tool-card data-cleaner" data-status="ready"> <!-- FIX: Added data-status and data-cleaner class -->
+                    <h2>Data Cleaner</h2>
+                    <p>Client-side tool for basic Excel data cleaning (duplicates, trimming, case standardization).</p>
+                    <a href="/tools/data-cleaner.html">Go to Data Cleaner &rarr;</a>
+                </div>
 
-            <div class="tool-card">
-                <h2>Excel Validate</h2>
-                <p>Analyze Excel/CSV files for data quality issues using custom validation rules.</p>
-                <a href="/tools/validation-engine.html">Go to Excel Validate &rarr;</a>
-            </div>
+                <!-- Tool Card: Excel Validate -->
+                <div class="tool-card validation-engine" data-status="ready"> <!-- FIX: Added data-status and validation-engine class -->
+                    <h2>Excel Validate</h2>
+                    <p>Analyze Excel/CSV files for data quality issues using custom validation rules.</p>
+                    <a href="/tools/validation-engine.html">Go to Excel Validate &rarr;</a>
+                </div>
 
-            <div class="tool-card">
-                <h2>Data Dictionary Builder</h2>
-                <p>Create and manage custom data dictionaries to define validation rules for your columns.</p>
-                <a href="/tools/data-dictionary-builder.html">Build Dictionary &rarr;</a>
-            </div>
+                <!-- Tool Card: Data Dictionary Builder -->
+                <div class="tool-card data-dictionary-builder" data-status="ready"> <!-- FIX: Added data-status and data-dictionary-builder class -->
+                    <h2>Data Dictionary Builder</h2>
+                    <p>Create and manage custom data dictionaries to define validation rules for your columns.</p>
+                    <a href="/tools/data-dictionary-builder.html">Build Dictionary &rarr;</a>
+                </div>
 
-            <!-- Placeholder for future development tools -->
-            <div class="tool-card development-tool"> <!-- FIX: Added development-tool class -->
-                <h2>Report Automator</h2>
-                <p>Automate the generation and distribution of your routine Excel reports with custom templates.</p>
-                <span>Coming Soon!</span> <!-- Display Coming Soon text directly -->
+                <!-- Placeholder for future development tools -->
+                <div class="tool-card development-tool" data-status="development"> <!-- FIX: Added development-tool class and data-status -->
+                    <h2>Report Automator</h2>
+                    <p>Automate the generation and distribution of your routine Excel reports with custom templates.</p>
+                    <span>Coming Soon!</span>
+                </div>
+                <div class="tool-card development-tool" data-status="development"> <!-- FIX: Added development-tool class and data-status -->
+                    <h2>Merger & Splitter</h2>
+                    <p>Efficiently combine multiple Excel files or split large spreadsheets into manageable parts.</p>
+                    <span>Coming Soon!</span>
+                </div>
+                   <div class="tool-card development-tool" data-status="development"> <!-- FIX: Added development-tool class and data-status -->
+                    <h2>Macro Recorder & Editor</h2>
+                    <p>Record your repetitive Excel actions and easily edit or share the generated VBA macros.</p>
+                    <span>Coming Soon!</span>
+                </div>
+                   <div class="tool-card development-tool" data-status="development"> <!-- FIX: Added development-tool class and data-status -->
+                    <h2>Custom Formula Builder</h2>
+                    <p>Create, save, and manage your own complex Excel formulas for re-use and efficiency.</p>
+                    <span>Coming Soon!</span>
+                </div>
             </div>
-            <div class="tool-card development-tool"> <!-- FIX: Added development-tool class -->
-                <h2>Merger & Splitter</h2>
-                <p>Efficiently combine multiple Excel files or split large spreadsheets into manageable parts.</p>
-                <span>Coming Soon!</span>
-            </div>
-               <div class="tool-card development-tool"> <!-- FIX: Added development-tool class -->
-                <h2>Macro Recorder & Editor</h2>
-                <p>Record your repetitive Excel actions and easily edit or share the generated VBA macros.</p>
-                <span>Coming Soon!</span>
-            </div>
-               <div class="tool-card development-tool"> <!-- FIX: Added development-tool class -->
-                <h2>Custom Formula Builder</h2>
-                <p>Create, save, and manage your own complex Excel formulas for re-use and efficiency.</p>
-                <span>Coming Soon!</span>
-            </div>
-        </div>
+        </section> <!-- FIX: Closed section tag -->
     </main>
 
     <footer class="bg-gray-800 text-white p-4 mt-8">
