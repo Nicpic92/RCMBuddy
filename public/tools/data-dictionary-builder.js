@@ -64,10 +64,66 @@ function displayMessage(elementId, message, type = 'info') {
     }
 }
 
-// --- Authentication and Navigation (reused) ---
-async function verifyToken() { /* ... */ }
-function setupNavigation(userData) { /* ... */ }
+// --- Authentication and Navigation (reused from other tools) ---
 
+/**
+ * Verifies the JWT token stored in localStorage with the backend.
+ * Redirects to login if token is missing or invalid.
+ * @returns {Promise<object | null>} User data if token is valid, otherwise null.
+ */
+async function verifyToken() {
+    const token = localStorage.getItem('jwtToken');
+    if (!token) {
+        window.location.href = '/'; // Redirect to login if no token
+        return null;
+    }
+
+    try {
+        const response = await fetch('/api/protected', {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+
+        if (!response.ok) {
+            console.error('Token verification failed:', response.statusText);
+            localStorage.removeItem('jwtToken');
+            window.location.href = '/';
+            return null;
+        }
+
+        const data = await response.json();
+        console.log('User data:', data);
+        return data;
+    } catch (error) {
+        console.error('Error verifying token:', error);
+        localStorage.removeItem('jwtToken');
+        window.location.href = '/';
+        return null;
+    }
+}
+
+/**
+ * Sets up navigation elements based on user data.
+ * @param {object} userData - The user data obtained from token verification.
+ */
+function setupNavigation(userData) {
+    const profileLink = document.getElementById('profileLink');
+    if (profileLink && userData) {
+        profileLink.textContent = `Hello, ${userData.username}`;
+        profileLink.href = '#'; // Placeholder, replace with actual profile page link if exists
+    }
+
+    const logoutBtn = document.getElementById('logoutBtn');
+    if (logoutBtn) {
+        logoutBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            localStorage.removeItem('jwtToken');
+            window.location.href = '/';
+        });
+    }
+}
 
 // --- Initial Setup: Populate Existing Dictionaries Dropdown & Load Existing Rules ---
 
@@ -158,7 +214,9 @@ async function loadExistingDataDictionaryRules() {
                         existingDataDictionaryColumns.add(String(rule['Column Name']).trim().toLowerCase());
                     }
                 });
-            } catch (error) {
+            }
+            // Catch errors specific to processing a single dictionary, allowing others to proceed
+            catch (error) {
                 console.error(`Error processing data dictionary ${dict.id} for filtering rules:`, error);
             }
         }
@@ -194,7 +252,7 @@ async function loadDictionaryForEditing() {
         }
         const dictionary = await response.json();
 
-        console.log("loadDictionaryForEditing: Received dictionary data:", dictionary); // LOG THE RECEIVED DATA
+        console.log("loadDictionaryForEditing: Received dictionary data:", dictionary); // Verify incoming data
         console.log("loadDictionaryForEditing: dictionary.source_headers_json:", dictionary.source_headers_json);
         console.log("loadDictionaryForEditing: dictionary.rules_json:", dictionary.rules_json);
 
@@ -208,13 +266,10 @@ async function loadDictionaryForEditing() {
         // --- Debugging check ---
         if (currentHeaders.length === 0) {
             console.warn("loadDictionaryForEditing: No source headers found in the loaded dictionary.");
-            displayMessage('existingDictStatus', 'Dictionary loaded, but no source headers found to build table.', 'info');
-            // You might want to allow uploading a file to get headers here, or just show an empty table.
-            // For now, it will proceed with an empty table.
+            displayMessage('existingDictStatus', 'Dictionary loaded, but no source headers found to build table. Consider uploading a new file to get headers.', 'info');
         }
         if (rulesToPreFill.length === 0) {
              console.warn("loadDictionaryForEditing: No rules found in the loaded dictionary.");
-             // This is fine, means user hasn't defined any yet.
         }
 
 
@@ -329,10 +384,13 @@ async function startNewDictionaryFromUpload() {
  * @param {Array<object>} rulesToPreFill - Existing rules to pre-fill the form (optional).
  */
 function renderHeadersTable(headers, rulesToPreFill = []) {
+    console.log("renderHeadersTable: Function started.");
+    console.log("renderHeadersTable: Headers received:", headers);
+    console.log("renderHeadersTable: Rules to pre-fill received:", rulesToPreFill);
+
     const tbody = document.querySelector('#headersTable tbody');
     if (!tbody) {
         console.error("renderHeadersTable: tbody element not found!");
-        // Add a user-facing message if this happens
         displayMessage('saveStatus', 'Error: Table body not found in HTML. Please contact support.', 'error');
         return;
     }
@@ -342,11 +400,13 @@ function renderHeadersTable(headers, rulesToPreFill = []) {
     const rulesMap = new Map();
     rulesToPreFill.forEach(rule => {
         const colName = String(rule['Column Name']).trim();
+        console.log("renderHeadersTable: Mapping rule for column:", colName, "Rule:", rule);
         if (!rulesMap.has(colName)) {
             rulesMap.set(colName, []);
         }
         rulesMap.get(colName).push(rule);
     });
+    console.log("renderHeadersTable: Rules map created:", rulesMap);
 
     const validationTypes = [
         { value: '', text: 'None' },
@@ -359,7 +419,6 @@ function renderHeadersTable(headers, rulesToPreFill = []) {
     ];
 
     if (headers.length === 0) {
-        // Display a message if no headers are provided after filtering or from source
         const row = tbody.insertRow();
         const cell = row.insertCell();
         cell.colSpan = 4; // Span across all columns
@@ -367,7 +426,6 @@ function renderHeadersTable(headers, rulesToPreFill = []) {
         cell.style.textAlign = 'center';
         cell.style.padding = '20px';
         console.warn("renderHeadersTable: No headers provided for rendering.");
-        // Disable save button if no headers to define rules for
         document.getElementById('saveDictionaryBtn').disabled = true;
         return; // Exit early if no headers
     } else {
@@ -376,6 +434,8 @@ function renderHeadersTable(headers, rulesToPreFill = []) {
 
 
     headers.forEach((header, index) => {
+        console.log(`renderHeadersTable: Processing header: "${header}" (Index: ${index})`);
+
         const row = tbody.insertRow();
         row.insertCell().textContent = header; // Column Name (read-only)
 
@@ -411,8 +471,10 @@ function renderHeadersTable(headers, rulesToPreFill = []) {
 
         // Pre-fill existing rules if available
         const existingRulesForColumn = rulesMap.get(String(header).trim());
+        console.log(`renderHeadersTable: Checking for rules for column "${header}":`, existingRulesForColumn);
         if (existingRulesForColumn && existingRulesForColumn.length > 0) {
             const firstRule = existingRulesForColumn[0]; 
+            console.log(`renderHeadersTable: Pre-filling rule for "${header}":`, firstRule);
             typeSelect.value = firstRule['Validation Type'] || '';
             valueInput.value = firstRule['Validation Value'] || '';
             messageInput.value = firstRule['Failure Message'] || '';
@@ -456,6 +518,7 @@ function renderHeadersTable(headers, rulesToPreFill = []) {
             }
         });
     });
+    console.log("renderHeadersTable: Function finished rendering table.");
 }
 
 // --- Core Logic: Save/Update Data Dictionary ---
@@ -523,7 +586,6 @@ async function saveDataDictionary() {
 
         if (currentDictionaryId) { // If editing an existing dictionary
             payload.dictionaryId = currentDictionaryId; // Add ID for UPDATE logic on backend
-            // For updates, the backend logic within save-data-dictionary.js will look for this ID.
         }
 
         const response = await fetch(endpoint, {
