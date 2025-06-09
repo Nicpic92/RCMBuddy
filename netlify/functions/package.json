@@ -1,19 +1,20 @@
 {
-  "name": "netlify-rcm-buddy-functions",
+  "name": "netlify-functions",
   "version": "1.0.0",
-  "description": "Backend functions for RCM Buddy",
-  "main": "login.js",
+  "description": "Netlify Functions for Excel Buddy",
+  "main": "server.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "netlify-lambda serve src",
+    "build": "netlify-lambda build src"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "dependencies": {
     "bcryptjs": "^2.4.3",
-    "jsonwebtoken": "^9.0.2",
-    "pg": "^8.11.3",
     "busboy": "^1.6.0",
-    "exceljs": "^4.4.0"
+    "exceljs": "^4.4.0",
+    "jsonwebtoken": "^9.0.2",
+    "pg": "^8.11.3"  <-- THIS MUST BE HERE
   }
 }
