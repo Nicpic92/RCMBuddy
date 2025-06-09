@@ -5,6 +5,7 @@ let currentHeaders = []; // Stores the headers of the currently processed file/d
 let currentDictionaryId = null; // Stores the ID of the dictionary currently being edited (null for new ones)
 let uploadedOriginalFileName = null; // Stores the name of the file uploaded to extract headers for a NEW dictionary
 let isEditingExistingDictionary = false; // Flag to differentiate between creating new and editing existing
+let allExistingRulesMap = new Map(); // Stores all rules from all existing dictionaries for pre-population by column name
 
 // --- Helper Functions (reused and adapted) ---
 
@@ -105,7 +106,7 @@ async function verifyToken() {
 function setupNavigation(userData) {
     const profileLink = document.getElementById('profileLink');
     if (profileLink && userData && userData.user) {
-        profileLink.textContent = `Hello, ${userData.user.username}`; // FIX: Access nested username
+        profileLink.textContent = `Hello, ${userData.user.username}`;
         profileLink.href = '#'; // Placeholder, replace with actual profile page link if exists
     }
 
@@ -123,12 +124,12 @@ function setupNavigation(userData) {
 
 /**
  * Fetches the list of uploaded data dictionaries from the backend and populates the select dropdown.
+ * Also populates allExistingRulesMap for pre-population feature.
  */
 async function populateExistingDictionariesDropdown() {
     const token = localStorage.getItem('jwtToken');
     if (!token) {
         console.warn('populateExistingDictionariesDropdown: No token found. Cannot fetch dictionaries.');
-        // The verifyToken() on DOMContentLoaded handles initial redirection, but good to prevent fetch.
         return;
     }
 
@@ -136,8 +137,9 @@ async function populateExistingDictionariesDropdown() {
     const dropdown = document.getElementById('existingDictionarySelect');
     dropdown.innerHTML = '<option value="">-- Loading --</option>'; // Temporary loading message
 
+    allExistingRulesMap = new Map(); // Clear previous map content
+    
     try {
-        // Correctly call the list-data-dictionaries API
         const response = await fetch('/api/list-data-dictionaries', {
             method: 'GET',
             headers: { 'Authorization': `Bearer ${token}` }
@@ -154,9 +156,9 @@ async function populateExistingDictionariesDropdown() {
         }
 
         const result = await response.json();
-        const dataDictionaries = result.dictionaries || []; // Ensure you're accessing the 'dictionaries' array
+        const dataDictionaries = result.dictionaries || [];
 
-        dropdown.innerHTML = '<option value="">-- Select an Existing Dictionary --</option>'; // Reset default option
+        dropdown.innerHTML = '<option value="">-- Select an Existing Dictionary --</option>';
 
         let hasDataDictionaries = false;
         if (dataDictionaries.length > 0) {
@@ -165,6 +167,16 @@ async function populateExistingDictionariesDropdown() {
                 option.value = dict.id;
                 option.textContent = dict.name;
                 dropdown.appendChild(option);
+
+                // NEW: Populate allExistingRulesMap for pre-population
+                if (dict.rules_json && Array.isArray(dict.rules_json)) {
+                    dict.rules_json.forEach(rule => {
+                        const colName = String(rule['Column Name']).trim();
+                        if (colName && !allExistingRulesMap.has(colName)) { // Store the first rule found for a unique column name
+                            allExistingRulesMap.set(colName, rule);
+                        }
+                    });
+                }
             });
             hasDataDictionaries = true;
             displayMessage('existingDictStatus', `${dataDictionaries.length} dictionaries loaded.`, 'success');
@@ -173,9 +185,11 @@ async function populateExistingDictionariesDropdown() {
             dropdown.innerHTML = '<option value="">No data dictionaries available.</option>';
         }
 
-        // Enable/disable the dropdown and its load button based on data
         dropdown.disabled = !hasDataDictionaries;
         document.getElementById('loadExistingDictionaryBtn').disabled = !hasDataDictionaries;
+
+        console.log("populateExistingDictionariesDropdown: allExistingRulesMap populated with (size):", allExistingRulesMap.size); // For debugging
+        console.log("populateExistingDictionariesDropdown: allExistingRulesMap contents:", Array.from(allExistingRulesMap.entries())); // For debugging
 
     } catch (error) {
         console.error('populateExistingDictionariesDropdown: Network or parsing error:', error);
@@ -215,10 +229,10 @@ async function loadDictionaryForEditing() {
 
         currentDictionaryId = dictionary.id;
         document.getElementById('dictionaryName').value = dictionary.name;
-        isEditingExistingDictionary = true; // Set flag
+        isEditingExistingDictionary = true;
 
-        currentHeaders = dictionary.source_headers_json || []; // Ensure it's an array, even if null/empty
-        const rulesToPreFill = dictionary.rules_json || []; // Ensure it's an array, even if null/empty
+        currentHeaders = dictionary.source_headers_json || [];
+        const rulesToPreFill = dictionary.rules_json || [];
 
         if (currentHeaders.length === 0) {
             console.warn("loadDictionaryForEditing: No source headers found in the loaded dictionary. This dictionary might not have been created from a file with headers.");
@@ -230,11 +244,9 @@ async function loadDictionaryForEditing() {
 
         renderHeadersTable(currentHeaders, rulesToPreFill);
 
-        // Transition UI
         document.getElementById('initialSelectionSection').classList.add('hidden');
         document.getElementById('dictionaryBuilderSection').classList.remove('hidden');
-        // The delete button is now completely removed from HTML, so no need to manage its visibility here.
-        document.getElementById('printDictionaryBtn').disabled = false; // Enable print button
+        document.getElementById('printDictionaryBtn').disabled = false;
 
         displayMessage('existingDictStatus', `Dictionary "${dictionary.name}" loaded for editing.`, 'success');
 
@@ -250,6 +262,7 @@ async function loadDictionaryForEditing() {
 
 /**
  * Handles the upload of a new Excel/CSV file to extract headers for a new dictionary.
+ * Now pre-populates rules from other existing dictionaries if matching headers are found.
  */
 async function startNewDictionaryFromUpload() {
     const excelFile = document.getElementById('excelFile').files[0];
@@ -261,9 +274,9 @@ async function startNewDictionaryFromUpload() {
     showLoader('initialLoader');
     displayMessage('newDictStatus', `Extracting headers from ${excelFile.name}...`, 'info');
 
-    currentDictionaryId = null; // Reset for new dictionary
-    uploadedOriginalFileName = excelFile.name; // Store for potential default name
-    isEditingExistingDictionary = false; // Set flag
+    currentDictionaryId = null;
+    uploadedOriginalFileName = excelFile.name;
+    isEditingExistingDictionary = false;
 
     const reader = new FileReader();
     reader.onload = function(e) {
@@ -275,7 +288,6 @@ async function startNewDictionaryFromUpload() {
                 throw new Error('No sheets found in the uploaded file.');
             }
 
-            // Take headers from the first sheet (you might need to adjust this logic if multiple sheets are relevant)
             const firstSheetName = workbook.SheetNames[0];
             const worksheet = workbook.Sheets[firstSheetName];
             const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: null });
@@ -284,7 +296,6 @@ async function startNewDictionaryFromUpload() {
                 throw new Error('The first sheet is empty and contains no headers.');
             }
 
-            // Assume the first non-empty row is the header row
             let headers = [];
             for(let i = 0; i < jsonData.length; i++) {
                 const row = jsonData[i];
@@ -299,25 +310,39 @@ async function startNewDictionaryFromUpload() {
             }
 
             currentHeaders = headers;
-            document.getElementById('dictionaryName').value = uploadedOriginalFileName.replace(/\.(xlsx|xls|csv)$/i, '').trim(); // Pre-fill name
+            document.getElementById('dictionaryName').value = uploadedOriginalFileName.replace(/\.(xlsx|xls|csv)$/i, '').trim();
+
+            // NEW: Pre-populate rules from allExistingRulesMap
+            const rulesToPreFillForNew = [];
+            console.log("startNewDictionaryFromUpload: Headers from new file:", currentHeaders); // NEW log
+            currentHeaders.forEach(header => {
+                const cleanedHeader = String(header).trim();
+                console.log(`startNewDictionaryFromUpload: Checking header "${cleanedHeader}" for existing rules...`); // NEW log
+                if (allExistingRulesMap.has(cleanedHeader)) {
+                    const rule = allExistingRulesMap.get(cleanedHeader);
+                    rulesToPreFillForNew.push(rule);
+                    console.log(`startNewDictionaryFromUpload: Found matching rule for "${cleanedHeader}":`, rule); // NEW log
+                } else {
+                    console.log(`startNewDictionaryFromUpload: No existing rule found for "${cleanedHeader}".`); // NEW log
+                }
+            });
+            console.log("startNewDictionaryFromUpload: Final rules to pre-fill for new dictionary:", rulesToPreFillForNew); // NEW log
             
-            renderHeadersTable(currentHeaders); // Render table with empty rules
-            
-            // Transition UI
+            renderHeadersTable(currentHeaders, rulesToPreFillForNew); // Pass pre-filled rules
+
             document.getElementById('initialSelectionSection').classList.add('hidden');
             document.getElementById('dictionaryBuilderSection').classList.remove('hidden');
-            // The delete button is now completely removed from HTML, so no need to manage its visibility here.
-            document.getElementById('printDictionaryBtn').disabled = false; // Enable print button
+            document.getElementById('printDictionaryBtn').disabled = false;
 
-            displayMessage('newDictStatus', `Headers extracted from "${excelFile.name}". Define your rules.`, 'success');
+            displayMessage('newDictStatus', `Headers extracted from "${excelFile.name}". Existing rules pre-populated.`, 'success');
 
         } catch (error) {
             console.error('Error processing uploaded file for headers:', error);
             displayMessage('newDictStatus', `Failed to extract headers: ${error.message}`, 'error');
-            currentHeaders = []; // Clear headers on error
+            currentHeaders = [];
         } finally {
             hideLoader('initialLoader');
-            document.getElementById('excelFile').value = ''; // Clear file input
+            document.getElementById('excelFile').value = '';
         }
     };
     reader.readAsArrayBuffer(excelFile);
@@ -343,20 +368,16 @@ function renderHeadersTable(headers, rulesToPreFill = []) {
     }
     tbody.innerHTML = ''; // Clear existing rows
 
-    // Create a map for quick lookup of rules by column name
-    // Assuming each column will only have ONE rule defined in the UI for simplicity
-    // If multiple rules per column are needed, this structure needs to be an array of rules per column
+    // Create a map for quick lookup of rules by column name (for pre-filling logic)
     const rulesMap = new Map();
     rulesToPreFill.forEach(rule => {
         const colName = String(rule['Column Name']).trim();
         if (colName) {
-            // Store the rule object directly
-            rulesMap.set(colName, rule);
+            rulesMap.set(colName, rule); // Assuming one rule per column for pre-fill
         }
     });
-    console.log("renderHeadersTable: Rules map created:", rulesMap);
+    console.log("renderHeadersTable: Rules map created for current rendering:", rulesMap); // NEW log
 
-    // Ensure this list matches the backend validation types
     const validationTypes = [
         { value: '', text: 'None' },
         { value: 'REQUIRED', text: 'Required (Not Blank)' },
@@ -370,24 +391,24 @@ function renderHeadersTable(headers, rulesToPreFill = []) {
     if (headers.length === 0) {
         const row = tbody.insertRow();
         const cell = row.insertCell();
-        cell.colSpan = 4; // Span across all columns
+        cell.colSpan = 4;
         cell.textContent = "No headers available to define rules. Upload a file or load a dictionary with headers.";
         cell.style.textAlign = 'center';
         cell.style.padding = '20px';
         console.warn("renderHeadersTable: No headers provided for rendering.");
-        document.getElementById('saveDictionaryBtn').disabled = true; // Disable save button if no headers
-        document.getElementById('printDictionaryBtn').disabled = true; // Disable print button
+        document.getElementById('saveDictionaryBtn').disabled = true;
+        document.getElementById('printDictionaryBtn').disabled = true;
         return;
     } else {
-        document.getElementById('saveDictionaryBtn').disabled = false; // Enable save button if headers exist
-        document.getElementById('printDictionaryBtn').disabled = false; // Enable print button
+        document.getElementById('saveDictionaryBtn').disabled = false;
+        document.getElementById('printDictionaryBtn').disabled = false;
     }
 
     headers.forEach((header, index) => {
         console.log(`renderHeadersTable: Processing header: "${header}" (Index: ${index})`);
 
         const row = tbody.insertRow();
-        row.insertCell().textContent = header; // Column Name (read-only)
+        row.insertCell().textContent = header;
 
         const typeCell = row.insertCell();
         const typeSelect = document.createElement('select');
@@ -407,13 +428,12 @@ function renderHeadersTable(headers, rulesToPreFill = []) {
         valueInput.classList.add('validation-value-input', 'mt-1', 'block', 'w-full', 'p-2', 'border', 'border-gray-300', 'rounded-md', 'focus:ring-green-500', 'focus:border-green-500', 'text-gray-800');
         valueInput.name = `value_${index}`;
         valueInput.placeholder = 'e.g., Value1,Value2 or 0-100 or ^\\d{5}$';
-        // Use !important for display style to ensure override over Tailwind/other rules if needed
-        valueInput.style.setProperty('display', 'none', 'important'); // Initially hidden
+        valueInput.style.setProperty('display', 'none', 'important');
         valueCell.appendChild(valueInput);
 
         const descriptionDiv = document.createElement('div');
         descriptionDiv.classList.add('rule-description');
-        valueCell.appendChild(descriptionDiv); // For dynamic hints
+        valueCell.appendChild(descriptionDiv);
 
         const messageCell = row.insertCell();
         const messageInput = document.createElement('input');
@@ -423,38 +443,33 @@ function renderHeadersTable(headers, rulesToPreFill = []) {
         messageInput.placeholder = 'e.g., Field cannot be blank.';
         messageCell.appendChild(messageInput);
 
-        // Pre-fill existing rules if available for this column
         const existingRule = rulesMap.get(String(header).trim());
-        console.log(`renderHeadersTable: Checking for rule for column "${header}":`, existingRule);
+        console.log(`renderHeadersTable: Checking for rule for column "${header}" in rulesMap for current render:`, existingRule); // NEW log
         if (existingRule) {
-            console.log(`renderHeadersTable: Pre-filling rule for "${header}":`, existingRule);
+            console.log(`renderHeadersTable: Pre-filling rule for "${header}" from rulesMap:`, existingRule); // NEW log
             typeSelect.value = existingRule['Validation Type'] || '';
             valueInput.value = existingRule['Validation Value'] || '';
             messageInput.value = existingRule['Failure Message'] || '';
-
-            // Manually trigger change to set initial visibility and placeholder
-            typeSelect.dispatchEvent(new Event('change'));
+            typeSelect.dispatchEvent(new Event('change')); // Trigger change to set initial visibility
         } else {
-            // Default state for columns without pre-filled rules: ensure value input is hidden
+            console.log(`renderHeadersTable: No rule found for "${header}" in rulesMap for current render.`); // NEW log
             valueInput.style.setProperty('display', 'none', 'important');
             valueInput.required = false;
             valueInput.placeholder = '';
-            descriptionDiv.textContent = ''; // No description by default
-            console.log(`renderHeadersTable: No existing rule for "${header}", defaulting valueInput.style.display = 'none !important'`);
+            descriptionDiv.textContent = '';
         }
 
-        // Add event listener to toggle visibility of value input and update placeholder/description
         typeSelect.addEventListener('change', (e) => {
             const selectedType = e.target.value;
             const input = e.target.closest('tr').querySelector('.validation-value-input');
             const descDiv = e.target.closest('tr').querySelector('.rule-description');
 
-            input.value = ''; // Clear value when type changes
-            descDiv.textContent = ''; // Clear description
+            input.value = '';
+            descDiv.textContent = '';
 
             if (['ALLOWED_VALUES', 'NUMERIC_RANGE', 'REGEX'].includes(selectedType)) {
-                input.style.setProperty('display', 'block', 'important'); // Show input
-                input.required = true; // Make required if it's a rule that needs a value
+                input.style.setProperty('display', 'block', 'important');
+                input.required = true;
                 if (selectedType === 'ALLOWED_VALUES') {
                     input.placeholder = 'Comma-separated values (e.g., Apple,Orange,Banana)';
                     descDiv.textContent = 'Enter values separated by commas (e.g., "Yes,No").';
@@ -466,12 +481,11 @@ function renderHeadersTable(headers, rulesToPreFill = []) {
                     descDiv.textContent = 'Enter a regular expression (e.g., "^\\d{5}$").';
                 }
             } else {
-                input.style.setProperty('display', 'none', 'important'); // Hide input
+                input.style.setProperty('display', 'none', 'important');
                 input.required = false;
                 input.placeholder = '';
             }
 
-            // Update description for types without a value input or with special notes
             if (selectedType === 'REQUIRED') {
                 descDiv.textContent = 'Cell must not be empty.';
             } else if (selectedType === 'DATE_PAST') {
@@ -503,12 +517,11 @@ function collectRules() {
         const validationValueInput = row.querySelector('.validation-value-input');
         const failureMessage = row.querySelector('.failure-message-input').value.trim();
 
-        // Only include rules where a type other than 'None' is selected
         if (validationType && validationType !== '') {
             const rule = {
                 "Column Name": columnName,
                 "Validation Type": validationType,
-                "Validation Value": validationValueInput.style.display !== 'none' ? validationValueInput.value.trim() : "", // Only include value if input is visible
+                "Validation Value": validationValueInput.style.display !== 'none' ? validationValueInput.value.trim() : "",
                 "Failure Message": failureMessage
             };
             rules.push(rule);
@@ -518,8 +531,6 @@ function collectRules() {
     return rules;
 }
 
-// --- Core Logic: Save/Update Data Dictionary ---
-
 /**
  * Handles saving a new data dictionary or updating an existing one.
  */
@@ -527,7 +538,7 @@ async function saveDataDictionary() {
     const dictionaryNameInput = document.getElementById('dictionaryName');
     const dictionaryName = dictionaryNameInput.value.trim();
     const rules = collectRules();
-    const sourceHeaders = currentHeaders; // Use the headers that were used to build the table
+    const sourceHeaders = currentHeaders;
 
     if (!dictionaryName) {
         displayMessage('saveStatus', 'Please enter a name for your data dictionary.', 'error');
@@ -541,28 +552,26 @@ async function saveDataDictionary() {
 
     displayMessage('saveStatus', 'Saving data dictionary...', 'info');
     document.getElementById('saveDictionaryBtn').disabled = true;
-    document.getElementById('printDictionaryBtn').disabled = true; // Disable print button
+    document.getElementById('printDictionaryBtn').disabled = true;
 
     const token = localStorage.getItem('jwtToken');
     if (!token) {
         displayMessage('saveStatus', 'Authentication required. Please log in again.', 'error');
         document.getElementById('saveDictionaryBtn').disabled = false;
-        document.getElementById('printDictionaryBtn').disabled = false; // Re-enable
+        document.getElementById('printDictionaryBtn').disabled = false;
         return;
     }
 
-    // Prepare payload. Send currentDictionaryId if editing existing.
     const payload = {
         dictionaryName,
         rules,
         sourceHeaders,
-        // Only include id if we are editing an existing dictionary
         ...(isEditingExistingDictionary && currentDictionaryId && { id: currentDictionaryId })
     };
 
     try {
-        const response = await fetch('/api/save-data-dictionary', { // Target the save-data-dictionary function
-            method: 'POST', // Assuming backend will handle UPDATE logic based on payload.id
+        const response = await fetch('/api/save-data-dictionary', {
+            method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${token}`
@@ -574,13 +583,10 @@ async function saveDataDictionary() {
 
         if (response.ok) {
             displayMessage('saveStatus', result.message || 'Data dictionary saved successfully!', 'success');
-            // Update currentDictionaryId if it was a new creation
             if (!isEditingExistingDictionary && result.dictionaryId) {
                 currentDictionaryId = result.dictionaryId;
-                isEditingExistingDictionary = true; // Now it's an existing dictionary
-                // The delete button is now completely removed from HTML, so no need to manage its visibility here.
+                isEditingExistingDictionary = true;
             }
-            // Refresh the existing dictionaries list in the initial section
             await populateExistingDictionariesDropdown();
         } else {
             displayMessage('saveStatus', `Error saving: ${result.message || 'Unknown error.'}`, 'error');
@@ -591,18 +597,16 @@ async function saveDataDictionary() {
         console.error('Frontend save error:', error);
     } finally {
         document.getElementById('saveDictionaryBtn').disabled = false;
-        document.getElementById('printDictionaryBtn').disabled = false; // Re-enable
+        document.getElementById('printDictionaryBtn').disabled = false;
     }
 }
-
-// REMOVED: deleteDataDictionary function has been completely removed.
 
 /**
  * Handles the printing of the current Data Dictionary.
  */
 function handlePrintDictionary() {
     const dictionaryName = document.getElementById('dictionaryName').value.trim();
-    const rules = collectRules(); // Get the current rules from the table
+    const rules = collectRules();
 
     if (!dictionaryName || rules.length === 0) {
         displayMessage('saveStatus', 'Please load or create a data dictionary with rules to print.', 'error');
@@ -629,7 +633,7 @@ function handlePrintDictionary() {
                     margin: 20px;
                     color: #333;
                     line-height: 1.6;
-                    -webkit-print-color-adjust: exact; /* Keep colors when printing */
+                    -webkit-print-color-adjust: exact;
                     print-color-adjust: exact;
                 }
                 h1 {
@@ -672,18 +676,15 @@ function handlePrintDictionary() {
                 .meta-info strong {
                     color: #2c3e50;
                 }
-                /* Print-specific styles to hide elements not needed in printout */
                 @media print {
-                    /* Ensure all text is black for print contrast */
                     body, h1, h2, h3, p, strong, table, th, td {
                         color: #000 !important;
                     }
-                    /* Ensure backgrounds are mostly white, unless critical for meaning */
                     body, table, tr, td {
                         background-color: #fff !important;
                     }
                     th {
-                        background-color: #e0e0e0 !important; /* Light grey header background */
+                        background-color: #e0e0e0 !important;
                     }
                 }
             </style>
@@ -740,7 +741,6 @@ function handlePrintDictionary() {
     printWindow.document.close();
     printWindow.focus();
     printWindow.print();
-    // No setTimeout to remove, as the window is external and closed by user/browser after print.
 }
 
 
@@ -754,15 +754,13 @@ function resetBuilderUI() {
     isEditingExistingDictionary = false;
 
     document.getElementById('dictionaryName').value = '';
-    document.querySelector('#headersTable tbody').innerHTML = ''; // Clear table
-    document.getElementById('saveDictionaryBtn').disabled = true; // Disable save until headers are present
-    document.getElementById('printDictionaryBtn').disabled = true; // Disable print button
-    // The delete button is now completely removed from HTML, so no need to manage its visibility here.
+    document.querySelector('#headersTable tbody').innerHTML = '';
+    document.getElementById('saveDictionaryBtn').disabled = true;
+    document.getElementById('printDictionaryBtn').disabled = true;
 
     document.getElementById('initialSelectionSection').classList.remove('hidden');
     document.getElementById('dictionaryBuilderSection').classList.add('hidden');
 
-    // Clear status messages for both sections
     displayMessage('existingDictStatus', '', 'info');
     displayMessage('newDictStatus', '', 'info');
     displayMessage('saveStatus', '', 'info');
@@ -770,32 +768,24 @@ function resetBuilderUI() {
 
 // --- Event Listeners and Initial Load ---
 document.addEventListener('DOMContentLoaded', async () => {
-    // 1. Verify user's authentication token
     const userData = await verifyToken();
     if (userData) {
-        // 2. Set up navigation links (e.g., profile name, logout)
         setupNavigation(userData);
-        // 3. Populate the "Load Existing Dictionary" dropdown
         await populateExistingDictionariesDropdown();
     }
 
-    // 4. Attach event listeners to buttons and file inputs
     document.getElementById('loadExistingDictionaryBtn').addEventListener('click', loadDictionaryForEditing);
     document.getElementById('createNewDictionaryBtn').addEventListener('click', startNewDictionaryFromUpload);
     document.getElementById('saveDictionaryBtn').addEventListener('click', saveDataDictionary);
-    // REMOVED: document.getElementById('deleteDictionaryBtn').addEventListener('click', deleteDataDictionary);
-    document.getElementById('printDictionaryBtn').addEventListener('click', handlePrintDictionary); // Attach print handler
+    document.getElementById('printDictionaryBtn').addEventListener('click', handlePrintDictionary);
 
-    // Listener to clear old status messages when selecting a different existing dictionary
     document.getElementById('existingDictionarySelect').addEventListener('change', () => {
         displayMessage('existingDictStatus', '', 'info');
     });
 
-    // Listener to clear new dict status message when selecting a file
     document.getElementById('excelFile').addEventListener('change', () => {
         displayMessage('newDictStatus', '', 'info');
     });
 
-    // Handle initial reset/display of UI
-    resetBuilderUI(); // Call once on load to ensure proper initial state
+    resetBuilderUI();
 });
