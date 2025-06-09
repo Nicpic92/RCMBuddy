@@ -19,6 +19,7 @@ function showLoader(targetLoaderId = 'initialLoader') {
     document.getElementById('createNewDictionaryBtn').disabled = true;
     document.getElementById('saveDictionaryBtn').disabled = true;
     document.getElementById('deleteDictionaryBtn').disabled = true;
+    document.getElementById('printDictionaryBtn').disabled = true; // NEW: Disable print button
 }
 
 /**
@@ -30,7 +31,7 @@ function hideLoader(targetLoaderId = 'initialLoader') {
     // Re-enable primary action buttons, save/delete will be managed by table content
     document.getElementById('loadExistingDictionaryBtn').disabled = false;
     document.getElementById('createNewDictionaryBtn').disabled = false;
-    // Save/delete buttons re-enabled based on whether headers are loaded or existing dict is loaded
+    // Save/delete/print buttons re-enabled based on whether headers are loaded or existing dict is loaded
     // Managed by renderHeadersTable and loadDictionaryForEditing
 }
 
@@ -104,7 +105,7 @@ async function verifyToken() {
  */
 function setupNavigation(userData) {
     const profileLink = document.getElementById('profileLink');
-    if (profileLink && userData && userData.user) { // FIX: Check for nested 'user' object
+    if (profileLink && userData && userData.user) {
         profileLink.textContent = `Hello, ${userData.user.username}`; // FIX: Access nested username
         profileLink.href = '#'; // Placeholder, replace with actual profile page link if exists
     }
@@ -234,6 +235,7 @@ async function loadDictionaryForEditing() {
         document.getElementById('initialSelectionSection').classList.add('hidden');
         document.getElementById('dictionaryBuilderSection').classList.remove('hidden');
         document.getElementById('deleteDictionaryBtn').classList.remove('hidden'); // Show delete button for existing dict
+        document.getElementById('printDictionaryBtn').disabled = false; // NEW: Enable print button
 
         displayMessage('existingDictStatus', `Dictionary "${dictionary.name}" loaded for editing.`, 'success');
 
@@ -306,6 +308,7 @@ async function startNewDictionaryFromUpload() {
             document.getElementById('initialSelectionSection').classList.add('hidden');
             document.getElementById('dictionaryBuilderSection').classList.remove('hidden');
             document.getElementById('deleteDictionaryBtn').classList.add('hidden'); // Hide delete button for new dict
+            document.getElementById('printDictionaryBtn').disabled = false; // NEW: Enable print button
 
             displayMessage('newDictStatus', `Headers extracted from "${excelFile.name}". Define your rules.`, 'success');
 
@@ -374,9 +377,11 @@ function renderHeadersTable(headers, rulesToPreFill = []) {
         cell.style.padding = '20px';
         console.warn("renderHeadersTable: No headers provided for rendering.");
         document.getElementById('saveDictionaryBtn').disabled = true; // Disable save button if no headers
+        document.getElementById('printDictionaryBtn').disabled = true; // NEW: Disable print button
         return;
     } else {
         document.getElementById('saveDictionaryBtn').disabled = false; // Enable save button if headers exist
+        document.getElementById('printDictionaryBtn').disabled = false; // NEW: Enable print button
     }
 
     headers.forEach((header, index) => {
@@ -537,11 +542,15 @@ async function saveDataDictionary() {
 
     displayMessage('saveStatus', 'Saving data dictionary...', 'info');
     document.getElementById('saveDictionaryBtn').disabled = true;
+    document.getElementById('printDictionaryBtn').disabled = true; // NEW: Disable print button
+    document.getElementById('deleteDictionaryBtn').disabled = true; // NEW: Disable delete button
 
     const token = localStorage.getItem('jwtToken');
     if (!token) {
         displayMessage('saveStatus', 'Authentication required. Please log in again.', 'error');
         document.getElementById('saveDictionaryBtn').disabled = false;
+        document.getElementById('printDictionaryBtn').disabled = false; // NEW: Re-enable
+        document.getElementById('deleteDictionaryBtn').disabled = false; // NEW: Re-enable
         return;
     }
 
@@ -585,6 +594,8 @@ async function saveDataDictionary() {
         console.error('Frontend save error:', error);
     } finally {
         document.getElementById('saveDictionaryBtn').disabled = false;
+        document.getElementById('printDictionaryBtn').disabled = false; // NEW: Re-enable
+        document.getElementById('deleteDictionaryBtn').disabled = false; // NEW: Re-enable
     }
 }
 
@@ -603,11 +614,15 @@ async function deleteDataDictionary() {
 
     displayMessage('saveStatus', 'Deleting data dictionary...', 'info');
     document.getElementById('deleteDictionaryBtn').disabled = true;
+    document.getElementById('saveDictionaryBtn').disabled = true; // NEW: Disable save
+    document.getElementById('printDictionaryBtn').disabled = true; // NEW: Disable print
 
     const token = localStorage.getItem('jwtToken');
     if (!token) {
         displayMessage('saveStatus', 'Authentication required. Please log in again.', 'error');
         document.getElementById('deleteDictionaryBtn').disabled = false;
+        document.getElementById('saveDictionaryBtn').disabled = false; // NEW: Re-enable
+        document.getElementById('printDictionaryBtn').disabled = false; // NEW: Re-enable
         return;
     }
 
@@ -636,8 +651,157 @@ async function deleteDataDictionary() {
         console.error('Frontend delete error:', error);
     } finally {
         document.getElementById('deleteDictionaryBtn').disabled = false;
+        document.getElementById('saveDictionaryBtn').disabled = false; // NEW: Re-enable
+        document.getElementById('printDictionaryBtn').disabled = false; // NEW: Re-enable
     }
 }
+
+/**
+ * Handles the printing of the current Data Dictionary.
+ */
+function handlePrintDictionary() {
+    const dictionaryName = document.getElementById('dictionaryName').value.trim();
+    const rules = collectRules(); // Get the current rules from the table
+
+    if (!dictionaryName || rules.length === 0) {
+        displayMessage('saveStatus', 'Please load or create a data dictionary with rules to print.', 'error');
+        return;
+    }
+
+    const printWindow = window.open('', '', 'height=600,width=800');
+    if (!printWindow) {
+        alert('Please allow pop-ups for printing this report.');
+        return;
+    }
+
+    let printContent = `
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Data Dictionary Report - ${dictionaryName}</title>
+            <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+            <style>
+                body {
+                    font-family: 'Inter', sans-serif;
+                    margin: 20px;
+                    color: #333;
+                    line-height: 1.6;
+                    -webkit-print-color-adjust: exact; /* Keep colors when printing */
+                    print-color-adjust: exact;
+                }
+                h1 {
+                    color: #2D62B3;
+                    text-align: center;
+                    margin-bottom: 20px;
+                    font-size: 2em;
+                }
+                h2 {
+                    color: #495057;
+                    margin-top: 25px;
+                    margin-bottom: 15px;
+                    font-size: 1.5em;
+                    border-bottom: 2px solid #eee;
+                    padding-bottom: 5px;
+                }
+                table {
+                    width: 100%;
+                    border-collapse: collapse;
+                    margin-bottom: 20px;
+                    font-size: 0.9em;
+                }
+                th, td {
+                    border: 1px solid #ddd;
+                    padding: 10px;
+                    text-align: left;
+                }
+                th {
+                    background-color: #f2f2f2;
+                    font-weight: bold;
+                    color: #555;
+                }
+                tr:nth-child(even) {
+                    background-color: #f9f9f9;
+                }
+                .meta-info p {
+                    margin: 5px 0;
+                    font-size: 0.95em;
+                }
+                .meta-info strong {
+                    color: #2c3e50;
+                }
+                /* Print-specific styles to hide elements not needed in printout */
+                @media print {
+                    /* Ensure all text is black for print contrast */
+                    body, h1, h2, h3, p, strong, table, th, td {
+                        color: #000 !important;
+                    }
+                    /* Ensure backgrounds are mostly white, unless critical for meaning */
+                    body, table, tr, td {
+                        background-color: #fff !important;
+                    }
+                    th {
+                        background-color: #e0e0e0 !important; /* Light grey header background */
+                    }
+                }
+            </style>
+        </head>
+        <body>
+            <h1>Data Dictionary Report</h1>
+            <div class="meta-info">
+                <p><strong>Dictionary Name:</strong> ${dictionaryName}</p>
+                <p><strong>Generated On:</strong> ${new Date().toLocaleString()}</p>
+            </div>
+            <h2>Validation Rules</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Column Name</th>
+                        <th>Validation Type</th>
+                        <th>Validation Value</th>
+                        <th>Failure Message</th>
+                    </tr>
+                </thead>
+                <tbody>
+    `;
+
+    rules.forEach(rule => {
+        printContent += `
+            <tr>
+                <td>${rule['Column Name'] || ''}</td>
+                <td>${rule['Validation Type'] || ''}</td>
+                <td>${rule['Validation Value'] || ''}</td>
+                <td>${rule['Failure Message'] || ''}</td>
+            </tr>
+        `;
+    });
+
+    printContent += `
+                </tbody>
+            </table>
+            <h2>Source Headers</h2>
+            <p>This dictionary was built from the following original headers:</p>
+            <ul>
+    `;
+
+    currentHeaders.forEach(header => {
+        printContent += `<li>${header}</li>`;
+    });
+
+    printContent += `
+            </ul>
+        </body>
+        </html>
+    `;
+
+    printWindow.document.write(printContent);
+    printWindow.document.close();
+    printWindow.focus();
+    printWindow.print();
+    // No setTimeout to remove, as the window is external and closed by user/browser after print.
+}
+
 
 /**
  * Resets the builder UI to its initial state (showing selection options).
@@ -651,6 +815,7 @@ function resetBuilderUI() {
     document.getElementById('dictionaryName').value = '';
     document.querySelector('#headersTable tbody').innerHTML = ''; // Clear table
     document.getElementById('saveDictionaryBtn').disabled = true; // Disable save until headers are present
+    document.getElementById('printDictionaryBtn').disabled = true; // NEW: Disable print button
     document.getElementById('deleteDictionaryBtn').classList.add('hidden'); // Hide delete
 
     document.getElementById('initialSelectionSection').classList.remove('hidden');
@@ -678,6 +843,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('createNewDictionaryBtn').addEventListener('click', startNewDictionaryFromUpload);
     document.getElementById('saveDictionaryBtn').addEventListener('click', saveDataDictionary);
     document.getElementById('deleteDictionaryBtn').addEventListener('click', deleteDataDictionary);
+    document.getElementById('printDictionaryBtn').addEventListener('click', handlePrintDictionary); // NEW: Attach print handler
 
     // Listener to clear old status messages when selecting a different existing dictionary
     document.getElementById('existingDictionarySelect').addEventListener('change', () => {
