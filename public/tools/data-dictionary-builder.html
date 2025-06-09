@@ -4,12 +4,17 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Data Dictionary Builder - MirraBuddy</title>
+    <!-- Tailwind CSS CDN (if still desired for base styling, otherwise included in custom CSS) -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts - Inter -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Custom CSS for Data Dictionary Builder -->
     <link rel="stylesheet" href="/tools/data-dictionary-builder.css">
+    <!-- XLSX library for client-side Excel file parsing -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
 <body class="flex flex-col min-h-screen text-gray-800">
+    <!-- Header Section: Consistent navigation across the app -->
     <header class="bg-gradient-to-r from-blue-600 to-indigo-700 p-4 shadow-lg">
         <div class="container mx-auto flex flex-col sm:flex-row items-center justify-between">
             <h1 class="text-white text-3xl font-bold mb-2 sm:mb-0">Data Dictionary Builder</h1>
@@ -27,88 +32,93 @@
         </div>
     </header>
 
+    <!-- Main Content Section -->
     <main class="flex-grow container mx-auto p-4 sm:p-6 lg:p-8">
         <section class="bg-white p-6 sm:p-8 rounded-xl shadow-lg mb-8">
             <h2 class="text-2xl sm:text-3xl font-semibold text-center text-blue-700 mb-4">
-                Build Custom Data Dictionaries
+                Build & Manage Custom Data Dictionaries
             </h2>
             <p class="text-lg text-gray-700 text-center mb-6">
-                Define validation rules for your Excel file headers and save them as reusable data dictionaries for your "Excel Validate" tool.
+                Define, edit, and manage validation rules for your Excel file headers.
             </p>
             <div class="max-w-3xl mx-auto text-gray-600 text-base mb-6 p-4 border border-gray-200 rounded-lg bg-gray-50">
                 <p class="font-semibold text-gray-800 mb-2">How it works:</p>
-                <p>Upload an Excel or CSV file to extract its headers. For each header, you can then specify various validation rules, such as whether a field is required, what values are allowed, numeric ranges, date rules, or even custom regular expressions. Once defined, give your data dictionary a name and save it. It will then be available for use in the "Excel Validate" tool to ensure data quality across your spreadsheets.</p>
+                <p>You can either **select an existing data dictionary** to modify its rules, or **create a brand new one** by uploading an Excel/CSV file to extract its headers. For each header, you can specify various validation rules. Saved dictionaries are available for use in the "Excel Validate" tool.</p>
                 <ul class="list-disc list-inside mt-3 ml-5">
-                    <li>**Upload File:** Select an Excel/CSV file to load its column headers.</li>
-                    <li>**Define Rules:** For each header, choose a validation type and provide a corresponding value/message.</li>
-                    <li>**Save Dictionary:** Give your dictionary a name and save it to your account.</li>
-                    <li>**Use in Validation Tool:** Your saved dictionaries will appear in the "Excel Validate" tool for quick application.</li>
+                    <li>**Select Existing:** Load a previously saved dictionary for editing.</li>
+                    <li>**Create New:** Upload a file, extract headers, and define rules from scratch.</li>
+                    <li>**Define Rules:** Specify validation types, values, and failure messages per column.</li>
+                    <li>**Save/Update:** Save changes to a new or existing dictionary.</li>
                 </ul>
             </div>
 
+            <!-- Initial Selection Section (Load Existing or Create New) -->
+            <div id="initialSelectionSection" class="max-w-xl mx-auto bg-blue-50 p-6 rounded-lg shadow-md border border-blue-200 mb-8">
+                <h3 class="text-xl font-bold text-blue-700 mb-4">Choose Your Starting Point</h3>
+
+                <div class="mb-6 pb-6 border-b border-blue-300">
+                    <h4 class="text-lg font-bold text-gray-700 mb-2">1. Load Existing Dictionary</h4>
+                    <p class="text-sm text-gray-600 mb-3">Select a dictionary to view or modify its rules.</p>
+                    <div class="flex flex-col sm:flex-row gap-2">
+                        <select id="existingDictionarySelect" class="flex-grow p-2 border border-gray-300 rounded-lg bg-white focus:ring-blue-500 focus:border-blue-500">
+                            <option value="">-- Select an Existing Dictionary --</option>
+                            {/* Options will be loaded here by JavaScript */}
+                        </select>
+                        <button type="button" id="loadExistingDictionaryBtn" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm transition duration-300">Load for Editing</button>
+                    </div>
+                    <div id="existingDictStatus" class="mt-2 text-sm text-gray-600 hidden"></div>
+                </div>
+
+                <div>
+                    <h4 class="text-lg font-bold text-gray-700 mb-2">2. Create New Dictionary</h4>
+                    <p class="text-sm text-gray-600 mb-3">Upload a new file to define rules for its headers.</p>
+                    <div class="flex flex-col sm:flex-row gap-2">
+                        <input type="file" id="excelFile" accept=".xlsx, .xls, .csv"
+                               class="flex-grow mt-1 block w-full text-sm text-gray-900 border border-gray-300 rounded-lg cursor-pointer bg-white focus:outline-none focus:border-blue-500">
+                        <button type="button" id="createNewDictionaryBtn" class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm transition duration-300">Start New</button>
+                    </div>
+                    <div id="newDictStatus" class="mt-2 text-sm text-gray-600 hidden"></div>
+                </div>
+                <div class="loader" id="initialLoader"></div> {/* Separate loader for initial operations */}
+            </div>
+            <!-- END Initial Selection Section -->
+
+            <!-- Validation Type Key -->
             <div class="max-w-3xl mx-auto bg-gray-50 p-6 rounded-lg shadow-md border border-gray-200 mb-8">
                 <h3 class="text-xl font-bold text-gray-700 mb-4">Validation Type Key</h3>
                 <div class="space-y-4 text-gray-700">
+                    <div><strong class="text-blue-600">None:</strong> No specific validation applied.</div>
                     <div>
-                        <strong class="text-blue-600">None:</strong> No specific validation applied to this column.
+                        <strong class="text-blue-600">Required (Not Blank):</strong> Cell must not be empty. <br>
+                        <span class="text-sm text-gray-500">*Validation Value:* Not applicable (leave blank).</span>
                     </div>
                     <div>
-                        <strong class="text-blue-600">Required (Not Blank):</strong> The cell must contain a value; it cannot be empty, null, or just whitespace. <br>
-                        <span class="text-sm text-gray-500">
-                            *Validation Value:* Not applicable (leave blank).
-                        </span>
+                        <strong class="text-blue-600">Allowed Values (Comma-separated):</strong> Value must match one of specified (case-insensitive). <br>
+                        <span class="text-sm text-gray-500">*Validation Value:* Comma-separated list (e.g., `Yes,No`).</span>
                     </div>
                     <div>
-                        <strong class="text-blue-600">Allowed Values (Comma-separated):</strong> The cell's value must exactly match one of the specified values (case-insensitive). <br>
-                        <span class="text-sm text-gray-500">
-                            *Validation Value:* Enter a comma-separated list of allowed values (e.g., `Yes,No,Maybe`).
-                        </span>
+                        <strong class="text-blue-600">Numeric Range (e.g., 0-100):</strong> Value must be a number within range. <br>
+                        <span class="text-sm text-gray-500">*Validation Value:* Min-Max (e.g., `1-100`).</span>
                     </div>
                     <div>
-                        <strong class="text-blue-600">Numeric Range (e.g., 0-100):</strong> The cell's value must be a number within the specified inclusive range. <br>
-                        <span class="text-sm text-gray-500">
-                            *Validation Value:* Enter the minimum and maximum values separated by a hyphen (e.g., `1-100`, `0.5-99.9`).
-                        </span>
+                        <strong class="text-blue-600">Regex Pattern:</strong> Value must match regex. <br>
+                        <span class="text-sm text-gray-500">*Validation Value:* Regular expression (e.g., `^\d{5}$`).</span>
                     </div>
                     <div>
-                        <strong class="text-blue-600">Regex Pattern:</strong> The cell's value must match the provided regular expression pattern. <br>
-                        <span class="text-sm text-gray-500">
-                            *Validation Value:* Enter a valid regular expression (e.g., `^\d{5}$` for exactly 5 digits, `^[A-Za-z]+$` for letters only).
-                        </span>
+                        <strong class="text-blue-600">Date in Past:</strong> Value must be a valid date in the past. <br>
+                        <span class="text-sm text-gray-500">*Validation Value:* Not applicable (leave blank).</span>
                     </div>
                     <div>
-                        <strong class="text-blue-600">Date in Past:</strong> The cell's value must be a valid date, and that date must be in the past (before today). <br>
-                        <span class="text-sm text-gray-500">
-                            *Validation Value:* Not applicable (leave blank).
-                        </span>
-                    </div>
-                    <div>
-                        <strong class="text-blue-600">Unique Value:</strong> All values in this column within a single sheet must be unique (case-insensitive). <br>
-                        <span class="text-sm text-gray-500">
-                            *Validation Value:* Not applicable (leave blank).
-                        </span>
+                        <strong class="text-blue-600">Unique Value:</strong> Values in this column must be unique per sheet. <br>
+                        <span class="text-sm text-gray-500">*Validation Value:* Not applicable (leave blank).</span>
                     </div>
                 </div>
             </div>
-            <div class="max-w-3xl mx-auto bg-blue-50 p-6 rounded-lg shadow-md border border-blue-200">
-                <h3 class="text-xl font-bold text-blue-700 mb-4">Step 1: Upload File & Extract Headers</h3>
-                <form id="uploadForm" class="space-y-4">
-                    <div>
-                        <label for="excelFile" class="block text-sm font-medium text-gray-700">Select Excel or CSV File</label>
-                        <input type="file" id="excelFile" accept=".xlsx, .xls, .csv" required
-                               class="mt-1 block w-full text-sm text-gray-900 border border-gray-300 rounded-lg cursor-pointer bg-white focus:outline-none focus:border-blue-500">
-                    </div>
-                    <button type="button" id="loadHeadersBtn"
-                            class="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-lg text-lg font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition duration-300 ease-in-out transform hover:-translate-y-0.5">
-                        Load Headers
-                    </button>
-                </form>
-                <div class="loader" id="loader"></div>
-                <div id="uploadStatus" class="mt-4 text-center text-sm text-gray-600 hidden"></div>
-            </div>
+            <!-- END Validation Type Key -->
 
+            <!-- Dictionary Builder Section (Hidden by default, shown when loading or creating) -->
             <div id="dictionaryBuilderSection" class="max-w-3xl mx-auto bg-white p-6 rounded-lg shadow-md mt-8 hidden">
-                <h3 class="text-xl font-bold text-green-700 mb-4">Step 2: Define Data Dictionary Rules</h3>
+                <h3 class="text-xl font-bold text-green-700 mb-4">Define Data Dictionary Rules</h3>
                 <div class="mb-4">
                     <label for="dictionaryName" class="block text-sm font-medium text-gray-700">Data Dictionary Name</label>
                     <input type="text" id="dictionaryName" placeholder="e.g., HR Data Dictionary V1" required
@@ -125,7 +135,8 @@
                             </tr>
                         </thead>
                         <tbody>
-                            </tbody>
+                            <!-- Table rows will be populated by JavaScript -->
+                        </tbody>
                     </table>
                 </div>
                 <div class="flex flex-col sm:flex-row gap-4 mt-6">
@@ -133,8 +144,8 @@
                             class="flex-1 w-full justify-center py-3 px-4 border border-transparent rounded-lg shadow-lg text-lg font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition duration-300 ease-in-out transform hover:-translate-y-0.5">
                         Save Data Dictionary
                     </button>
-                    <button type="button" id="deleteOriginalFileBtn" class="flex-1 w-full justify-center py-3 px-4 border border-gray-300 rounded-lg shadow-lg text-lg font-medium text-gray-700 bg-white hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-300 transition duration-300 ease-in-out transform hover:-translate-y-0.5 hidden">
-                        Delete Original Uploaded File
+                    <button type="button" id="deleteDictionaryBtn" class="flex-1 w-full justify-center py-3 px-4 border border-gray-300 rounded-lg shadow-lg text-lg font-medium text-gray-700 bg-white hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-300 transition duration-300 ease-in-out transform hover:-translate-y-0.5 hidden">
+                        Delete This Data Dictionary
                     </button>
                 </div>
                 <div id="saveStatus" class="mt-4 text-center text-sm text-gray-600 hidden"></div>
@@ -142,12 +153,14 @@
         </section>
     </main>
 
+    <!-- Footer Section -->
     <footer class="bg-gray-800 text-white p-4 mt-8">
         <div class="container mx-auto text-center text-sm">
             &copy; 2025 Excel Buddy. All rights reserved.
         </div>
     </footer>
 
+    <!-- External JavaScript for Data Dictionary Builder Logic -->
     <script src="/tools/data-dictionary-builder.js"></script>
 </body>
 </html>
