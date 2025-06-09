@@ -15,6 +15,6 @@
     "busboy": "^1.6.0",
     "exceljs": "^4.4.0",
     "jsonwebtoken": "^9.0.2",
-    "pg": "^8.11.3"  <-- THIS MUST BE HERE
+    "pg": "^8.11.3"
   }
 }
