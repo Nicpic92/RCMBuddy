@@ -82,8 +82,9 @@ exports.handler = async (event, context) => {
         let actionMessage;
         let savedDictionaryId;
 
+        // NEW LOGIC: Explicitly check for existence and then UPDATE or INSERT
         if (id) {
-            // Update existing data dictionary
+            // Case 1: 'id' is provided, attempt to update an existing dictionary
             console.log(`save-data-dictionary.js: Attempting to UPDATE dictionary with ID: ${id}`);
             queryText = `
                 UPDATE data_dictionaries
@@ -93,8 +94,8 @@ exports.handler = async (event, context) => {
             queryValues = [dictionaryName, rulesToSave, sourceHeadersToSave, id, company_id];
             actionMessage = 'updated';
 
-            console.log("save-data-dictionary.js: UPDATE Query text:", queryText.replace(/\s+/g, ' ').trim()); // Log query
-            console.log("save-data-dictionary.js: UPDATE Query values:", queryValues); // Log values
+            console.log("save-data-dictionary.js: UPDATE Query text:", queryText.replace(/\s+/g, ' ').trim());
+            console.log("save-data-dictionary.js: UPDATE Query values:", queryValues);
 
             const updateResult = await client.query(queryText, queryValues);
             if (updateResult.rowCount === 0) {
@@ -108,29 +109,51 @@ exports.handler = async (event, context) => {
             savedDictionaryId = id;
             console.log("save-data-dictionary.js: Dictionary updated successfully. Affected rows:", updateResult.rowCount);
 
-
         } else {
-            // Insert new data dictionary (UPSERT style to leverage unique constraint for company_id, name)
-            console.log("save-data-dictionary.js: Attempting to INSERT new dictionary.");
-            queryText = `
-                INSERT INTO data_dictionaries (company_id, user_id, name, rules_json, source_headers_json)
-                VALUES ($1, $2, $3, $4::jsonb, $5::jsonb)
-                ON CONFLICT (company_id, name) DO UPDATE SET
-                    user_id = EXCLUDED.user_id,
-                    rules_json = EXCLUDED.rules_json,
-                    source_headers_json = EXCLUDED.source_headers_json,
-                    updated_at = CURRENT_TIMESTAMP
-                RETURNING id;
+            // Case 2: No 'id' provided, check if a dictionary with this name already exists for the company
+            console.log("save-data-dictionary.js: No ID provided. Checking for existing dictionary by name/company...");
+            const checkExistingQuery = `
+                SELECT id FROM data_dictionaries
+                WHERE name = $1 AND company_id = $2;
             `;
-            queryValues = [company_id, user_id, dictionaryName, rulesToSave, sourceHeadersToSave];
-            actionMessage = 'saved';
+            const checkResult = await client.query(checkExistingQuery, [dictionaryName, company_id]);
 
-            console.log("save-data-dictionary.js: INSERT/UPSERT Query text:", queryText.replace(/\s+/g, ' ').trim()); // Log query
-            console.log("save-data-dictionary.js: INSERT/UPSERT Query values:", queryValues); // Log values
+            if (checkResult.rows.length > 0) {
+                // Case 2a: Dictionary with this name already exists for this company, perform an UPDATE
+                savedDictionaryId = checkResult.rows[0].id;
+                console.log(`save-data-dictionary.js: Dictionary with name "${dictionaryName}" already exists (ID: ${savedDictionaryId}). Performing UPDATE.`);
+                queryText = `
+                    UPDATE data_dictionaries
+                    SET user_id = $1, rules_json = $2::jsonb, source_headers_json = $3::jsonb, updated_at = CURRENT_TIMESTAMP
+                    WHERE id = $4 AND company_id = $5 RETURNING id;
+                `;
+                queryValues = [user_id, rulesToSave, sourceHeadersToSave, savedDictionaryId, company_id];
+                actionMessage = 'updated';
 
-            const insertResult = await client.query(queryText, queryValues);
-            savedDictionaryId = insertResult.rows[0].id;
-            console.log("save-data-dictionary.js: New dictionary inserted/upserted successfully. New ID:", savedDictionaryId);
+                console.log("save-data-dictionary.js: UPDATE (found by name) Query text:", queryText.replace(/\s+/g, ' ').trim());
+                console.log("save-data-dictionary.js: UPDATE (found by name) Query values:", queryValues);
+
+                const updateResult = await client.query(queryText, queryValues);
+                // No need to check rowCount, as we just confirmed existence
+                console.log("save-data-dictionary.js: Dictionary updated successfully by name. Affected rows:", updateResult.rowCount);
+
+            } else {
+                // Case 2b: Dictionary does not exist, perform an INSERT
+                console.log(`save-data-dictionary.js: Dictionary with name "${dictionaryName}" does not exist. Performing INSERT.`);
+                queryText = `
+                    INSERT INTO data_dictionaries (company_id, user_id, name, rules_json, source_headers_json)
+                    VALUES ($1, $2, $3, $4::jsonb, $5::jsonb) RETURNING id;
+                `;
+                queryValues = [company_id, user_id, dictionaryName, rulesToSave, sourceHeadersToSave];
+                actionMessage = 'saved';
+
+                console.log("save-data-dictionary.js: INSERT Query text:", queryText.replace(/\s+/g, ' ').trim());
+                console.log("save-data-dictionary.js: INSERT Query values:", queryValues);
+
+                const insertResult = await client.query(queryText, queryValues);
+                savedDictionaryId = insertResult.rows[0].id;
+                console.log("save-data-dictionary.js: New dictionary inserted successfully. New ID:", savedDictionaryId);
+            }
         }
 
         await client.query('COMMIT'); // Commit the transaction
@@ -162,7 +185,8 @@ exports.handler = async (event, context) => {
         console.error('save-data-dictionary.js: Specific error message from DB:', dbError.message);
         console.error('save-data-dictionary.js: DB Error Code:', dbError.code); // Log error code
 
-        // Handle specific PostgreSQL unique constraint violation error (for INSERT path)
+        // This specific error handling for 23505 (unique violation) is now less likely with the new logic,
+        // but kept as a fallback for potential edge cases or other unique constraints.
         if (dbError.code === '23505') {
             console.warn("save-data-dictionary.js: Unique constraint violation detected (Error Code: 23505).");
             return { statusCode: 409, body: JSON.stringify({ message: 'A data dictionary with this name already exists for your company. Please choose a different name, or load and update the existing one.', error: dbError.message }) };
