@@ -2,10 +2,10 @@
 
 // --- Global Variables ---
 let currentHeaders = []; // Stores headers extracted from the uploaded file
-let originalFileId = null; // Stores the ID of the new data dictionary file saved to the server
-let uploadedOriginalFileName = null; // Stores the name of the original file for display/reference
+let currentDictionaryId = null; // Stores the ID of the new data dictionary saved to the server
+let uploadedOriginalFileName = null; // Stores the name of the original file for display/reference (from local upload)
 
-// NEW: Stores column names that already have rules defined in existing data dictionaries
+// Stores column names that already have rules defined in existing data dictionaries
 let existingDataDictionaryColumns = new Set();
 
 
@@ -100,7 +100,7 @@ function setupNavigation(userData) {
     }
 }
 
-// --- NEW: Load Existing Data Dictionary Rules ---
+// --- Load Existing Data Dictionary Rules (UPDATED to use new APIs) ---
 
 /**
  * Fetches all existing data dictionaries for the company and populates
@@ -113,38 +113,34 @@ async function loadExistingDataDictionaryRules() {
     existingDataDictionaryColumns.clear(); // Clear previous state
 
     try {
-        // First, get a list of all files, including data dictionaries
-        const listResponse = await fetch('/api/list-files', {
+        // Use the new list-data-dictionaries API
+        const listResponse = await fetch('/api/list-data-dictionaries', {
             method: 'GET',
             headers: { 'Authorization': `Bearer ${token}` }
         });
         if (!listResponse.ok) {
-            throw new Error(`Failed to list files: ${listResponse.statusText}`);
+            throw new Error(`Failed to list data dictionaries: ${listResponse.statusText}`);
         }
         const listResult = await listResponse.json();
-        const allFiles = listResult.files || []; // Ensure it's an array
+        const dataDictionaries = listResult.dictionaries || []; // Access the 'dictionaries' key
 
-        // Filter for data dictionaries
-        const dataDictionaries = allFiles.filter(file => file.is_data_dictionary === true);
-
-        // For each data dictionary, fetch its content (the rules)
+        // For each data dictionary, fetch its full content (the rules_json)
         for (const dict of dataDictionaries) {
             try {
-                const getFileResponse = await fetch(`/api/get-file?id=${dict.id}`, {
+                // Use the new get-data-dictionary API
+                const getDictResponse = await fetch(`/api/get-data-dictionary?id=${dict.id}`, {
                     method: 'GET',
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
-                if (!getFileResponse.ok) {
-                    console.warn(`Could not retrieve rules for dictionary ID ${dict.id}: ${getFileResponse.statusText}`);
+                if (!getDictResponse.ok) {
+                    console.warn(`Could not retrieve rules for dictionary ID ${dict.id}: ${getDictResponse.statusText}`);
                     continue; // Skip to next dictionary
                 }
-                const fileContent = await getFileResponse.json();
+                const dictionaryContent = await getDictResponse.json();
                 
-                // fileContent.fileData is base64 encoded. Decode it.
-                const decodedData = atob(fileContent.fileData); // Decode base64 to string
-                const rules = JSON.parse(decodedData); // Parse the JSON string to get the rules array
+                // rules_json is now directly a JSON object, no base64 decoding needed!
+                const rules = dictionaryContent.rules_json || []; 
 
-                // Add column names from these rules to our set
                 rules.forEach(rule => {
                     // Consider a column "defined" only if it has an active validation type
                     if (rule['Column Name'] && rule['Validation Type'] && rule['Validation Type'].trim() !== '' && rule['Validation Type'].trim().toLowerCase() !== 'none') {
@@ -165,7 +161,7 @@ async function loadExistingDataDictionaryRules() {
 }
 
 
-// --- Core Logic: File Upload and Header Extraction ---
+// --- Core Logic: File Upload and Header Extraction (Minor update for sourceHeaders) ---
 
 async function handleFileUpload() {
     const excelFile = document.getElementById('excelFile').files[0];
@@ -202,15 +198,15 @@ async function handleFileUpload() {
                 return;
             }
 
-            // NEW: Filter out headers that already have rules defined
+            // Store ALL extracted headers for potential saving in source_headers_json
+            currentHeaders = extractedHeaders; 
+
+            // Filter out headers that already have rules defined
             const filteredHeaders = extractedHeaders.filter(header => {
                 // Keep the header if it's NOT in our set of existing columns
                 // Compare in lowercase for case-insensitivity
                 return !existingDataDictionaryColumns.has(String(header).trim().toLowerCase());
             });
-
-            // Keep track of original headers for the form, even if filtered
-            currentHeaders = filteredHeaders;
 
             if (filteredHeaders.length === 0) {
                 displayMessage('uploadStatus', 'All headers in this file already have rules defined in your existing dictionaries. No new rules to build.', 'info');
@@ -244,7 +240,7 @@ async function handleFileUpload() {
     reader.readAsArrayBuffer(excelFile);
 }
 
-// --- Core Logic: Render Headers Table for Rule Definition (unchanged, as it receives filtered headers) ---
+// --- Core Logic: Render Headers Table for Rule Definition (unchanged) ---
 
 function renderHeadersTable(headers) {
     const tbody = document.querySelector('#headersTable tbody');
@@ -333,7 +329,7 @@ function renderHeadersTable(headers) {
     });
 }
 
-// --- Core Logic: Save Data Dictionary (unchanged) ---
+// --- Core Logic: Save Data Dictionary (UPDATED to use new API and pass sourceHeaders) ---
 
 async function saveDataDictionary() {
     const dictionaryName = document.getElementById('dictionaryName').value.trim();
@@ -387,6 +383,7 @@ async function saveDataDictionary() {
     }
 
     try {
+        // Use the new save-data-dictionary API
         const response = await fetch('/api/save-data-dictionary', {
             method: 'POST',
             headers: {
@@ -395,7 +392,8 @@ async function saveDataDictionary() {
             },
             body: JSON.stringify({
                 dictionaryName: dictionaryName,
-                rules: rulesData // Send the array of rule objects
+                rules: rulesData,       // The rules array
+                sourceHeaders: currentHeaders // NEW: Pass all original headers from the uploaded file
             })
         });
 
@@ -405,10 +403,9 @@ async function saveDataDictionary() {
         }
 
         const result = await response.json();
-        originalFileId = result.fileId; // Store the ID of the new dictionary file in DB
+        currentDictionaryId = result.dictionaryId; // Store the ID of the new dictionary
         displayMessage('saveStatus', 'Data Dictionary saved successfully! You can now use it in the Excel Validate tool.', 'success');
-        document.getElementById('deleteOriginalFileBtn').classList.remove('hidden'); // Show delete button for original upload
-        // Update the button's text to indicate what it deletes
+        document.getElementById('deleteOriginalFileBtn').classList.remove('hidden'); // Show delete button
         document.getElementById('deleteOriginalFileBtn').textContent = `Delete This Data Dictionary ("${dictionaryName}")`;
 
         // After saving, re-load existing rules so the next file upload benefits from the newly saved dictionary
@@ -422,13 +419,13 @@ async function saveDataDictionary() {
     }
 }
 
-// --- Core Logic: Delete Original Uploaded File (or Data Dictionary) ---
+// --- Core Logic: Delete Data Dictionary (UPDATED to use new API) ---
 
-async function deleteOriginalFile() {
-    const fileIdToDelete = originalFileId; // This refers to the ID of the Data Dictionary just saved
+async function deleteOriginalFile() { // Renamed conceptually to deleteDataDictionary in new APIs
+    const dictionaryIdToDelete = currentDictionaryId; 
     const dictionaryName = document.getElementById('dictionaryName').value.trim();
 
-    if (!fileIdToDelete) {
+    if (!dictionaryIdToDelete) {
         displayMessage('saveStatus', 'No data dictionary to delete. Please save a dictionary first.', 'error');
         return;
     }
@@ -448,7 +445,8 @@ async function deleteOriginalFile() {
     }
 
     try {
-        const response = await fetch(`/api/delete-file?id=${fileIdToDelete}`, {
+        // Use the new delete-data-dictionary API
+        const response = await fetch(`/api/delete-data-dictionary?id=${dictionaryIdToDelete}`, {
             method: 'DELETE',
             headers: {
                 'Authorization': `Bearer ${token}`
@@ -457,12 +455,12 @@ async function deleteOriginalFile() {
 
         if (!response.ok) {
             const errorData = await response.json();
-            throw new Error(errorData.message || 'Failed to delete file.');
+            throw new Error(errorData.message || 'Failed to delete data dictionary.');
         }
 
         displayMessage('saveStatus', 'Data dictionary deleted successfully!', 'success');
         document.getElementById('deleteOriginalFileBtn').classList.add('hidden'); // Hide button after deletion
-        originalFileId = null; // Clear stored ID
+        currentDictionaryId = null; // Clear stored ID
 
         // Reset form for new dictionary
         document.getElementById('excelFile').value = '';
@@ -476,8 +474,8 @@ async function deleteOriginalFile() {
         await loadExistingDataDictionaryRules();
 
     } catch (error) {
-        console.error('Error deleting file:', error);
-        displayMessage('saveStatus', `Error deleting file: ${error.message}`, 'error');
+        console.error('Error deleting data dictionary:', error);
+        displayMessage('saveStatus', `Error deleting data dictionary: ${error.message}`, 'error');
     } finally {
         hideLoader();
     }
@@ -490,7 +488,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const userData = await verifyToken();
     if (userData) {
         setupNavigation(userData);
-        await loadExistingDataDictionaryRules(); // NEW: Load existing rules on page load
+        await loadExistingDataDictionaryRules(); // Load existing rules on page load
     }
 
     document.getElementById('loadHeadersBtn').addEventListener('click', handleFileUpload);
