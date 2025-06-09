@@ -33,10 +33,9 @@ exports.handler = async (event, context) => {
     try {
         client = await pool.connect();
         // Query to get all data dictionaries for the current company_id
-        // Select only necessary metadata for a list view (e.g., id, name, creation/update dates, source headers preview)
-        // We do NOT fetch the full rules_json here for performance
+        // IMPORTANT FIX: Now selecting rules_json as well for frontend pre-population
         const dictionariesResult = await client.query(
-            `SELECT id, name, created_at, updated_at, user_id, source_headers_json
+            `SELECT id, name, rules_json, source_headers_json, created_at, updated_at, user_id
              FROM data_dictionaries
              WHERE company_id = $1
              ORDER BY name ASC`, // Order alphabetically by name
@@ -46,10 +45,11 @@ exports.handler = async (event, context) => {
         const dictionaries = dictionariesResult.rows.map(dict => ({
             id: dict.id,
             name: dict.name, // This is the user-given dictionary name
+            rules_json: dict.rules_json, // NEW: Include rules_json here
+            source_headers_json: dict.source_headers_json,
             created_at: dict.created_at,
             updated_at: dict.updated_at,
             user_id: dict.user_id, // Who created it
-            source_headers_json: dict.source_headers_json // Optionally include source headers preview for info
         }));
 
         return {
