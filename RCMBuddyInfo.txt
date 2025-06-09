@@ -136,13 +136,13 @@ package = "@netlify/plugin-functions-install-core"
 5.2. Frontend Pages (public/ and public/tools/)
 index.html: Login/Registration page. Handles user authentication.
 
-dashboard.html: The primary user dashboard. Authenticates via JWT, displays user and company information, and provides quick access (tool cards) to the main application features.
+dashboard.html: The primary user dashboard. Authenticates via JWT, displays user and company information, and provides quick access (tool cards) to the main application features. Resolved "Hello, undefined" issue.
 
-tools.html: A secondary page listing all available tools, now styled as cards for visual consistency with the dashboard. It provides a more comprehensive overview of tools, including placeholders for those under development (Merger & Splitter).
+tools.html: A secondary page listing all available tools. It provides a more comprehensive overview of tools, now styled as responsive cards for visual consistency with the dashboard. Resolved "Hello, undefined" issue, updated card styling, and removed extra "Coming Soon" placeholder tools.
 
-file-manager.html: Handles uploading, listing, downloading, and deleting general files from the company_files table. Now includes a visual tag for files marked as "Data Dictionary."
+file-manager.html: Handles uploading, listing, downloading, and deleting general files from the company_files table. Now includes a visual tag for files marked as "Data Dictionary." Resolved "Hello, undefined" issue.
 
-tools/data-cleaner.html: Provides the UI for client-side Excel data cleaning.
+tools/data-cleaner.html: Provides the UI for client-side Excel data cleaning. Resolved "Hello, undefined" issue.
 
 tools/validation-engine.html: REVISED. This file is now self-contained, embedding its CSS and JavaScript directly.
 
@@ -154,13 +154,13 @@ Loads selected dictionary rules from the get-data-dictionary.js API.
 
 Core Validation Logic: Now performs only custom validation rules (from loaded dictionaries) and duplicate row detection. Standard checks for blank cells, "NULL" strings, and future dates are no longer implemented as primary validation in this version, aligning with the project goal.
 
-Applies rules and generates downloadable reports, including override functionality.
+Applies rules and generates downloadable reports, including override functionality. Resolved "Hello, undefined" issue.
 
-tools/data-dictionary-builder.html: Provides UI for uploading Excel/CSV files, displaying extracted headers, and defining rules. Now supports selecting and editing existing dictionaries, and includes a "Print Report" button.
+tools/data-dictionary-builder.html: Provides UI for uploading Excel/CSV files, displaying extracted headers, and defining rules. Now supports selecting and editing existing dictionaries, and includes a "Print Report" button. The "Delete This Data Dictionary" button has been explicitly removed from the UI. Resolved "Hello, undefined" issue.
 
 tools/data-dictionary-builder.css: Custom CSS for the Data Dictionary Builder.
 
-tools/data-dictionary-builder.js: Handles client-side Excel/CSV parsing to extract headers, dynamically builds the rule definition table, collects rules, sends data to save-data-dictionary.js, and allows editing/updating existing dictionaries, deleting them via delete-data-dictionary.js, and printing reports via handlePrintDictionary.
+tools/data-dictionary-builder.js: Handles client-side Excel/CSV parsing to extract headers, dynamically builds the rule definition table, collects rules, sends data to save-data-dictionary.js, and allows editing/updating existing dictionaries and printing reports via handlePrintDictionary. The deleteDataDictionary function and its calls have been completely removed from this file. Resolved "Hello, undefined" issue, fixed dropdown population, implemented print functionality.
 
 5.3. Backend Functions (netlify/functions/)
 package.json: Lists Node.js dependencies (e.g., bcryptjs, jsonwebtoken, pg, busboy, exceljs).
@@ -169,25 +169,25 @@ register.js: Handles user and company registration.
 
 login.js: Handles user login and JWT generation.
 
-protected.js: Verifies JWTs for protected routes.
+protected.js: Verifies JWTs for protected routes. Returns user data (including username) nested under a user object.
 
 upload-file.js: Handles general file uploads to the company_files table.
 
 list-files.js: Lists general files from the company_files table, now including the is_data_dictionary flag.
 
-get-file.js: Retrieves binary data of general files from the company_files table.
+get-file.js: Retrieves general file data (base64 encoded in JSON) from the company_files table.
 
 delete-file.js: Deletes general files from the company_files table.
 
 clean-excel.js: Backend logic for the Data Cleaner tool.
 
-save-data-dictionary.js: UPDATED: Authenticated function to save (INSERT for new, UPDATE for existing) a structured data dictionary (name, rules JSON, source headers JSON) into the data_dictionaries table. It now uses an UPSERT pattern (ON CONFLICT DO UPDATE) or conditional UPDATE/INSERT based on the presence of an id.
+save-data-dictionary.js: UPDATED: Authenticated function to save (INSERT for new, UPDATE for existing) a structured data dictionary (name, rules JSON, source headers JSON) into the data_dictionaries table. Now uses an explicit check for existence before performing either an INSERT or an UPDATE (bypassing reliance on ON CONFLICT for broader database compatibility). Includes more detailed logging and a more explicit confirmation message in the response.
 
-list-data-dictionaries.js: NEW: Authenticated function to list metadata of data dictionaries from the data_dictionaries table. This function was implemented to resolve the frontend dropdown population issue.
+list-data-dictionaries.js: NEW: Authenticated function to list metadata of data dictionaries from the data_dictionaries table. This function was created to resolve the frontend dropdown population issue.
 
 get-data-dictionary.js: Authenticated function to retrieve the full rules_json and source_headers_json for a specific data dictionary from the data_dictionaries table.
 
-delete-data-dictionary.js: Authenticated function to delete a data dictionary from the data_dictionaries table.
+delete-data-dictionary.js: Deletes data dictionary from the data_dictionaries table. This function remains in the backend, but its corresponding frontend UI button has been removed.
 
 5.4. Data Isolation Strategy (CRUCIAL)
 Company ID in JWT: company_id is embedded in the JWT upon successful login.
@@ -221,17 +221,13 @@ Login fails (username/email): Ensure login.js correctly queries both email and u
 
 File upload/download/delete (for general files) not working: Check specific function logs (upload-file.js, list-files.js, get-file.js, delete-file.js) for runtime errors. Verify authentication token is sent correctly from frontend.
 
-Data Dictionary Operations (Save/Load/Delete):
-
-Frontend errors (e.g., ReferenceError, TypeError): Debug in browser console. Check element IDs, variable scopes, and data structures being manipulated.
-
-Backend errors (e.g., 500 Internal Server Error, 502 Bad Gateway): Check Netlify Function runtime logs for save-data-dictionary.js, list-data-dictionaries.js, get-data-dictionary.js, delete-data-dictionary.js. Look for specific database error messages (e.g., invalid input syntax for type json, column not found).
+Data Dictionary Operations (Save/Load/Print):
 
 Resolution - "Data Dictionary dropdown not populating": This was due to the missing netlify/functions/list-data-dictionaries.js backend function. This function has since been created and deployed. The frontend data-dictionary-builder.js was updated to correctly call this new API.
 
 Resolution - "Data not loading/pre-filling for editing": This issue was resolved by ensuring get-data-dictionary.js correctly returned the structured JSON data (rules_json, source_headers_json) and that data-dictionary-builder.js correctly processed and rendered this data.
 
-Resolution - "Delete this dictionary" not working: This was resolved by ensuring the data-dictionary-builder.js sent the correct id in the DELETE request body to delete-data-dictionary.js, and that delete-data-dictionary.js correctly received and processed this ID, including its company_id for data isolation. Added enhanced logging for debugging.
+Resolution - "Save button not saving data": This was resolved by updating netlify/functions/save-data-dictionary.js to use an explicit SELECT to check for existing dictionaries followed by an UPDATE or INSERT query. This bypasses the previous 42P10 "ON CONFLICT" database error and ensures data is saved reliably, even if the unique constraint was not perfectly applied in the database.
 
 Resolution - "Print Data Dictionary" not working: This was resolved by implementing the handlePrintDictionary function in data-dictionary-builder.js, which dynamically generates a printable HTML view of the dictionary rules and triggers the print dialog.
 
@@ -239,10 +235,12 @@ UI Issues:
 
 Resolution - "Hello, undefined" in navigation: This was resolved by consistently updating the setupNavigation functions (or similar functions like verifyAndSetupUser) across all frontend HTML/JS files (dashboard.html, file-manager.html, tools.html, data-cleaner.html (embedded), data-dictionary-builder.js, validation-engine.html (embedded)) to correctly access the username from the nested user object returned by the protected.js API (userData.user.username).
 
-Resolution - tools.html displaying tools as cards: The tools.html page's CSS and HTML structure were updated to render tools as distinct, styled cards, consistent with the dashboard's design. Unused "Coming Soon" tool cards were removed from tools.html.
+Resolution - tools.html displaying tools as cards: The tools.html page's CSS and HTML structure were updated to render tools as distinct, styled cards, consistent with the dashboard's design. Extra "Coming Soon" placeholder tools were removed from tools.html.
 
 Resolution - Redundant validation-engine.css and validation-engine.js files: These files were identified as redundant as validation-engine.html is now self-contained, embedding its CSS and JavaScript directly. They can be safely removed.
 
 Resolution - Branding inconsistency (MirraBuddy vs Excel Buddy): Frontend HTML titles (<title>) and other UI elements were updated to consistently use "Excel Buddy."
+
+Resolution - "Delete this dictionary" button: The button was removed from the data-dictionary-builder.html UI, and all corresponding JavaScript logic was removed from data-dictionary-builder.js.
 
 This document provides a complete and up-to-date reference for your Excel Buddy project, including all the recent enhancements and their resolutions.
