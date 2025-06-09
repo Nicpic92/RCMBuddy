@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Tools - MirraBuddy</title>
+    <title>Tools - Excel Buddy</title> <!-- FIX: Changed title from MirraBuddy to Excel Buddy -->
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
@@ -16,10 +16,10 @@
         .tool-card a { @apply inline-block mt-4 text-blue-600 hover:text-blue-800 font-medium; }
         /* Style for development status */
         .development-tool {
-            /* Example: slightly faded or a small tag */
-            opacity: 0.8;
-            filter: grayscale(20%);
+            opacity: 0.7; /* Make it slightly faded */
+            filter: grayscale(20%); /* Slight grayscale effect */
             position: relative;
+            pointer-events: none; /* FIX: Disable clicks on the entire card */
         }
         .development-tool::after {
             content: "Coming Soon"; /* Or "Development" */
@@ -32,6 +32,9 @@
             border-radius: 4px;
             font-size: 0.75rem;
             font-weight: bold;
+        }
+        .development-tool a {
+             display: none; /* FIX: Hide the "Launch Tool" button */
         }
     </style>
 </head>
@@ -77,7 +80,28 @@
                 <a href="/tools/data-dictionary-builder.html">Build Dictionary &rarr;</a>
             </div>
 
+            <!-- Placeholder for future development tools -->
+            <div class="tool-card development-tool"> <!-- FIX: Added development-tool class -->
+                <h2>Report Automator</h2>
+                <p>Automate the generation and distribution of your routine Excel reports with custom templates.</p>
+                <span>Coming Soon!</span> <!-- Display Coming Soon text directly -->
             </div>
+            <div class="tool-card development-tool"> <!-- FIX: Added development-tool class -->
+                <h2>Merger & Splitter</h2>
+                <p>Efficiently combine multiple Excel files or split large spreadsheets into manageable parts.</p>
+                <span>Coming Soon!</span>
+            </div>
+               <div class="tool-card development-tool"> <!-- FIX: Added development-tool class -->
+                <h2>Macro Recorder & Editor</h2>
+                <p>Record your repetitive Excel actions and easily edit or share the generated VBA macros.</p>
+                <span>Coming Soon!</span>
+            </div>
+               <div class="tool-card development-tool"> <!-- FIX: Added development-tool class -->
+                <h2>Custom Formula Builder</h2>
+                <p>Create, save, and manage your own complex Excel formulas for re-use and efficiency.</p>
+                <span>Coming Soon!</span>
+            </div>
+        </div>
     </main>
 
     <footer class="bg-gray-800 text-white p-4 mt-8">
@@ -116,8 +140,8 @@
 
         function setupNavigation(userData) {
             const profileLink = document.getElementById('profileLink');
-            if (profileLink && userData) {
-                profileLink.textContent = `Hello, ${userData.username}`;
+            if (profileLink && userData && userData.user) { // FIX: Check for nested 'user' object
+                profileLink.textContent = `Hello, ${userData.user.username}`; // FIX: Access nested username
                 // You might want a dedicated profile page, for now it's just a text change
                 profileLink.href = '#';
             }
