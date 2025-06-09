@@ -196,12 +196,12 @@
                     <p class="text-gray-500 mb-4">Efficiently combine multiple Excel files or split large spreadsheets into manageable parts.</p>
                     <span class="inline-block text-sm text-gray-500 italic">Coming Soon!</span>
                 </div>
-                 <div class="tool-card development-tool" data-status="development">
+                   <div class="tool-card development-tool" data-status="development">
                     <h3 class="text-xl font-bold text-gray-500 mb-3">Macro Recorder & Editor</h3>
                     <p class="text-gray-500 mb-4">Record your repetitive Excel actions and easily edit or share the generated VBA macros.</p>
                     <span class="inline-block text-sm text-gray-500 italic">Coming Soon!</span>
                 </div>
-                 <div class="tool-card development-tool" data-status="development">
+                   <div class="tool-card development-tool" data-status="development">
                     <h3 class="text-xl font-bold text-gray-500 mb-3">Custom Formula Builder</h3>
                     <p class="text-gray-500 mb-4">Create, save, and manage your own complex Excel formulas for re-use and efficiency.</p>
                     <span class="inline-block text-sm text-gray-500 italic">Coming Soon!</span>
@@ -244,13 +244,15 @@
 
                 const userData = await response.json();
                 // Display user and company name
-                document.getElementById('usernameDisplay').textContent = userData.username;
-                document.getElementById('companyNameDisplay').textContent = `Your Company: ${userData.company_name}`; // Update company display text
+                // FIX: Access username from the nested 'user' object
+                document.getElementById('usernameDisplay').textContent = userData.user.username;
+                document.getElementById('companyNameDisplay').textContent = `Your Company: ${userData.company_name}`; // This was already correct
 
                 // Set profile link text
                 const profileLink = document.getElementById('profileLink');
                 if (profileLink) {
-                    profileLink.textContent = `Hello, ${userData.username}`;
+                    // FIX: Access username from the nested 'user' object
+                    profileLink.textContent = `Hello, ${userData.user.username}`;
                     profileLink.href = '#'; // Placeholder, replace with actual profile page link if exists
                 }
 
