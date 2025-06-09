@@ -104,8 +104,8 @@ async function verifyToken() {
  */
 function setupNavigation(userData) {
     const profileLink = document.getElementById('profileLink');
-    if (profileLink && userData) {
-        profileLink.textContent = `Hello, ${userData.username}`;
+    if (profileLink && userData && userData.user) { // FIX: Check for nested 'user' object
+        profileLink.textContent = `Hello, ${userData.user.username}`; // FIX: Access nested username
         profileLink.href = '#'; // Placeholder, replace with actual profile page link if exists
     }
 
