@@ -9,6 +9,7 @@ const pool = new Pool({
 });
 
 exports.handler = async (event, context) => {
+    // --- Start of detailed logging ---
     console.log("save-data-dictionary.js: Function started.");
 
     if (event.httpMethod !== 'POST') {
@@ -64,10 +65,11 @@ exports.handler = async (event, context) => {
     console.log("save-data-dictionary.js: Input validation passed.");
 
     // --- Prepare data for database storage ---
-    // Ensure rulesJson is a clean array (even if empty) and sourceHeadersJson is an array or null.
-    // The pg driver should handle direct JS objects/arrays for JSONB.
-    const rulesToSave = rules; 
-    const sourceHeadersToSave = sourceHeaders || null; // Ensure null if not provided, or an array if provided
+    // Critical: Explicitly stringify JSONB fields and use ::jsonb casts in query.
+    // This ensures PostgreSQL receives valid JSON strings for JSONB columns, bypassing
+    // potential ambiguities in automatic driver conversion.
+    const rulesToSave = JSON.stringify(rules); 
+    const sourceHeadersToSave = sourceHeaders ? JSON.stringify(sourceHeaders) : null; // Ensure null if not provided, or an array if provided
 
     // 4. Store data dictionary in the NEW 'data_dictionaries' table
     let client;
@@ -81,18 +83,18 @@ exports.handler = async (event, context) => {
 
         const queryText = `
             INSERT INTO data_dictionaries (company_id, user_id, name, rules_json, source_headers_json)
-            VALUES ($1, $2, $3, $4, $5) RETURNING id
+            VALUES ($1, $2, $3, $4::jsonb, $5::jsonb) RETURNING id
         `;
+        // Values for parameters:
         const queryValues = [company_id, user_id, dictionaryName, rulesToSave, sourceHeadersToSave];
 
-        // --- IMPORTANT: Log the exact values that will be sent to the DB for rules_json and source_headers_json ---
+        // --- Critical: Log the exact values that will be sent to the DB for JSONB columns ---
         console.log("save-data-dictionary.js: Values for INSERT query:");
         console.log("  $1 (company_id):", queryValues[0]);
         console.log("  $2 (user_id):", queryValues[1]);
         console.log("  $3 (name):", queryValues[2]);
-        // Use JSON.stringify to ensure it's a valid JSON string for logging, and truncate if very long
-        console.log("  $4 (rules_json - logged as string):", JSON.stringify(queryValues[3]).substring(0, 500) + (JSON.stringify(queryValues[3]).length > 500 ? '...' : ''));
-        console.log("  $5 (source_headers_json - logged as string):", JSON.stringify(queryValues[4]).substring(0, 500) + (JSON.stringify(queryValues[4]).length > 500 ? '...' : ''));
+        console.log("  $4 (rules_json - logged as string):", queryValues[3].substring(0, 500) + (queryValues[3].length > 500 ? '...' : ''));
+        console.log("  $5 (source_headers_json - logged as string):", queryValues[4] ? (queryValues[4].substring(0, 500) + (queryValues[4].length > 500 ? '...' : '')) : 'null');
         // --- End of critical logging ---
 
         const insertResult = await client.query(queryText, queryValues);
