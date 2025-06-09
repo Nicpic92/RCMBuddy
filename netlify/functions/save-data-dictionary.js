@@ -37,54 +37,56 @@ exports.handler = async (event, context) => {
         return { statusCode: 400, body: JSON.stringify({ message: 'Invalid JSON body.' }) };
     }
 
-    const { dictionaryName, rules } = requestBody;
+    const { dictionaryName, rules, sourceHeaders } = requestBody; // Now expecting sourceHeaders
 
     // 3. Validate input data
     if (!dictionaryName || dictionaryName.trim() === '') {
         return { statusCode: 400, body: JSON.stringify({ message: 'Data dictionary name is required.' }) };
     }
-    if (!rules || !Array.isArray(rules) || rules.length === 0) {
-        return { statusCode: 400, body: JSON.stringify({ message: 'At least one rule must be defined.' }) };
+    if (!rules || !Array.isArray(rules)) { // rules can be empty if no rules defined
+        return { statusCode: 400, body: JSON.stringify({ message: 'Rules data must be an array.' }) };
+    }
+    if (sourceHeaders && !Array.isArray(sourceHeaders)) {
+        return { statusCode: 400, body: JSON.stringify({ message: 'Source headers must be an array.' }) };
     }
 
     // Prepare data for database storage
-    // The rules array will be stored as a JSON string in the BYTEA column
-    const rulesJsonString = JSON.stringify(rules);
-    const rulesBuffer = Buffer.from(rulesJsonString, 'utf8'); // Convert string to Buffer
+    // JSONB columns can directly store JSON objects/arrays from Node.js
+    const rulesJson = rules; // Already an array, will be stored as JSONB
+    const sourceHeadersJson = sourceHeaders || null; // Store null if no sourceHeaders are provided
 
-    const originalFilename = dictionaryName; // Use the provided name as the filename
-    const mimetype = 'application/json'; // Mime type indicating JSON data (for rules)
-    const sizeBytes = rulesBuffer.length;
-
-    // 4. Store file data directly in PostgreSQL (Neon)
+    // 4. Store data dictionary in the NEW 'data_dictionaries' table
     let client;
     try {
         client = await pool.connect();
         await client.query('BEGIN'); // Start transaction for atomicity
 
-        // Insert the data dictionary metadata and its rules data
         const insertResult = await client.query(
-            `INSERT INTO company_files (company_id, user_id, original_filename, mimetype, size_bytes, file_data, is_data_dictionary)
-             VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
-            [company_id, user_id, originalFilename, mimetype, sizeBytes, rulesBuffer, true] // Set is_data_dictionary to TRUE
+            `INSERT INTO data_dictionaries (company_id, user_id, name, rules_json, source_headers_json)
+             VALUES ($1, $2, $3, $4, $5) RETURNING id`,
+            [company_id, user_id, dictionaryName, rulesJson, sourceHeadersJson]
         );
         await client.query('COMMIT'); // Commit the transaction
 
-        const newFileId = insertResult.rows[0].id;
+        const newDictionaryId = insertResult.rows[0].id;
 
         return {
             statusCode: 200,
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 message: 'Data dictionary saved successfully!',
-                fileId: newFileId,
-                fileName: originalFilename // Confirm the name back to frontend
+                dictionaryId: newDictionaryId,
+                dictionaryName: dictionaryName
             })
         };
 
     } catch (dbError) {
         if (client) await client.query('ROLLBACK'); // Rollback on error
         console.error('Database error saving data dictionary:', dbError);
+        // Check for unique constraint violation error (if dictionary name already exists for company)
+        if (dbError.code === '23505') { // PostgreSQL unique_violation error code
+             return { statusCode: 409, body: JSON.stringify({ message: 'A data dictionary with this name already exists for your company. Please choose a different name.', error: dbError.message }) };
+        }
         return { statusCode: 500, body: JSON.stringify({ message: 'Failed to save data dictionary to database.', error: dbError.message }) };
     } finally {
         if (client) client.release(); // Release client back to pool
