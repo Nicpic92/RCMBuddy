@@ -165,7 +165,8 @@ exports.handler = async (event, context) => {
             statusCode: 200,
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                message: `Data dictionary ${actionMessage} successfully!`,
+                // Modified message to be more explicit
+                message: `Data dictionary "${dictionaryName}" ${actionMessage} successfully!`,
                 dictionaryId: savedDictionaryId,
                 dictionaryName: dictionaryName
             })
