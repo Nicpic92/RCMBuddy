@@ -2,8 +2,12 @@
 
 // --- Global Variables ---
 let currentHeaders = []; // Stores headers extracted from the uploaded file
-let originalFileId = null; // Stores the ID of the original file if uploaded to the server
+let originalFileId = null; // Stores the ID of the new data dictionary file saved to the server
 let uploadedOriginalFileName = null; // Stores the name of the original file for display/reference
+
+// NEW: Stores column names that already have rules defined in existing data dictionaries
+let existingDataDictionaryColumns = new Set();
+
 
 // --- Helper Functions (reused from other tools) ---
 
@@ -11,6 +15,7 @@ function showLoader() {
     document.getElementById('loader').style.display = 'block';
     document.getElementById('uploadStatus').classList.add('hidden');
     document.getElementById('saveStatus').classList.add('hidden');
+    // Disable relevant buttons while loading
     document.getElementById('loadHeadersBtn').disabled = true;
     document.getElementById('saveDictionaryBtn').disabled = true;
     document.getElementById('deleteOriginalFileBtn').disabled = true;
@@ -18,9 +23,13 @@ function showLoader() {
 
 function hideLoader() {
     document.getElementById('loader').style.display = 'none';
+    // Re-enable buttons
     document.getElementById('loadHeadersBtn').disabled = false;
-    document.getElementById('saveDictionaryBtn').disabled = false; // Enable Save after load
-    document.getElementById('deleteOriginalFileBtn').disabled = false; // Enable Delete after load
+    // Only enable save/delete if the builder section is visible
+    if (!document.getElementById('dictionaryBuilderSection').classList.contains('hidden')) {
+        document.getElementById('saveDictionaryBtn').disabled = false;
+        // The delete button's visibility is managed by saveDataDictionary()
+    }
 }
 
 function displayMessage(elementId, message, type = 'info') {
@@ -91,6 +100,71 @@ function setupNavigation(userData) {
     }
 }
 
+// --- NEW: Load Existing Data Dictionary Rules ---
+
+/**
+ * Fetches all existing data dictionaries for the company and populates
+ * a Set of column names that already have rules defined.
+ */
+async function loadExistingDataDictionaryRules() {
+    const token = localStorage.getItem('jwtToken');
+    if (!token) return;
+
+    existingDataDictionaryColumns.clear(); // Clear previous state
+
+    try {
+        // First, get a list of all files, including data dictionaries
+        const listResponse = await fetch('/api/list-files', {
+            method: 'GET',
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (!listResponse.ok) {
+            throw new Error(`Failed to list files: ${listResponse.statusText}`);
+        }
+        const listResult = await listResponse.json();
+        const allFiles = listResult.files || []; // Ensure it's an array
+
+        // Filter for data dictionaries
+        const dataDictionaries = allFiles.filter(file => file.is_data_dictionary === true);
+
+        // For each data dictionary, fetch its content (the rules)
+        for (const dict of dataDictionaries) {
+            try {
+                const getFileResponse = await fetch(`/api/get-file?id=${dict.id}`, {
+                    method: 'GET',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (!getFileResponse.ok) {
+                    console.warn(`Could not retrieve rules for dictionary ID ${dict.id}: ${getFileResponse.statusText}`);
+                    continue; // Skip to next dictionary
+                }
+                const fileContent = await getFileResponse.json();
+                
+                // fileContent.fileData is base64 encoded. Decode it.
+                const decodedData = atob(fileContent.fileData); // Decode base64 to string
+                const rules = JSON.parse(decodedData); // Parse the JSON string to get the rules array
+
+                // Add column names from these rules to our set
+                rules.forEach(rule => {
+                    // Consider a column "defined" only if it has an active validation type
+                    if (rule['Column Name'] && rule['Validation Type'] && rule['Validation Type'].trim() !== '' && rule['Validation Type'].trim().toLowerCase() !== 'none') {
+                        existingDataDictionaryColumns.add(String(rule['Column Name']).trim().toLowerCase()); // Store in lowercase for case-insensitive comparison
+                    }
+                });
+            } catch (error) {
+                console.error(`Error processing data dictionary ${dict.id}:`, error);
+                // Continue to process other dictionaries
+            }
+        }
+        console.log('Existing columns with defined rules:', existingDataDictionaryColumns);
+
+    } catch (error) {
+        console.error('Error loading existing data dictionary rules:', error);
+        displayMessage('uploadStatus', 'Could not load existing dictionary rules. Please check your connection.', 'error');
+    }
+}
+
+
 // --- Core Logic: File Upload and Header Extraction ---
 
 async function handleFileUpload() {
@@ -112,7 +186,6 @@ async function handleFileUpload() {
 
             const firstSheetName = workbook.SheetNames[0];
             const worksheet = workbook.Sheets[firstSheetName];
-            // Get headers from the first row
             const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
             
             if (jsonData.length === 0) {
@@ -121,25 +194,45 @@ async function handleFileUpload() {
                 return;
             }
             
-            currentHeaders = jsonData[0] || []; // Store the first row as headers
+            let extractedHeaders = jsonData[0] || []; // Get the first row as headers
 
-            if (currentHeaders.length === 0) {
+            if (extractedHeaders.length === 0) {
                 displayMessage('uploadStatus', 'No headers found in the first row of the file.', 'error');
                 hideLoader();
                 return;
             }
 
-            // Optional: Upload the file to server immediately if you want it tracked/deleted
-            // This is a design choice. For now, we assume local processing first.
-            // If you want to upload it, you'd call a similar /api/upload-file here
-            // and store the returned originalFileId.
-            // For now, originalFileId will only be set if you later add an explicit "Upload Original File" step.
-            // We'll add a placeholder if you decide to implement this.
+            // NEW: Filter out headers that already have rules defined
+            const filteredHeaders = extractedHeaders.filter(header => {
+                // Keep the header if it's NOT in our set of existing columns
+                // Compare in lowercase for case-insensitivity
+                return !existingDataDictionaryColumns.has(String(header).trim().toLowerCase());
+            });
 
-            renderHeadersTable(currentHeaders);
+            // Keep track of original headers for the form, even if filtered
+            currentHeaders = filteredHeaders;
+
+            if (filteredHeaders.length === 0) {
+                displayMessage('uploadStatus', 'All headers in this file already have rules defined in your existing dictionaries. No new rules to build.', 'info');
+                document.getElementById('dictionaryBuilderSection').classList.add('hidden');
+                document.getElementById('saveDictionaryBtn').disabled = true; // Disable save button
+                document.getElementById('deleteOriginalFileBtn').classList.add('hidden');
+                hideLoader();
+                return;
+            }
+
+            // Display message about filtered columns if any
+            const skippedCount = extractedHeaders.length - filteredHeaders.length;
+            if (skippedCount > 0) {
+                displayMessage('uploadStatus', `Headers loaded for ${excelFile.name}. ${skippedCount} column(s) were skipped as rules already exist for them. Define rules for new columns below.`, 'success');
+            } else {
+                displayMessage('uploadStatus', `Headers loaded for ${excelFile.name}. Define your rules.`, 'success');
+            }
+            
+            renderHeadersTable(filteredHeaders); // Render table with only new headers
             document.getElementById('dictionaryBuilderSection').classList.remove('hidden');
             document.getElementById('dictionaryName').value = uploadedOriginalFileName.replace(/\.(xlsx|xls|csv)$/i, '') + ' Dictionary'; // Suggest a name
-            displayMessage('uploadStatus', `Headers loaded for ${excelFile.name}. Now define your rules.`, 'success');
+            
         } catch (error) {
             console.error('Error processing file for headers:', error);
             displayMessage('uploadStatus', 'Error reading or parsing file. Please ensure it is a valid Excel/CSV.', 'error');
@@ -151,7 +244,7 @@ async function handleFileUpload() {
     reader.readAsArrayBuffer(excelFile);
 }
 
-// --- Core Logic: Render Headers Table for Rule Definition ---
+// --- Core Logic: Render Headers Table for Rule Definition (unchanged, as it receives filtered headers) ---
 
 function renderHeadersTable(headers) {
     const tbody = document.querySelector('#headersTable tbody');
@@ -173,7 +266,7 @@ function renderHeadersTable(headers) {
 
         const typeCell = row.insertCell();
         const typeSelect = document.createElement('select');
-        typeSelect.classList.add('validation-type-select');
+        typeSelect.classList.add('validation-type-select', 'p-2', 'border', 'border-gray-300', 'rounded-md', 'focus:ring-blue-500', 'focus:border-blue-500', 'text-gray-800');
         typeSelect.name = `type_${index}`;
         validationTypes.forEach(type => {
             const option = document.createElement('option');
@@ -186,7 +279,7 @@ function renderHeadersTable(headers) {
         const valueCell = row.insertCell();
         const valueInput = document.createElement('input');
         valueInput.type = 'text';
-        valueInput.classList.add('validation-value-input');
+        valueInput.classList.add('validation-value-input', 'mt-1', 'block', 'w-full', 'p-2', 'border', 'border-gray-300', 'rounded-md', 'focus:ring-green-500', 'focus:border-green-500', 'text-gray-800');
         valueInput.name = `value_${index}`;
         valueInput.placeholder = 'e.g., Value1,Value2 or 0-100 or ^\\d{5}$';
         valueInput.classList.add('hidden-rule-value'); // Initially hidden
@@ -196,7 +289,7 @@ function renderHeadersTable(headers) {
         const messageCell = row.insertCell();
         const messageInput = document.createElement('input');
         messageInput.type = 'text';
-        messageInput.classList.add('failure-message-input');
+        messageInput.classList.add('failure-message-input', 'mt-1', 'block', 'w-full', 'p-2', 'border', 'border-gray-300', 'rounded-md', 'focus:ring-green-500', 'focus:border-green-500', 'text-gray-800');
         messageInput.name = `message_${index}`;
         messageInput.placeholder = 'e.g., Field cannot be blank.';
         messageCell.appendChild(messageInput);
@@ -229,7 +322,6 @@ function renderHeadersTable(headers) {
                 input.placeholder = '';
             }
 
-            // For REQUIRED, DATE_PAST, UNIQUE, no value input is needed.
             if (selectedType === 'REQUIRED') {
                 descriptionDiv.textContent = 'Cell must not be empty.';
             } else if (selectedType === 'DATE_PAST') {
@@ -241,7 +333,7 @@ function renderHeadersTable(headers) {
     });
 }
 
-// --- Core Logic: Save Data Dictionary ---
+// --- Core Logic: Save Data Dictionary (unchanged) ---
 
 async function saveDataDictionary() {
     const dictionaryName = document.getElementById('dictionaryName').value.trim();
@@ -316,8 +408,11 @@ async function saveDataDictionary() {
         originalFileId = result.fileId; // Store the ID of the new dictionary file in DB
         displayMessage('saveStatus', 'Data Dictionary saved successfully! You can now use it in the Excel Validate tool.', 'success');
         document.getElementById('deleteOriginalFileBtn').classList.remove('hidden'); // Show delete button for original upload
-        document.getElementById('deleteOriginalFileBtn').setAttribute('data-original-file-id', originalFileId); // Store the ID on the button
-        document.getElementById('deleteOriginalFileBtn').textContent = `Delete Original Uploaded File (${uploadedOriginalFileName})`; // Update button text
+        // Update the button's text to indicate what it deletes
+        document.getElementById('deleteOriginalFileBtn').textContent = `Delete This Data Dictionary ("${dictionaryName}")`;
+
+        // After saving, re-load existing rules so the next file upload benefits from the newly saved dictionary
+        await loadExistingDataDictionaryRules();
 
     } catch (error) {
         console.error('Error saving data dictionary:', error);
@@ -327,30 +422,18 @@ async function saveDataDictionary() {
     }
 }
 
-// --- Core Logic: Delete Original Uploaded File ---
+// --- Core Logic: Delete Original Uploaded File (or Data Dictionary) ---
 
 async function deleteOriginalFile() {
-    const fileIdToDelete = originalFileId; // Use the stored ID of the dictionary just created
-    // Or, if you implemented uploading the *original* file to the server and got its ID, use that instead.
-    // For now, originalFileId refers to the new data dictionary file itself.
-    // If you want to delete the *source* file, you'd need to first upload it to the server
-    // (e.g., in handleFileUpload) and store its ID in a separate global variable.
+    const fileIdToDelete = originalFileId; // This refers to the ID of the Data Dictionary just saved
+    const dictionaryName = document.getElementById('dictionaryName').value.trim();
 
     if (!fileIdToDelete) {
-        displayMessage('saveStatus', 'No file ID to delete. Please save a dictionary first or upload an original file.', 'error');
+        displayMessage('saveStatus', 'No data dictionary to delete. Please save a dictionary first.', 'error');
         return;
     }
 
-    // For now, this button will delete the Data Dictionary file itself.
-    // If your intent was to delete the *source Excel file* that you used to BUILD the dictionary,
-    // you would need to:
-    // 1. Modify handleFileUpload() to ALSO upload the source Excel file to the DB (using your /api/upload-file).
-    // 2. Store that *source file's* ID in a separate global variable (e.g., `sourceExcelFileId`).
-    // 3. Change this function to use `sourceExcelFileId`.
-    // Given the current flow, this button will delete the *newly created Data Dictionary file*.
-    // This is a design decision you need to clarify. Let's assume it deletes the dictionary for now.
-
-    if (!confirm(`Are you sure you want to delete the data dictionary "${document.getElementById('dictionaryName').value}"?`)) {
+    if (!confirm(`Are you sure you want to delete the data dictionary "${dictionaryName}"? This action cannot be undone.`)) {
         return;
     }
 
@@ -380,11 +463,17 @@ async function deleteOriginalFile() {
         displayMessage('saveStatus', 'Data dictionary deleted successfully!', 'success');
         document.getElementById('deleteOriginalFileBtn').classList.add('hidden'); // Hide button after deletion
         originalFileId = null; // Clear stored ID
-        document.getElementById('excelFile').value = ''; // Clear file input
-        document.getElementById('dictionaryBuilderSection').classList.add('hidden'); // Hide builder section
-        document.getElementById('uploadStatus').classList.remove('hidden'); // Show initial upload status
+
+        // Reset form for new dictionary
+        document.getElementById('excelFile').value = '';
+        document.getElementById('dictionaryBuilderSection').classList.add('hidden');
+        document.getElementById('uploadStatus').classList.remove('hidden');
         document.getElementById('uploadStatus').textContent = 'Ready to build another dictionary.';
         document.getElementById('dictionaryName').value = '';
+        document.querySelector('#headersTable tbody').innerHTML = ''; // Clear table
+        
+        // After deleting, re-load existing rules to update the filter for future uploads
+        await loadExistingDataDictionaryRules();
 
     } catch (error) {
         console.error('Error deleting file:', error);
@@ -401,6 +490,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const userData = await verifyToken();
     if (userData) {
         setupNavigation(userData);
+        await loadExistingDataDictionaryRules(); // NEW: Load existing rules on page load
     }
 
     document.getElementById('loadHeadersBtn').addEventListener('click', handleFileUpload);
