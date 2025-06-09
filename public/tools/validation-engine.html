@@ -903,7 +903,7 @@
             const cleanRate = Math.max(0, 100 - issueRate);
             const CLEAN_RATE_PASS_THRESHOLD = 95;
             const passFailStatus = cleanRate >= CLEAN_RATE_PASS_THRESHOLD ? "Pass" : "Fail";
-            const passFailClass = passFailStatus === "Pass" ? "pass-status" : "fail-fail"; /* FIX: Changed to status-fail class */
+            const passFailClass = passFailStatus === "Pass" ? "pass-status" : "fail-status";
 
             let reportHTML = `<h1>Data Quality Summary Report</h1><div class="summary-section"><h2>Overall Statistics (Overrides Applied)</h2>`;
             reportHTML += `<p><strong>File:</strong> ${excelFileName}</p>`;
@@ -1003,22 +1003,36 @@
             overallStats.duplicateRowCount = newDuplicates;
         }
 
-        // --- Export Functionality (UPDATED for custom issues) ---
-
+        /**
+         * Exports the original Excel data along with a new sheet containing the validation summary report
+         * to a new Excel file downloadable by the user.
+         */
         function exportExcelWithSummary() {
-            if (!parsedExcelData) { alert("Please analyze a file first."); return; }
+            console.log("exportExcelWithSummary: Function started.");
+            if (!parsedExcelData) {
+                alert("Please analyze a file first.");
+                console.warn("exportExcelWithSummary: parsedExcelData is null. Cannot export.");
+                return;
+            }
             
             const wb = XLSX.utils.book_new();
+            console.log("exportExcelWithSummary: Workbook created.");
 
             // Add original data sheets
             parsedExcelData.SheetNames.forEach(sheetName => {
-                const ws = XLSX.utils.aoa_to_sheet(XLSX.utils.sheet_to_json(parsedExcelData.Sheets[sheetName], {header:1, defval:null}));
+                console.log(`exportExcelWithSummary: Appending original sheet: ${sheetName}`);
+                // Use XLSX.utils.sheet_to_json to get AoA, then XLSX.utils.aoa_to_sheet to convert back
+                // This ensures consistency in structure, crucial if the original worksheet has complex cell types.
+                const aoaFromSheet = XLSX.utils.sheet_to_json(parsedExcelData.Sheets[sheetName], { header: 1, defval: null });
+                const ws = XLSX.utils.aoa_to_sheet(aoaFromSheet);
                 XLSX.utils.book_append_sheet(wb, ws, sheetName);
             });
+            console.log("exportExcelWithSummary: Original sheets appended.");
 
             // Generate Summary Report sheet
             const summaryAoA = [];
-            recalculateGlobalOverallStatsFromWorkbookData(); // Ensure latest stats with overrides
+            recalculateGlobalOverallStatsFromWorkbookData();
+            console.log("exportExcelWithSummary: Overall Stats for Summary:", overallStats);
 
             const { customIssueCount, duplicateRowCount, totalProcessedCells, totalProcessedRowsForDuplicates } = overallStats;
             const totalEffectiveIssues = customIssueCount + duplicateRowCount;
@@ -1046,7 +1060,7 @@
             summaryAoA.push(["Detailed Custom Issues by Column"]);
             summaryAoA.push(["Sheet", "Column", "Rule Type", "Failure Message", "Value", "Row #", "Overridden"]);
             
-            let customDetailsExported = false;
+            let customDetailsAdded = false;
             for (const sheetName in analysisResults) {
                 const sheetIssues = analysisResults[sheetName];
                 const overrideCheckboxes = document.querySelectorAll(`.override-checkbox[data-sheet="${sheetName.replace(/[^a-zA-Z0-9]/g, "_")}"]`);
@@ -1058,11 +1072,11 @@
                 for (const columnName in sheetIssues.customValidation) {
                     const isColumnOverridden = overriddenColsForSheet[columnName] === true;
                     if (isColumnOverridden) {
-                        customDetailsExported = true;
+                        customDetailsAdded = true;
                         summaryAoA.push([sheetName, columnName, "N/A", "ALL ISSUES OVERRIDDEN FOR THIS COLUMN", "N/A", "N/A", "Yes"]);
                     } else {
                         sheetIssues.customValidation[columnName].forEach(issue => {
-                            customDetailsExported = true;
+                            customDetailsAdded = true;
                             summaryAoA.push([sheetName, columnName, issue.ruleType, issue.message, String(issue.value) === '' ? '[Blank]' : String(issue.value), issue.row, "No"]);
                         });
                     }
@@ -1080,8 +1094,8 @@
                 const { duplicateRows } = analysisResults[sheetName];
                 if (duplicateRows && duplicateRows.length > 0) {
                     duplicatesExported = true;
-                    duplicateRows.forEach(dupeRow => { // FIX: Corrected iteration variable name
-                        const rowData = parsedExcelData.Sheets[sheetName] ? XLSX.utils.sheet_to_json(parsedExcelData.Sheets[sheetName], {header:1, defval:null})[dupeRow.originalRowIndex - 1] : [];
+                    duplicateRows.forEach(dupeRow => {
+                        const rowData = parsedExcelData.Sheets[sheetName] ? XLSX.utils.sheet_to_json(parsedExcelData.Sheets[sheetName], {header:1, defval:null})[dupeRow.originalRowIndex -1] : [];
                         if (rowData) {
                             const sample = rowData.slice(0, 3).map(d => d ?? "").join(', ');
                             summaryAoA.push([sheetName, dupeRow.originalRowIndex, dupeRow.duplicateOf, `${sample}...`]);
@@ -1093,7 +1107,20 @@
 
             const summaryWS = XLSX.utils.aoa_to_sheet(summaryAoA);
             XLSX.utils.book_append_sheet(wb, summaryWS, "Validation Summary");
-            XLSX.writeFile(wb, selectedMainFileName); // FIX: Use selectedMainFileName for consistency
+
+            // Define the output filename based on the selectedMainFileName
+            const baseFileName = selectedMainFileName ? selectedMainFileName.replace(/\.(xlsx|xls|csv)$/i, '') : "Validation_Report";
+            const outputFileName = `${baseFileName}_Summary_${new Date().toISOString().slice(0, 10)}.xlsx`;
+            console.log("exportExcelWithSummary: Attempting to write file:", outputFileName);
+
+            // Attempt to write the file
+            try {
+                XLSX.writeFile(wb, outputFileName);
+                console.log("exportExcelWithSummary: File write command executed successfully. Check downloads.");
+            } catch (writeError) {
+                console.error("exportExcelWithSummary: Error writing file:", writeError);
+                alert(`Error exporting report: ${writeError.message}. Check browser console.`);
+            }
         }
 
         // --- Event Listeners and Initial Load ---
