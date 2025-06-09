@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Data Dictionary Builder - MirraBuddy</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts - Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Custom CSS for Data Dictionary Builder (we'll create this next) -->
+    <link rel="stylesheet" href="/tools/data-dictionary-builder.css">
+    <!-- XLSX library for client-side Excel file parsing -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+</head>
+<body class="flex flex-col min-h-screen text-gray-800">
+    <!-- Header Section: Consistent navigation across the app -->
+    <header class="bg-gradient-to-r from-blue-600 to-indigo-700 p-4 shadow-lg">
+        <div class="container mx-auto flex flex-col sm:flex-row items-center justify-between">
+            <h1 class="text-white text-3xl font-bold mb-2 sm:mb-0">Data Dictionary Builder</h1>
+            <nav>
+                <ul class="flex space-x-4">
+                    <li><a href="/dashboard.html" class="text-white hover:text-blue-200 transition duration-300">Dashboard</a></li>
+                    <li><a href="/tools.html" class="text-white hover:text-blue-200 transition duration-300">Tools List</a></li>
+                    <li><a href="/tools/data-cleaner.html" class="text-white hover:text-blue-200 transition duration-300">Data Cleaner</a></li>
+                    <li><a href="/tools/validation-engine.html" class="text-white hover:text-blue-200 transition duration-300">Excel Validate</a></li>
+                    <li><a href="/tools/data-dictionary-builder.html" class="text-white hover:text-blue-200 transition duration-300 active">DD Builder</a></li>
+                    <li><a href="#" id="profileLink" class="text-white hover:text-blue-200 transition duration-300">Profile</a></li>
+                    <li><a href="#" id="logoutBtn" class="text-white hover:text-blue-200 transition duration-300 cursor-pointer">Logout</a></li>
+                </ul>
+            </nav>
+        </div>
+    </header>
+
+    <!-- Main Content Section -->
+    <main class="flex-grow container mx-auto p-4 sm:p-6 lg:p-8">
+        <section class="bg-white p-6 sm:p-8 rounded-xl shadow-lg mb-8">
+            <h2 class="text-2xl sm:text-3xl font-semibold text-center text-blue-700 mb-4">
+                Build Custom Data Dictionaries
+            </h2>
+            <p class="text-lg text-gray-700 text-center mb-6">
+                Define validation rules for your Excel file headers and save them as reusable data dictionaries for your "Excel Validate" tool.
+            </p>
+            <div class="max-w-3xl mx-auto text-gray-600 text-base mb-6 p-4 border border-gray-200 rounded-lg bg-gray-50">
+                <p class="font-semibold text-gray-800 mb-2">How it works:</p>
+                <p>Upload an Excel or CSV file to extract its headers. For each header, you can then specify various validation rules, such as whether a field is required, what values are allowed, numeric ranges, date rules, or even custom regular expressions. Once defined, give your data dictionary a name and save it. It will then be available for use in the "Excel Validate" tool to ensure data quality across your spreadsheets.</p>
+                <ul class="list-disc list-inside mt-3 ml-5">
+                    <li>**Upload File:** Select an Excel/CSV file to load its column headers.</li>
+                    <li>**Define Rules:** For each header, choose a validation type and provide a corresponding value/message.</li>
+                    <li>**Save Dictionary:** Give your dictionary a name and save it to your account.</li>
+                    <li>**Use in Validation Tool:** Your saved dictionaries will appear in the "Excel Validate" tool for quick application.</li>
+                </ul>
+            </div>
+
+            <div class="max-w-3xl mx-auto bg-blue-50 p-6 rounded-lg shadow-md border border-blue-200">
+                <h3 class="text-xl font-bold text-blue-700 mb-4">Step 1: Upload File & Extract Headers</h3>
+                <form id="uploadForm" class="space-y-4">
+                    <div>
+                        <label for="excelFile" class="block text-sm font-medium text-gray-700">Select Excel or CSV File</label>
+                        <input type="file" id="excelFile" accept=".xlsx, .xls, .csv" required
+                               class="mt-1 block w-full text-sm text-gray-900 border border-gray-300 rounded-lg cursor-pointer bg-white focus:outline-none focus:border-blue-500">
+                    </div>
+                    <button type="button" id="loadHeadersBtn"
+                            class="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-lg text-lg font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition duration-300 ease-in-out transform hover:-translate-y-0.5">
+                        Load Headers
+                    </button>
+                </form>
+                <div class="loader" id="loader"></div>
+                <div id="uploadStatus" class="mt-4 text-center text-sm text-gray-600 hidden"></div>
+            </div>
+
+            <div id="dictionaryBuilderSection" class="max-w-3xl mx-auto bg-white p-6 rounded-lg shadow-md mt-8 hidden">
+                <h3 class="text-xl font-bold text-green-700 mb-4">Step 2: Define Data Dictionary Rules</h3>
+                <div class="mb-4">
+                    <label for="dictionaryName" class="block text-sm font-medium text-gray-700">Data Dictionary Name</label>
+                    <input type="text" id="dictionaryName" placeholder="e.g., HR Data Dictionary V1" required
+                           class="mt-1 block w-full p-2 border border-gray-300 rounded-md focus:ring-green-500 focus:border-green-500">
+                </div>
+                <div id="headersTableContainer" class="overflow-x-auto relative shadow-md sm:rounded-lg">
+                    <table class="w-full text-sm text-left text-gray-500" id="headersTable">
+                        <thead class="text-xs text-gray-700 uppercase bg-gray-50">
+                            <tr>
+                                <th scope="col" class="px-6 py-3">Column Name</th>
+                                <th scope="col" class="px-6 py-3">Validation Type</th>
+                                <th scope="col" class="px-6 py-3">Validation Value</th>
+                                <th scope="col" class="px-6 py-3">Failure Message</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- Table rows will be populated by JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+                <div class="flex flex-col sm:flex-row gap-4 mt-6">
+                    <button type="button" id="saveDictionaryBtn"
+                            class="flex-1 w-full justify-center py-3 px-4 border border-transparent rounded-lg shadow-lg text-lg font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition duration-300 ease-in-out transform hover:-translate-y-0.5">
+                        Save Data Dictionary
+                    </button>
+                    <button type="button" id="deleteOriginalFileBtn" class="flex-1 w-full justify-center py-3 px-4 border border-gray-300 rounded-lg shadow-lg text-lg font-medium text-gray-700 bg-white hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-300 transition duration-300 ease-in-out transform hover:-translate-y-0.5 hidden">
+                        Delete Original Uploaded File
+                    </button>
+                </div>
+                <div id="saveStatus" class="mt-4 text-center text-sm text-gray-600 hidden"></div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Footer Section -->
+    <footer class="bg-gray-800 text-white p-4 mt-8">
+        <div class="container mx-auto text-center text-sm">
+            &copy; 2025 Excel Buddy. All rights reserved.
+        </div>
+    </footer>
+
+    <!-- External JavaScript for Data Dictionary Builder Logic -->
+    <script src="/tools/data-dictionary-builder.js"></script>
+</body>
+</html>
