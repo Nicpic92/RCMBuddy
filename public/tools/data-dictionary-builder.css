@@ -1,0 +1,109 @@
+/* public/tools/data-dictionary-builder.css */
+
+/* General Body and Main Content Styling */
+body {
+    font-family: 'Inter', sans-serif; /* Ensures Google Font is applied */
+    @apply bg-gray-50; /* A very light grey background for the whole page */
+}
+
+main {
+    @apply flex-grow container mx-auto p-4 sm:p-6 lg:p-8; /* Centers content with responsive padding */
+}
+
+section {
+    @apply bg-white p-6 sm:p-8 rounded-xl shadow-lg mb-8; /* White background with shadow and rounded corners */
+}
+
+/* Loader Styling (consistent with other tools) */
+.loader {
+    border: 4px solid #f3f3f3; /* Light grey border */
+    border-top: 4px solid #3498db; /* Blue border for the spinning part */
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    animation: spin 1s linear infinite; /* Animation for spinning effect */
+    margin: 20px auto; /* Centers the loader horizontally */
+    display: none; /* Hidden by default, shown by JavaScript */
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Status Message Styles (consistent with other tools) */
+.text-gray-600 { /* For info messages */
+    color: #4a5568;
+}
+
+.text-red-600 { /* For error messages */
+    color: #e53e3e;
+}
+
+.text-green-600 { /* For success messages */
+    color: #38a169;
+}
+
+/* Specific styling for the data dictionary builder table */
+#headersTableContainer {
+    max-height: 500px; /* Limit height for scrollability */
+    overflow-y: auto; /* Enable vertical scrolling */
+    border: 1px solid #e2e8f0; /* Light border around the table container */
+}
+
+#headersTable {
+    width: 100%;
+    border-collapse: collapse; /* Ensure borders collapse for a clean look */
+}
+
+#headersTable th,
+#headersTable td {
+    padding: 12px 16px; /* Generous padding for readability */
+    border: 1px solid #e2e8f0; /* Light border for cells */
+    vertical-align: top; /* Align content to the top */
+}
+
+#headersTable th {
+    background-color: #f7fafc; /* Light background for header row */
+    font-weight: 600; /* Semi-bold font for headers */
+    color: #2d3748; /* Darker text for headers */
+    text-align: left; /* Left align headers */
+    position: sticky; /* Make headers sticky for long tables */
+    top: 0;
+    z-index: 10; /* Ensure headers stay above scrolling content */
+}
+
+#headersTable tbody tr:nth-child(odd) {
+    background-color: #ffffff; /* White background for odd rows */
+}
+
+#headersTable tbody tr:nth-child(even) {
+    background-color: #fdfdfe; /* Slightly off-white for even rows (zebra striping) */
+}
+
+#headersTable td input[type="text"],
+#headersTable td select {
+    @apply mt-1 block w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-gray-800; /* Input and select basic styling */
+    min-width: 150px; /* Ensure inputs have a minimum width */
+}
+
+/* Adjust select arrow color if needed (Tailwind might handle this) */
+#headersTable td select {
+    appearance: none; /* Remove default browser arrow */
+    background-image: url("data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none' stroke='%234a5568'%3E%3Cpath d='M7 7l3 3 3-3' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 0.75rem center;
+    background-size: 1em;
+    padding-right: 2.5rem; /* Make space for custom arrow */
+}
+
+
+/* Specific styles for the rule options */
+.rule-description {
+    @apply text-xs text-gray-500 mt-1; /* Smaller text for rule descriptions */
+}
+
+/* Hide helper fields until they are relevant */
+.hidden-rule-value {
+    display: none;
+}
