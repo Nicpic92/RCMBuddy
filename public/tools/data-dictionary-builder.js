@@ -13,6 +13,7 @@ let existingDataDictionaryColumns = new Set();
 
 /**
  * Displays the loading spinner and disables relevant buttons.
+ * @param {string} targetLoaderId - The ID of the loader element to show.
  */
 function showLoader(targetLoaderId = 'initialLoader') { // Default to initialLoader
     document.getElementById(targetLoaderId).style.display = 'block';
@@ -29,6 +30,7 @@ function showLoader(targetLoaderId = 'initialLoader') { // Default to initialLoa
 
 /**
  * Hides the loading spinner and enables relevant buttons.
+ * @param {string} targetLoaderId - The ID of the loader element to hide.
  */
 function hideLoader(targetLoaderId = 'initialLoader') { // Default to initialLoader
     document.getElementById(targetLoaderId).style.display = 'none';
@@ -37,11 +39,14 @@ function hideLoader(targetLoaderId = 'initialLoader') { // Default to initialLoa
     document.getElementById('loadExistingDictionaryBtn').disabled = false;
     document.getElementById('createNewDictionaryBtn').disabled = false;
     document.getElementById('saveDictionaryBtn').disabled = false; // Enabled if builder visible
-    document.getElementById('deleteDictionaryBtn').disabled = false; // Enabled if dictionary loaded
+    document.getElementById('deleteDictionaryBtn').disabled = false; // Enabled if dictionary loaded (its visibility will be set by JS)
 }
 
 /**
  * Displays a message on the UI.
+ * @param {string} elementId - The ID of the HTML element to display the message in.
+ * @param {string} message - The message text.
+ * @param {'info' | 'success' | 'error'} type - The type of message (influences styling).
  */
 function displayMessage(elementId, message, type = 'info') {
     const element = document.getElementById(elementId);
@@ -59,21 +64,78 @@ function displayMessage(elementId, message, type = 'info') {
     }
 }
 
-// --- Authentication and Navigation (reused) ---
-async function verifyToken() { /* ... */ }
-function setupNavigation(userData) { /* ... */ }
+// --- Authentication and Navigation (reused from other tools) ---
 
+/**
+ * Verifies the JWT token stored in localStorage with the backend.
+ * Redirects to login if token is missing or invalid.
+ * @returns {Promise<object | null>} User data if token is valid, otherwise null.
+ */
+async function verifyToken() {
+    const token = localStorage.getItem('jwtToken');
+    if (!token) {
+        window.location.href = '/'; // Redirect to login if no token
+        return null;
+    }
+
+    try {
+        const response = await fetch('/api/protected', {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+
+        if (!response.ok) {
+            console.error('Token verification failed:', response.statusText);
+            localStorage.removeItem('jwtToken');
+            window.location.href = '/';
+            return null;
+        }
+
+        const data = await response.json();
+        console.log('User data:', data);
+        return data;
+    } catch (error) {
+        console.error('Error verifying token:', error);
+        localStorage.removeItem('jwtToken');
+        window.location.href = '/';
+        return null;
+    }
+}
+
+/**
+ * Sets up navigation elements based on user data.
+ * @param {object} userData - The user data obtained from token verification.
+ */
+function setupNavigation(userData) {
+    const profileLink = document.getElementById('profileLink');
+    if (profileLink && userData) {
+        profileLink.textContent = `Hello, ${userData.username}`;
+        profileLink.href = '#'; // Placeholder, replace with actual profile page link if exists
+    }
+
+    const logoutBtn = document.getElementById('logoutBtn');
+    if (logoutBtn) {
+        logoutBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            localStorage.removeItem('jwtToken');
+            window.location.href = '/';
+        });
+    }
+}
 
 // --- Initial Setup: Populate Existing Dictionaries Dropdown & Load Existing Rules ---
 
 /**
- * Populates the dropdown with existing data dictionaries.
+ * Populates the dropdown with existing data dictionaries from the backend.
  */
 async function populateExistingDictionariesDropdown() {
     const token = localStorage.getItem('jwtToken');
     if (!token) return;
 
     try {
+        // Use the new list-data-dictionaries API
         const listResponse = await fetch('/api/list-data-dictionaries', {
             method: 'GET',
             headers: { 'Authorization': `Bearer ${token}` }
@@ -102,7 +164,7 @@ async function populateExistingDictionariesDropdown() {
             document.getElementById('loadExistingDictionaryBtn').disabled = true;
         }
 
-        // Also load existing rules for the filtering logic in create new
+        // Also load existing rules for the filtering logic in create new (this doesn't show loader)
         await loadExistingDataDictionaryRules();
 
     } catch (error) {
@@ -115,7 +177,7 @@ async function populateExistingDictionariesDropdown() {
 
 /**
  * Fetches all existing data dictionaries' rules to build a Set of column names that are already defined.
- * Used for filtering new file uploads.
+ * This set is used for filtering new file uploads so users only define new rules.
  */
 async function loadExistingDataDictionaryRules() {
     const token = localStorage.getItem('jwtToken');
@@ -129,7 +191,7 @@ async function loadExistingDataDictionaryRules() {
             headers: { 'Authorization': `Bearer ${token}` }
         });
         if (!listResponse.ok) {
-            throw new Error(`Failed to list data dictionaries: ${listResponse.statusText}`);
+            throw new Error(`Failed to list data dictionaries for filtering: ${listResponse.statusText}`);
         }
         const listResult = await listResponse.json();
         const dataDictionaries = listResult.dictionaries || [];
@@ -141,30 +203,31 @@ async function loadExistingDataDictionaryRules() {
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
                 if (!getDictResponse.ok) {
-                    console.warn(`Could not retrieve rules for dictionary ID ${dict.id}: ${getDictResponse.statusText}`);
+                    console.warn(`Could not retrieve rules for dictionary ID ${dict.id} for filtering: ${getDictResponse.statusText}`);
                     continue;
                 }
                 const dictionaryContent = await getDictResponse.json();
                 const rules = dictionaryContent.rules_json || []; 
 
                 rules.forEach(rule => {
+                    // Consider a column "defined" only if it has an active validation type (not 'None')
                     if (rule['Column Name'] && rule['Validation Type'] && rule['Validation Type'].trim() !== '' && rule['Validation Type'].trim().toLowerCase() !== 'none') {
                         existingDataDictionaryColumns.add(String(rule['Column Name']).trim().toLowerCase());
                     }
                 });
             } catch (error) {
-                console.error(`Error processing data dictionary ${dict.id}:`, error);
+                console.error(`Error processing data dictionary ${dict.id} for filtering rules:`, error);
             }
         }
         console.log('Existing columns with defined rules (for filtering new uploads):', existingDataDictionaryColumns);
 
     } catch (error) {
-        console.error('Error loading existing data dictionary rules:', error);
+        console.error('Error loading existing data dictionary rules for filtering:', error);
     }
 }
 
 /**
- * Loads a selected data dictionary into the builder for editing.
+ * Loads a selected data dictionary from the backend into the builder for editing.
  */
 async function loadDictionaryForEditing() {
     const selectedDictId = document.getElementById('existingDictionarySelect').value;
@@ -173,7 +236,7 @@ async function loadDictionaryForEditing() {
         return;
     }
 
-    showLoader('initialLoader');
+    showLoader('initialLoader'); // Show loader on the initial selection section
     displayMessage('existingDictStatus', 'Loading dictionary for editing...', 'info');
 
     const token = localStorage.getItem('jwtToken');
@@ -191,14 +254,15 @@ async function loadDictionaryForEditing() {
         currentDictionaryId = dictionary.id; // Set ID for update operation
         document.getElementById('dictionaryName').value = dictionary.name; // Pre-fill name
 
-        // Use source_headers_json to populate the table for editing
+        // Use source_headers_json to populate the table for editing, or fall back to an empty array
         currentHeaders = dictionary.source_headers_json || []; 
         const rulesToPreFill = dictionary.rules_json || [];
 
-        renderHeadersTable(currentHeaders, rulesToPreFill); // Pass rules to pre-fill
+        renderHeadersTable(currentHeaders, rulesToPreFill); // Pass headers and rules to pre-fill
 
-        document.getElementById('initialSelectionSection').style.display = 'none'; // Hide initial choice
-        document.getElementById('dictionaryBuilderSection').style.display = 'block'; // Show builder
+        // Hide initial choice, show builder section
+        document.getElementById('initialSelectionSection').style.display = 'none';
+        document.getElementById('dictionaryBuilderSection').style.display = 'block';
         document.getElementById('deleteDictionaryBtn').style.display = 'inline-block'; // Show delete button
 
         displayMessage('existingDictStatus', `Dictionary "${dictionary.name}" loaded for editing.`, 'success');
@@ -208,12 +272,12 @@ async function loadDictionaryForEditing() {
         displayMessage('existingDictStatus', `Failed to load dictionary: ${error.message}`, 'error');
         currentDictionaryId = null; // Clear ID on error
     } finally {
-        hideLoader('initialLoader');
+        hideLoader('initialLoader'); // Hide loader on the initial selection section
     }
 }
 
 /**
- * Initiates the process for creating a new dictionary by prompting for file upload.
+ * Initiates the process for creating a new dictionary by extracting headers from a file upload.
  */
 async function startNewDictionaryFromUpload() {
     const excelFile = document.getElementById('excelFile').files[0];
@@ -222,7 +286,7 @@ async function startNewDictionaryFromUpload() {
         return;
     }
 
-    showLoader('initialLoader');
+    showLoader('initialLoader'); // Show loader on the initial selection section
     displayMessage('newDictStatus', `Extracting headers from ${excelFile.name}...`, 'info');
     uploadedOriginalFileName = excelFile.name; // Store for later reference
     currentDictionaryId = null; // Ensure it's null for new creation
@@ -252,7 +316,6 @@ async function startNewDictionaryFromUpload() {
             }
 
             // Store ALL extracted headers for potential saving in source_headers_json
-            // Filtered headers will be passed to renderHeadersTable below.
             currentHeaders = extractedHeaders; 
 
             // Filter out headers that already have rules defined (from existingDataDictionaryColumns)
@@ -260,7 +323,7 @@ async function startNewDictionaryFromUpload() {
                 return !existingDataDictionaryColumns.has(String(header).trim().toLowerCase());
             });
 
-            if (filteredHeaders.length === 0 && extractedHeaders.length > 0) { // Only show message if headers were actually extracted
+            if (filteredHeaders.length === 0 && extractedHeaders.length > 0) {
                 displayMessage('newDictStatus', 'All headers in this file already have rules defined in your existing dictionaries. No new rules to build.', 'info');
                 document.getElementById('dictionaryBuilderSection').style.display = 'none';
                 document.getElementById('saveDictionaryBtn').disabled = true;
@@ -280,8 +343,9 @@ async function startNewDictionaryFromUpload() {
             // Render the table with only new headers, no pre-filled rules for new creation
             renderHeadersTable(filteredHeaders, []); 
 
-            document.getElementById('initialSelectionSection').style.display = 'none'; // Hide initial choice
-            document.getElementById('dictionaryBuilderSection').style.display = 'block'; // Show builder
+            // Hide initial choice, show builder section
+            document.getElementById('initialSelectionSection').style.display = 'none';
+            document.getElementById('dictionaryBuilderSection').style.display = 'block';
             document.getElementById('deleteDictionaryBtn').style.display = 'none'; // Hide delete button for new creation
 
             document.getElementById('dictionaryName').value = uploadedOriginalFileName.replace(/\.(xlsx|xls|csv)$/i, '') + ' Dictionary'; // Suggest a name
@@ -291,7 +355,7 @@ async function startNewDictionaryFromUpload() {
             displayMessage('newDictStatus', 'Error reading or parsing file. Please ensure it is valid Excel/CSV.', 'error');
             document.getElementById('dictionaryBuilderSection').style.display = 'none';
         } finally {
-            hideLoader('initialLoader');
+            hideLoader('initialLoader'); // Hide loader on the initial selection section
         }
     };
     reader.readAsArrayBuffer(excelFile);
@@ -334,7 +398,7 @@ function renderHeadersTable(headers, rulesToPreFill = []) {
 
         const typeCell = row.insertCell();
         const typeSelect = document.createElement('select');
-        typeSelect.classList.add('validation-type-select');
+        typeSelect.classList.add('validation-type-select', 'p-2', 'border', 'border-gray-300', 'rounded-md', 'focus:ring-blue-500', 'focus:border-blue-500', 'text-gray-800');
         typeSelect.name = `type_${index}`;
         validationTypes.forEach(type => {
             const option = document.createElement('option');
@@ -347,7 +411,7 @@ function renderHeadersTable(headers, rulesToPreFill = []) {
         const valueCell = row.insertCell();
         const valueInput = document.createElement('input');
         valueInput.type = 'text';
-        valueInput.classList.add('validation-value-input');
+        valueInput.classList.add('validation-value-input', 'mt-1', 'block', 'w-full', 'p-2', 'border', 'border-gray-300', 'rounded-md', 'focus:ring-green-500', 'focus:border-green-500', 'text-gray-800');
         valueInput.name = `value_${index}`;
         valueInput.placeholder = 'e.g., Value1,Value2 or 0-100 or ^\\d{5}$';
         valueInput.classList.add('hidden-rule-value'); // Initially hidden
@@ -357,7 +421,7 @@ function renderHeadersTable(headers, rulesToPreFill = []) {
         const messageCell = row.insertCell();
         const messageInput = document.createElement('input');
         messageInput.type = 'text';
-        messageInput.classList.add('failure-message-input');
+        messageInput.classList.add('failure-message-input', 'mt-1', 'block', 'w-full', 'p-2', 'border', 'border-gray-300', 'rounded-md', 'focus:ring-green-500', 'focus:border-green-500', 'text-gray-800');
         messageInput.name = `message_${index}`;
         messageInput.placeholder = 'e.g., Field cannot be blank.';
         messageCell.appendChild(messageInput);
@@ -365,15 +429,11 @@ function renderHeadersTable(headers, rulesToPreFill = []) {
         // Pre-fill existing rules if available
         const existingRulesForColumn = rulesMap.get(String(header).trim());
         if (existingRulesForColumn && existingRulesForColumn.length > 0) {
-            // For simplicity, take the first rule for a column. If multiple rules per column are allowed,
-            // this needs a more complex UI (e.g., "Add Rule" button per column).
-            // Based on previous discussions, it was one rule per column, so this is fine.
             const firstRule = existingRulesForColumn[0]; 
             typeSelect.value = firstRule['Validation Type'] || '';
             valueInput.value = firstRule['Validation Value'] || '';
             messageInput.value = firstRule['Failure Message'] || '';
-            // Trigger change event to set visibility/placeholder correctly
-            typeSelect.dispatchEvent(new Event('change')); 
+            typeSelect.dispatchEvent(new Event('change')); // Trigger change event to set visibility/placeholder
         }
 
         // Add event listener to toggle visibility of value input and update placeholder
@@ -475,12 +535,12 @@ async function saveDataDictionary() {
             sourceHeaders: currentHeaders // All headers from the loaded file/existing dictionary
         };
 
-        let endpoint = '/api/save-data-dictionary'; // For INSERT
-        let method = 'POST';
+        let endpoint = '/api/save-data-dictionary'; // For INSERT/UPDATE
+        let method = 'POST'; // save-data-dictionary.js currently only accepts POST
 
         if (currentDictionaryId) { // If editing an existing dictionary
-            payload.dictionaryId = currentDictionaryId; // Add ID for UPDATE
-            // Endpoint remains the same, but backend will use dictionaryId for UPDATE
+            payload.dictionaryId = currentDictionaryId; // Add ID for UPDATE logic on backend
+            // For updates, the backend logic within save-data-dictionary.js will look for this ID.
         }
 
         const response = await fetch(endpoint, {
