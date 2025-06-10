@@ -3,236 +3,261 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Excel Buddy - Login / Register</title>
-    <!-- Tailwind CSS CDN for styling -->
+    <title>Welcome - RCM Buddy</title>
+    <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Google Fonts - Inter for clean typography -->
+    <!-- Google Fonts - Inter -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
+        /* General body and font styling */
         body {
             font-family: 'Inter', sans-serif;
-            background-color: #f0f4f8; /* Light background for the page */
+            color: #212529; /* Default text color */
+            /* Background image and styling for the entire body */
+            background-image: url('181603687.png'); /* Path to your background image */
+            background-size: cover; /* Cover the entire viewport */
+            background-position: center; /* Center the background image */
+            background-repeat: no-repeat; /* Do not repeat the image */
+            background-attachment: fixed; /* Keep image fixed during scroll */
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh; /* Ensure body takes full viewport height */
         }
-        /* Custom styles for subtle form transitions (optional, but nice touch) */
-        .form-fade-enter-active, .form-fade-leave-active {
-            transition: opacity 0.3s ease-in-out;
+
+        /* Header styling (consistent with other pages) */
+        header {
+            @apply bg-gradient-to-r from-blue-600 to-indigo-700 p-4 shadow-lg;
         }
-        .form-fade-enter, .form-fade-leave-to /* .form-fade-leave-active in <2.1.8 */ {
-            opacity: 0;
+
+        /* Main content area styling */
+        main {
+            @apply flex-grow container mx-auto p-4 sm:p-6 lg:p-8 flex items-center justify-center;
+        }
+
+        /* Form container styling */
+        .auth-container {
+            @apply bg-white p-8 sm:p-10 rounded-xl shadow-2xl max-w-md w-full;
+            border: 1px solid theme('colors.gray.200'); /* Subtle border */
+        }
+        .auth-container h2 {
+            @apply text-3xl font-bold text-center text-blue-700 mb-6;
+        }
+        .auth-container input {
+            @apply w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500;
+        }
+        .auth-container button {
+            @apply w-full py-3 px-4 rounded-lg text-lg font-semibold text-white transition duration-300 ease-in-out transform;
+        }
+        .auth-container .primary-btn {
+            @apply bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500;
+        }
+        .auth-container .secondary-btn {
+            @apply bg-gray-500 hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-400;
+        }
+        .auth-container .link {
+            @apply text-blue-600 hover:text-blue-800 transition duration-300;
+        }
+        .message-box {
+            @apply p-3 text-center text-sm rounded-md mb-4;
+        }
+        .message-box.success {
+            @apply bg-green-100 text-green-700 border border-green-200;
+        }
+        .message-box.error {
+            @apply bg-red-100 text-red-700 border border-red-200;
+        }
+        .message-box.info {
+            @apply bg-blue-100 text-blue-700 border border-blue-200;
         }
     </style>
 </head>
-<body class="flex items-center justify-center min-h-screen">
-    <div class="bg-white p-8 rounded-xl shadow-2xl w-full max-w-md">
-        <h1 class="text-3xl font-extrabold text-center text-blue-700 mb-6">Excel Buddy</h1>
-        <p class="text-lg text-gray-600 text-center mb-8">Your ultimate companion for Excel automation, validation, and powerful tools.</p>
-
-        <!-- Toggle Buttons for Login/Register forms -->
-        <div class="flex justify-center space-x-4 mb-8">
-            <button id="showLoginBtn" class="px-6 py-3 rounded-full text-lg font-semibold transition duration-300 ease-in-out bg-blue-600 text-white shadow-md hover:bg-blue-700">
-                Login
-            </button>
-            <button id="showRegisterBtn" class="px-6 py-3 rounded-full text-lg font-semibold transition duration-300 ease-in-out bg-gray-200 text-gray-800 hover:bg-gray-300">
-                Register
-            </button>
+<body>
+    <!-- Header Section -->
+    <header class="bg-gradient-to-r from-blue-600 to-indigo-700 p-4 shadow-lg">
+        <div class="container mx-auto flex items-center justify-between">
+            <h1 class="text-white text-3xl font-bold">RCM Buddy</h1>
+            <!-- Navigation not typically present on login page, but keeping consistent structure for future if needed -->
+            <nav>
+                <ul class="flex space-x-4">
+                    <li><a href="/" class="text-white hover:text-blue-200 transition duration-300 active">Login</a></li>
+                    <!-- Registration link could be here, or handled by a button on the login form itself -->
+                </ul>
+            </nav>
         </div>
+    </header>
 
-        <!-- Login Form Section -->
-        <div id="loginSection" class="form-fade-enter-active">
-            <h2 class="text-2xl font-bold text-center text-indigo-700 mb-6">Welcome Back!</h2>
-            <form id="loginForm" class="space-y-5">
+    <!-- Main Content Section - Login/Registration Form -->
+    <main>
+        <div class="auth-container">
+            <h2 id="authTitle">Login to RCM Buddy</h2>
+            
+            <div id="messageBox" class="message-box hidden" role="alert"></div>
+
+            <form id="authForm" class="space-y-6">
                 <div>
-                    <label for="loginIdentifier" class="block text-sm font-medium text-gray-700">Username or Email</label>
-                    <input type="text" id="loginIdentifier" name="identifier" required
-                           class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-base"
-                           placeholder="your.username or your.email@example.com">
+                    <label for="username" class="sr-only">Username or Email</label>
+                    <input type="text" id="username" placeholder="Username or Email" required autocomplete="username" class="focus:ring-blue-500 focus:border-blue-500">
                 </div>
                 <div>
-                    <label for="loginPassword" class="block text-sm font-medium text-gray-700">Password</label>
-                    <input type="password" id="loginPassword" name="password" required
-                           class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-base"
-                           placeholder="••••••••">
+                    <label for="password" class="sr-only">Password</label>
+                    <input type="password" id="password" placeholder="Password" required autocomplete="current-password" class="focus:ring-blue-500 focus:border-blue-500">
                 </div>
-                <button type="submit"
-                        class="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-lg text-lg font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition duration-300 ease-in-out transform hover:-translate-y-0.5">
-                    Log In
-                </button>
+                <button type="submit" id="submitBtn" class="primary-btn">Login</button>
             </form>
-        </div>
 
-        <!-- Registration Form Section (Hidden by default) -->
-        <div id="registerSection" class="hidden form-fade-leave-to">
-            <h2 class="text-2xl font-bold text-center text-green-700 mb-6">Join Excel Buddy!</h2>
-            <form id="registerForm" class="space-y-5">
-                <div>
-                    <label for="registerCompanyName" class="block text-sm font-medium text-gray-700">Company Name</label>
-                    <input type="text" id="registerCompanyName" name="company_name" required
-                           class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-base"
-                           placeholder="Your Company Inc.">
-                </div>
-                <div>
-                    <label for="registerUsername" class="block text-sm font-medium text-gray-700">Username</label>
-                    <input type="text" id="registerUsername" name="username" required
-                           class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-base"
-                           placeholder="Choose a username">
-                </div>
-                <div>
-                    <label for="registerEmail" class="block text-sm font-medium text-gray-700">Email Address</label>
-                    <input type="email" id="registerEmail" name="email" required
-                           class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-base"
-                           placeholder="your.email@example.com">
-                </div>
-                <div>
-                    <label for="registerPassword" class="block text-sm font-medium text-gray-700">Password</label>
-                    <input type="password" id="registerPassword" name="password" required
-                           class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-base"
-                           placeholder="••••••••">
-                </div>
-                <button type="submit"
-                        class="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-lg text-lg font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition duration-300 ease-in-out transform hover:-translate-y-0.5">
-                    Register
-                </button>
-            </form>
+            <p class="text-center text-sm text-gray-600 mt-6">
+                Don't have an account? <a href="#" id="toggleAuth" class="link">Register here</a>
+            </p>
         </div>
+    </main>
 
-        <!-- Message Display Area for success/error messages -->
-        <p id="message" class="mt-6 text-center text-lg font-medium text-gray-800"></p>
-    </div>
+    <!-- Footer Section -->
+    <footer class="bg-gray-800 text-white p-4 mt-8">
+        <div class="container mx-auto text-center text-sm">
+            &copy; 2025 RCM Buddy. All rights reserved.
+        </div>
+    </footer>
 
     <script>
-        // Get references to DOM elements
-        const loginSection = document.getElementById('loginSection');
-        const registerSection = document.getElementById('registerSection');
-        const showLoginBtn = document.getElementById('showLoginBtn');
-        const showRegisterBtn = document.getElementById('showRegisterBtn');
-        const messageElement = document.getElementById('message');
+        // Authentication Logic for Login/Registration Page
+        const authForm = document.getElementById('authForm');
+        const authTitle = document.getElementById('authTitle');
+        const toggleAuthBtn = document.getElementById('toggleAuth');
+        const submitBtn = document.getElementById('submitBtn');
+        const messageBox = document.getElementById('messageBox');
+        let isLogin = true; // State to track if it's currently login or registration
 
-        /**
-         * Displays a message to the user.
-         * @param {string} text - The message to display.
-         * @param {'info' | 'success' | 'error'} type - The type of message to determine color.
-         */
-        function showMessage(text, type = 'info') {
-            messageElement.textContent = text;
-            messageElement.className = `mt-6 text-center text-lg font-medium ${
-                type === 'success' ? 'text-green-700' :
-                type === 'error' ? 'text-red-700' :
-                'text-gray-800'
-            }`;
+        function showMessage(message, type) {
+            messageBox.textContent = message;
+            messageBox.className = `message-box ${type}`; // Reset classes and add new ones
+            messageBox.classList.remove('hidden');
         }
 
-        /**
-         * Toggles visibility between the login and registration forms.
-         * @param {boolean} showLogin - True to show login, false to show registration.
-         */
-        function toggleForms(showLogin) {
-            if (showLogin) {
-                // Show login form, hide registration form
-                loginSection.classList.remove('hidden', 'form-fade-leave-to');
-                loginSection.classList.add('form-fade-enter-active');
-                registerSection.classList.add('hidden', 'form-fade-leave-to');
-                registerSection.classList.remove('form-fade-enter-active');
+        function hideMessage() {
+            messageBox.classList.add('hidden');
+        }
 
-                // Update button styles to reflect active form
-                showLoginBtn.classList.remove('bg-gray-200', 'text-gray-800');
-                showLoginBtn.classList.add('bg-blue-600', 'text-white');
-                showRegisterBtn.classList.remove('bg-green-600', 'text-white'); // Ensure register button is reset
-                showRegisterBtn.classList.add('bg-gray-200', 'text-gray-800');
+        // Toggles between Login and Registration forms
+        toggleAuthBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            hideMessage();
+            isLogin = !isLogin;
+            if (isLogin) {
+                authTitle.textContent = 'Login to RCM Buddy';
+                submitBtn.textContent = 'Login';
+                toggleAuthBtn.textContent = 'Register here';
+                // Remove email field if it was added for registration
+                const emailInput = document.getElementById('email');
+                if (emailInput) emailInput.parentElement.remove(); 
             } else {
-                // Show registration form, hide login form
-                registerSection.classList.remove('hidden', 'form-fade-leave-to');
-                registerSection.classList.add('form-fade-enter-active');
-                loginSection.classList.add('hidden', 'form-fade-leave-to');
-                loginSection.classList.remove('form-fade-enter-active');
-
-                // Update button styles to reflect active form
-                showRegisterBtn.classList.remove('bg-gray-200', 'text-gray-800');
-                showRegisterBtn.classList.add('bg-green-600', 'text-white');
-                showLoginBtn.classList.remove('bg-blue-600', 'text-white'); // Ensure login button is reset
-                showLoginBtn.classList.add('bg-gray-200', 'text-gray-800');
-            }
-            showMessage(''); // Clear any previous messages when switching forms
-        }
-
-        // Event Listeners for form toggle buttons
-        showLoginBtn.addEventListener('click', () => toggleForms(true));
-        showRegisterBtn.addEventListener('click', () => toggleForms(false));
-
-        // --- Handle Login Form Submission ---
-        document.getElementById('loginForm').addEventListener('submit', async function(event) {
-            event.preventDefault(); // Prevent default browser form submission
-
-            const identifier = document.getElementById('loginIdentifier').value; // Get username or email
-            const password = document.getElementById('loginPassword').value;
-
-            try {
-                // Send login data to the Netlify Function backend
-                const response = await fetch('/api/login', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    // Send identifier instead of email
-                    body: JSON.stringify({ identifier, password })
-                });
-
-                const data = await response.json(); // Parse the JSON response from the function
-
-                if (response.ok) { // Check if the HTTP status code is 2xx (success)
-                    showMessage('Login successful! Redirecting...', 'success');
-                    localStorage.setItem('jwtToken', data.token); // Store the JWT in local storage
-                    // Redirect to the dashboard after a short delay
-                    setTimeout(() => {
-                        window.location.href = '/dashboard.html';
-                    }, 1500);
-                } else {
-                    // Display error message from the backend or a generic one
-                    showMessage(data.message || 'Login failed. Please try again.', 'error');
-                    console.error('Login error:', data.message);
-                }
-            } catch (error) {
-                // Catch network-level errors (e.g., server unreachable)
-                showMessage('Network error. Please check your connection.', 'error');
-                console.error('Fetch error during login:', error);
+                authTitle.textContent = 'Register for RCM Buddy';
+                submitBtn.textContent = 'Register';
+                toggleAuthBtn.textContent = 'Login here';
+                // Add email field for registration
+                const emailDiv = document.createElement('div');
+                emailDiv.innerHTML = `<label for="email" class="sr-only">Email</label>
+                                      <input type="email" id="email" placeholder="Email" required autocomplete="email" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500">`;
+                authForm.insertBefore(emailDiv, document.getElementById('password').parentElement);
             }
         });
 
-        // --- Handle Registration Form Submission ---
-        document.getElementById('registerForm').addEventListener('submit', async function(event) {
-            event.preventDefault(); // Prevent default browser form submission
+        // Handles form submission (Login or Registration)
+        authForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            hideMessage();
 
-            const company_name = document.getElementById('registerCompanyName').value; // Get company name
-            const username = document.getElementById('registerUsername').value;
-            const email = document.getElementById('registerEmail').value;
-            const password = document.getElementById('registerPassword').value;
+            const usernameInput = document.getElementById('username').value.trim();
+            const passwordInput = document.getElementById('password').value.trim();
+            const emailInput = isLogin ? '' : document.getElementById('email').value.trim();
+
+            let endpoint = isLogin ? '/api/login' : '/api/register';
+            let payload = { username: usernameInput, password: passwordInput };
+
+            if (!isLogin) {
+                if (!emailInput) {
+                    showMessage('Please enter your email.', 'error');
+                    return;
+                }
+                // Add a placeholder for company name, as registration needs it on the backend
+                // This would ideally be a separate input field on the registration form
+                // For now, let's assume a default or infer it if necessary, or simplify for demo.
+                // Assuming backend creates a default company or handles missing company name gracefully.
+                // If company name is required for registration, you MUST add an input for it here.
+                payload = { username: usernameInput, email: emailInput, password: passwordInput, companyName: "Default Company" }; 
+            }
 
             try {
-                // Send registration data to the Netlify Function backend
-                const response = await fetch('/api/register', {
+                submitBtn.disabled = true; // Disable button during submission
+                submitBtn.textContent = isLogin ? 'Logging in...' : 'Registering...';
+
+                const response = await fetch(endpoint, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ company_name, username, email, password })
+                    body: JSON.stringify(payload)
                 });
 
-                const data = await response.json(); // Parse the JSON response from the function
+                const data = await response.json();
 
-                if (response.ok) { // Check if the HTTP status code is 2xx (success, specifically 201 Created)
-                    showMessage('Registration successful! Please log in with your new account.', 'success');
-                    // Optionally, pre-fill the login identifier with email
-                    document.getElementById('loginIdentifier').value = email;
-                    toggleForms(true); // Switch to the login form
+                if (response.ok) {
+                    if (isLogin) {
+                        localStorage.setItem('jwtToken', data.token);
+                        showMessage('Login successful! Redirecting...', 'success');
+                        setTimeout(() => {
+                            window.location.href = '/dashboard.html'; // Redirect to dashboard
+                        }, 1000);
+                    } else {
+                        showMessage('Registration successful! Please login.', 'success');
+                        // Automatically switch to login form after successful registration
+                        isLogin = true;
+                        authTitle.textContent = 'Login to RCM Buddy';
+                        submitBtn.textContent = 'Login';
+                        toggleAuthBtn.textContent = 'Register here';
+                        const emailInputElem = document.getElementById('email');
+                        if (emailInputElem) emailInputElem.parentElement.remove();
+                    }
                 } else {
-                    // Display error message from the backend or a generic one
-                    showMessage(data.message || 'Registration failed. Please try again.', 'error');
-                    console.error('Registration error:', data.message);
+                    showMessage(data.message || `Error: ${response.statusText}`, 'error');
                 }
             } catch (error) {
-                // Catch network-level errors
-                showMessage('Network error. Please check your connection.', 'error');
-                console.error('Fetch error during registration:', error);
+                console.error('Network or server error:', error);
+                showMessage('Network error. Please try again later.', 'error');
+            } finally {
+                submitBtn.disabled = false;
+                if (!isLogin) { // Restore original text if still in registration mode
+                    submitBtn.textContent = 'Register';
+                }
             }
         });
 
-        // Initialize the page by showing the login form first
-        toggleForms(true);
+        // Check for existing token on page load to potentially redirect
+        document.addEventListener('DOMContentLoaded', () => {
+            const token = localStorage.getItem('jwtToken');
+            if (token) {
+                // Attempt to verify token silently
+                fetch('/api/protected', {
+                    method: 'GET',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                })
+                .then(response => {
+                    if (response.ok) {
+                        return response.json();
+                    } else {
+                        throw new Error('Token invalid or expired');
+                    }
+                })
+                .then(data => {
+                    // Token is valid, redirect to dashboard
+                    console.log('Token still valid. Redirecting to dashboard.');
+                    window.location.href = '/dashboard.html';
+                })
+                .catch(error => {
+                    // Token invalid, expired, or network error. Clear token and stay on login.
+                    console.error('Silent token verification failed:', error);
+                    localStorage.removeItem('jwtToken');
+                    showMessage('Your session has expired. Please log in again.', 'info');
+                });
+            }
+        });
     </script>
 </body>
 </html>
