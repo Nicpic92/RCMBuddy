@@ -13,7 +13,7 @@
         body {
             font-family: 'Inter', sans-serif;
             background-color: #f0f4f8; /* Light background */
-            text-gray-800; /* Default text color */
+            color: #212529; /* Default text color */
         }
         /* Header styling (consistent with other pages) */
         header {
@@ -79,8 +79,19 @@
         .tool-card.data-dictionary-builder a { background-color: theme('colors.purple.500'); }
         .tool-card.data-dictionary-builder a:hover { background-color: theme('colors.purple.600'); }
 
+        /* NEW: Tool Card for Universal Ticket Tracker */
+        .tool-card.ticket-tracker {
+            border-color: theme('colors.orange.200'); /* Using orange for contrast */
+            background-color: theme('colors.orange.50');
+        }
+        .tool-card.ticket-tracker h3 { color: theme('colors.orange.600'); }
+        .tool-card.ticket-tracker a { background-color: theme('colors.orange.500'); }
+        .tool-card.ticket-tracker a:hover { background-color: theme('colors.orange.600'); }
+
+
         /* Styles for tools marked as 'development' (Coming Soon) */
         .development-tool {
+            display: none; /* Hides development tools completely */
             opacity: 0.7; /* Make it slightly faded */
             filter: grayscale(20%); /* Slight grayscale effect */
             position: relative;
@@ -183,25 +194,32 @@
                     </a>
                 </div>
 
-                <!-- Placeholder for future development tools (you can uncomment and modify these) -->
-                <!-- Example of a tool in development -->
+                <!-- NEW: Tool Card: Universal Ticket Tracker -->
+                <div class="tool-card ticket-tracker" data-status="ready">
+                    <h3 class="text-xl font-bold text-orange-600 mb-3">Universal Ticket Tracker</h3>
+                    <p class="text-gray-600 mb-4">Upload and visualize your ticket data from any Excel report with dynamic filtering and printing.</p>
+                    <a href="/tools/ticket-tracker/ticket-tracker.html" class="inline-block bg-orange-500 hover:bg-orange-600 text-white font-bold py-2 px-4 rounded-full transition duration-300">
+                        Launch Tracker
+                    </a>
+                </div>
+
+                <!-- Placeholder for future development tools (these are now hidden by CSS) -->
                 <div class="tool-card development-tool" data-status="development">
                     <h3 class="text-xl font-bold text-gray-500 mb-3">Report Automator</h3>
                     <p class="text-gray-500 mb-4">Automate the generation and distribution of your routine Excel reports with custom templates.</p>
                     <span class="inline-block text-sm text-gray-500 italic">Coming Soon!</span>
                 </div>
-                <!-- Add more development tools here as needed -->
                 <div class="tool-card development-tool" data-status="development">
                     <h3 class="text-xl font-bold text-gray-500 mb-3">Merger & Splitter</h3>
                     <p class="text-gray-500 mb-4">Efficiently combine multiple Excel files or split large spreadsheets into manageable parts.</p>
                     <span class="inline-block text-sm text-gray-500 italic">Coming Soon!</span>
                 </div>
-                   <div class="tool-card development-tool" data-status="development">
+                <div class="tool-card development-tool" data-status="development">
                     <h3 class="text-xl font-bold text-gray-500 mb-3">Macro Recorder & Editor</h3>
                     <p class="text-gray-500 mb-4">Record your repetitive Excel actions and easily edit or share the generated VBA macros.</p>
                     <span class="inline-block text-sm text-gray-500 italic">Coming Soon!</span>
                 </div>
-                   <div class="tool-card development-tool" data-status="development">
+                <div class="tool-card development-tool" data-status="development">
                     <h3 class="text-xl font-bold text-gray-500 mb-3">Custom Formula Builder</h3>
                     <p class="text-gray-500 mb-4">Create, save, and manage your own complex Excel formulas for re-use and efficiency.</p>
                     <span class="inline-block text-sm text-gray-500 italic">Coming Soon!</span>
