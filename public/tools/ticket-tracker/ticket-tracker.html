@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Universal Ticket Tracker</title>
+    <!-- Link to the external CSS file -->
+    <link rel="stylesheet" href="style.css">
+    <!-- Link to the xlsx library for reading Excel files -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+</head>
+<body onload="loadSavedData()">
+
+    <!-- Main title of the application -->
+    <h1 id="mainTitle">Universal Ticket Tracker</h1>
+    <!-- Status message area, updates based on file loading or actions -->
+    <div id="status">Checking for saved data...</div>
+    
+    <!-- File upload section -->
+    <div class="container">
+        <h3>Load New Excel File (Current Report)</h3>
+        <p>This will overwrite any current report data saved in your browser.</p>
+        <input type="file" id="fileInput" accept=".xlsx, .xls">
+        <button onclick="clearSavedData()">Clear Current Report Data</button>
+    </div>
+
+    <!-- Print options section, hidden by default until data is loaded -->
+    <div class="container" id="printFiltersContainer" style="display: none;">
+        <h4>Print Priority View Options:</h4>
+        <div class="print-options-line">
+            <label for="printPlanFilterInput">Filter by Plan:</label>
+            <input type="text" id="printPlanFilterInput" placeholder="Enter Plan name (optional)..." oninput="togglePrintButtonVisibility()">
+        </div>
+        <div class="print-options-line">
+            <label for="printAssignedToFilterInput">Filter by Assigned To:</label>
+            <input type="text" id="printAssignedToFilterInput" placeholder="Enter name (optional)..." oninput="togglePrintButtonVisibility()">
+        </div>
+        <div class="print-options-line">
+            <label for="printPriorityFilterInput">Filter by Priority:</label>
+            <select id="printPriorityFilterInput" onchange="togglePrintButtonVisibility()">
+                <!-- Options populated dynamically by JS -->
+            </select>
+        </div>
+        <div class="print-options-line">
+            <label for="printSortByInput">Sort by:</label>
+            <select id="printSortByInput" onchange="togglePrintButtonVisibility()">
+                <option value="">Default Sorting</option>
+            </select>
+        </div>
+        <div class="print-options-line">
+            <label>Hide Statuses:</label>
+            <div id="dynamicPrintStatusCheckboxes">
+                <!-- Dynamic checkboxes for print statuses will be inserted here by JavaScript -->
+            </div>
+        </div>
+        <button id="printPriorityButton" onclick="handlePrintView()">Print Priority View</button>
+    </div>
+
+    <hr style="border: none; border-top: 1px solid #dee2e6; margin: 20px 0;">
+
+    <!-- Status filter section, hidden by default until data is loaded -->
+    <div class="container" id="statusFiltersContainer" style="display: none;">
+        <h4>Filter by Status (Hide):</h4>
+        <div id="dynamicStatusCheckboxes">
+            <!-- Dynamic checkboxes for statuses will be inserted here by JavaScript -->
+        </div>
+    </div>
+
+    <!-- Main content area, contains tabs and their respective content (table or summary) -->
+    <div id="main-content" style="display: none;">
+      <div class="tab-buttons" id="tabButtons"></div>
+      <div class="tab-content" id="tabContent"></div>
+    </div>
+
+    <!-- Link to the external JavaScript file -->
+    <script src="script.js"></script>
+
+</body>
+</html>
