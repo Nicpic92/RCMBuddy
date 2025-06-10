@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Universal Ticket Tracker</title>
-    <!-- Link to the external CSS file -->
+    <!-- Link to the external CSS file (RENAMED) -->
     <link rel="stylesheet" href="ticket-tracker.css">
     <!-- Link to the xlsx library for reading Excel files -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -22,6 +22,17 @@
         <p>This will overwrite any current report data saved in your browser.</p>
         <input type="file" id="fileInput" accept=".xlsx, .xls">
         <button onclick="clearSavedData()">Clear Current Report Data</button>
+    </div>
+
+    <!-- NEW: Main Report Sheet Selection -->
+    <div class="container" id="sheetSelectionContainer" style="display: none;">
+        <h4>Select Main Report Sheet:</h4>
+        <div class="report-options-line">
+            <label for="mainSheetSelect">Choose Sheet:</label>
+            <select id="mainSheetSelect" onchange="handleSheetSelection(this.value)">
+                <!-- Options will be dynamically populated by JavaScript -->
+            </select>
+        </div>
     </div>
 
     <!-- Print options section, hidden by default until data is loaded -->
@@ -72,7 +83,7 @@
       <div class="tab-content" id="tabContent"></div>
     </div>
 
-    <!-- Link to the external JavaScript file -->
+    <!-- Link to the external JavaScript file (RENAMED) -->
     <script src="ticket-tracker.js"></script>
 
 </body>
