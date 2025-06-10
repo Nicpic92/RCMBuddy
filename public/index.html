@@ -13,12 +13,9 @@
         body {
             font-family: 'Inter', sans-serif; /* Keep Inter, or replace with a font from the example if identified */
             color: #212529; /* Default text color */
-            /* Background image and styling for the entire body */
-            background-image: url('181603687.png'); /* Path to your background image */
-            background-size: cover; /* Cover the entire viewport */
-            background-position: center; /* Center the background image */
-            background-repeat: no-repeat; /* Do not repeat the image */
-            background-attachment: fixed; /* Keep image fixed during scroll */
+            /* Set plain white background for the body */
+            background-color: white; 
+            background-image: none; /* Remove background image */
             display: flex;
             flex-direction: column;
             min-height: 100vh; /* Ensure body takes full viewport height */
@@ -51,6 +48,8 @@
             position: relative; /* For pseudo-element overlay if needed below */
             z-index: 1;
         }
+        /* Removed main::before overlay as background is now white */
+
 
         /* Left section with welcome message and illustration */
         .left-panel {
@@ -74,7 +73,7 @@
             @apply text-xl mb-8 z-10;
             text-shadow: 1px 1px 3px rgba(0,0,0,0.5);
         }
-        .left-panel img {
+        .left-panel .illustration-img { /* Specific class for the illustration image */
             position: absolute;
             bottom: 0;
             left: 50%;
@@ -184,12 +183,9 @@
     <main class="container mx-auto">
         <div class="left-panel">
             <h2 class="text-white">Welcome to</h2>
-            <p class="text-white text-5xl font-extrabold leading-tight">Claims Adjudication</p>
-            <!-- Placeholder for your illustration -->
-            <img src="https://placehold.co/500x300/ffffff/000000?text=Your+Illustration+Here" alt="Claims Adjudication Illustration">
-            <!-- Replace the above with your actual image, e.g.:
-            <img src="path/to/your/illustration.png" alt="Claims Adjudication Illustration">
-            -->
+            <p class="text-white text-5xl font-extrabold leading-tight">RCM Buddy Claims Adjudication</p>
+            <!-- Your illustration image -->
+            <img src="image_b8be9e.jpg" alt="Claims Adjudication Illustration" class="illustration-img">
         </div>
 
         <div class="right-panel">
