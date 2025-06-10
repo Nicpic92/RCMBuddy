@@ -3,402 +3,236 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Welcome - RCM Buddy</title>
-    <!-- Tailwind CSS CDN -->
+    <title>Excel Buddy - Login / Register</title>
+    <!-- Tailwind CSS CDN for styling -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Google Fonts - Inter (You might want to replace with a font similar to the example image) -->
+    <!-- Google Fonts - Inter for clean typography -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        /* General body and font styling */
         body {
-            font-family: 'Inter', sans-serif; /* Keep Inter, or replace with a font from the example if identified */
-            color: #212529; /* Default text color */
-            /* Set plain white background for the body */
-            background-color: white; 
-            background-image: none; /* Remove background image */
-            display: flex;
-            flex-direction: column;
-            min-height: 100vh; /* Ensure body takes full viewport height */
-            overflow-x: hidden; /* Prevent horizontal scroll on small screens */
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f4f8; /* Light background for the page */
         }
-
-        /* Header styling (consistent with other pages) */
-        header {
-            @apply bg-gradient-to-r from-blue-600 to-indigo-700 p-4 shadow-lg;
+        /* Custom styles for subtle form transitions (optional, but nice touch) */
+        .form-fade-enter-active, .form-fade-leave-active {
+            transition: opacity 0.3s ease-in-out;
         }
-        /* Ensure navigation links in the header are visible */
-        header nav ul li a {
-            color: white !important; /* Force text to be white */
-            padding: 8px 12px; /* Add padding for better click area */
-            border-radius: 6px; /* Slightly rounded corners */
-        }
-        header nav ul li a:hover {
-            background-color: rgba(255, 255, 255, 0.1); /* Subtle hover background */
-            color: #bfdbfe !important; /* Tailwind's blue-200 equivalent */
-        }
-        header nav ul li a.active {
-            font-weight: 700; /* Bold for active link */
-            background-color: rgba(255, 255, 255, 0.15); /* Slightly darker background for active */
-        }
-
-        /* Main content area styling for the split layout */
-        main {
-            @apply flex-grow flex items-center justify-center p-4 sm:p-6 lg:p-8;
-            /* Using flex instead of grid for simpler 50/50 split and responsiveness */
-            position: relative; /* For pseudo-element overlay if needed below */
-            z-index: 1;
-        }
-        /* Removed main::before overlay as background is now white */
-
-
-        /* Left section with welcome message and illustration */
-        .left-panel {
-            @apply hidden md:flex flex-col items-center justify-center p-8;
-            /* md:flex makes it visible on medium screens and up */
-            background-image: linear-gradient(to right, rgba(0, 75, 150, 0.7), rgba(0, 50, 100, 0.7)); /* Darker gradient for illustration background */
-            flex: 1; /* Takes equal space with the right panel */
-            max-width: 50%; /* Ensures 50% width on desktop */
-            min-height: 80vh; /* Ensure it takes up vertical space */
-            border-radius: 1rem; /* Rounded corners for the panel */
-            color: white;
-            text-align: center;
-            position: relative; /* For positioning the image */
-            overflow: hidden; /* Hide overflowing parts of the image */
-        }
-        .left-panel h2 {
-            @apply text-4xl font-bold mb-4 z-10; /* Bring text above image */
-            text-shadow: 2px 2px 4px rgba(0,0,0,0.5); /* Add text shadow for readability */
-        }
-        .left-panel p {
-            @apply text-xl mb-8 z-10;
-            text-shadow: 1px 1px 3px rgba(0,0,0,0.5);
-        }
-        .left-panel .illustration-img { /* Specific class for the illustration image */
-            position: absolute;
-            bottom: 0;
-            left: 50%;
-            transform: translateX(-50%);
-            width: 80%; /* Adjust size of the illustration */
-            max-width: 500px;
-            height: auto;
-            opacity: 0.9; /* Slightly transparent to blend with background */
-            z-index: 0; /* Place behind text */
-        }
-
-        /* Right section with login form */
-        .right-panel {
-            @apply flex flex-col items-center justify-center flex-1 p-8;
-            max-width: 50%; /* Ensures 50% width on desktop */
-            min-height: 80vh; /* Match height of left panel */
-            border-radius: 1rem; /* Rounded corners for the panel */
-            background-color: rgba(255, 255, 255, 0.95); /* Slightly transparent white for form background */
-            box-shadow: 0 10px 25px rgba(0,0,0,0.2); /* More prominent shadow */
-        }
-
-
-        /* Form container styling */
-        .auth-container {
-            @apply p-8 sm:p-10 rounded-xl max-w-md w-full;
-            border: 1px solid theme('colors.gray.200'); /* Subtle border */
-            /* Removed direct margin-top/bottom as it's handled by flex positioning in right-panel */
-            box-shadow: none; /* Shadow handled by right-panel */
-            background-color: transparent; /* Make it transparent to use right-panel background */
-        }
-        .auth-container h2 {
-            @apply text-3xl font-bold text-center text-blue-700 mb-6;
-        }
-        .input-group {
-            @apply relative mb-6; /* Margin between input groups */
-        }
-        .input-group input {
-            @apply w-full px-4 py-3 pl-10 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500;
-            color: #212529; /* Ensure input text is dark and readable */
-        }
-        .input-group input::placeholder {
-            color: #6c757d; /* Darker placeholder for better visibility */
-            opacity: 1; /* Ensure full opacity */
-        }
-        .input-group svg {
-            @apply absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400;
-            width: 20px;
-            height: 20px;
-        }
-        .auth-container button {
-            @apply w-full py-3 px-4 rounded-lg text-lg font-semibold text-white transition duration-300 ease-in-out transform;
-            display: flex; /* Use flex for button content alignment */
-            align-items: center;
-            justify-content: center;
-        }
-        .auth-container .primary-btn {
-            @apply bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500;
-        }
-        .auth-container .secondary-btn {
-            @apply bg-gray-500 hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-400;
-        }
-        .auth-container .link {
-            @apply text-blue-600 hover:text-blue-800 transition duration-300;
-            font-weight: 500; /* Make the link slightly bolder */
-        }
-        .message-box {
-            @apply p-3 text-center text-sm rounded-md mb-4;
-        }
-        .message-box.success {
-            @apply bg-green-100 text-green-700 border border-green-200;
-        }
-        .message-box.error {
-            @apply bg-red-100 text-red-700 border border-red-200;
-        }
-        .message-box.info {
-            @apply bg-blue-100 text-blue-700 border border-blue-200;
-        }
-
-        /* Responsive adjustments */
-        @media (max-width: 768px) {
-            .left-panel {
-                display: none; /* Hide left panel on smaller screens */
-            }
-            .right-panel {
-                max-width: 100%; /* Take full width */
-                min-height: 85vh; /* Adjust height */
-            }
-            main {
-                padding: 1rem;
-            }
-            .auth-container {
-                padding: 1.5rem;
-            }
+        .form-fade-enter, .form-fade-leave-to /* .form-fade-leave-active in <2.1.8 */ {
+            opacity: 0;
         }
     </style>
 </head>
-<body>
-    <!-- Header Section -->
-    <header class="bg-gradient-to-r from-blue-600 to-indigo-700 p-4 shadow-lg">
-        <div class="container mx-auto flex items-center justify-between">
-            <h1 class="text-white text-3xl font-bold">RCM Buddy</h1>
-            <!-- The "Login" link from previous versions is removed as it's now part of the form's context -->
-        </div>
-    </header>
+<body class="flex items-center justify-center min-h-screen">
+    <div class="bg-white p-8 rounded-xl shadow-2xl w-full max-w-md">
+        <h1 class="text-3xl font-extrabold text-center text-blue-700 mb-6">Excel Buddy</h1>
+        <p class="text-lg text-gray-600 text-center mb-8">Your ultimate companion for Excel automation, validation, and powerful tools.</p>
 
-    <!-- Main Content Section - Split Layout -->
-    <main class="container mx-auto">
-        <div class="left-panel">
-            <h2 class="text-white">Welcome to</h2>
-            <p class="text-white text-5xl font-extrabold leading-tight">RCM Buddy Claims Adjudication</p>
-            <!-- Your illustration image -->
-            <img src="image_b8be9e.jpg" alt="Claims Adjudication Illustration" class="illustration-img">
+        <!-- Toggle Buttons for Login/Register forms -->
+        <div class="flex justify-center space-x-4 mb-8">
+            <button id="showLoginBtn" class="px-6 py-3 rounded-full text-lg font-semibold transition duration-300 ease-in-out bg-blue-600 text-white shadow-md hover:bg-blue-700">
+                Login
+            </button>
+            <button id="showRegisterBtn" class="px-6 py-3 rounded-full text-lg font-semibold transition duration-300 ease-in-out bg-gray-200 text-gray-800 hover:bg-gray-300">
+                Register
+            </button>
         </div>
 
-        <div class="right-panel">
-            <div class="auth-container">
-                <h2 id="authTitle">User Login</h2> <!-- Changed to "User Login" -->
-                
-                <div id="messageBox" class="message-box hidden" role="alert"></div>
-
-                <form id="authForm" class="space-y-6">
-                    <div class="input-group">
-                        <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>
-                        <label for="username" class="sr-only">Username or Email</label>
-                        <input type="text" id="username" placeholder="Username or Email" required autocomplete="username">
-                    </div>
-                    <div class="input-group">
-                        <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v3h8z"></path></svg>
-                        <label for="password" class="sr-only">Password</label>
-                        <input type="password" id="password" placeholder="Password" required autocomplete="current-password">
-                    </div>
-                    
-                    <div class="text-right text-sm mb-4">
-                        <a href="#" class="link">Forgot Password?</a>
-                    </div>
-
-                    <button type="submit" id="submitBtn" class="primary-btn">
-                        Login
-                        <svg class="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3"></path></svg>
-                    </button>
-                </form>
-
-                <p class="text-center text-sm text-gray-600 mt-6">
-                    Don't have an account? <a href="#" id="toggleAuth" class="link">Register here</a>
-                </p>
-            </div>
+        <!-- Login Form Section -->
+        <div id="loginSection" class="form-fade-enter-active">
+            <h2 class="text-2xl font-bold text-center text-indigo-700 mb-6">Welcome Back!</h2>
+            <form id="loginForm" class="space-y-5">
+                <div>
+                    <label for="loginIdentifier" class="block text-sm font-medium text-gray-700">Username or Email</label>
+                    <input type="text" id="loginIdentifier" name="identifier" required
+                           class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-base"
+                           placeholder="your.username or your.email@example.com">
+                </div>
+                <div>
+                    <label for="loginPassword" class="block text-sm font-medium text-gray-700">Password</label>
+                    <input type="password" id="loginPassword" name="password" required
+                           class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-base"
+                           placeholder="••••••••">
+                </div>
+                <button type="submit"
+                        class="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-lg text-lg font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition duration-300 ease-in-out transform hover:-translate-y-0.5">
+                    Log In
+                </button>
+            </form>
         </div>
-    </main>
 
-    <!-- Footer Section -->
-    <footer class="bg-gray-800 text-white p-4 mt-8">
-        <div class="container mx-auto text-center text-sm">
-            &copy; 2025 RCM Buddy. All rights reserved.
+        <!-- Registration Form Section (Hidden by default) -->
+        <div id="registerSection" class="hidden form-fade-leave-to">
+            <h2 class="text-2xl font-bold text-center text-green-700 mb-6">Join Excel Buddy!</h2>
+            <form id="registerForm" class="space-y-5">
+                <div>
+                    <label for="registerCompanyName" class="block text-sm font-medium text-gray-700">Company Name</label>
+                    <input type="text" id="registerCompanyName" name="company_name" required
+                           class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-base"
+                           placeholder="Your Company Inc.">
+                </div>
+                <div>
+                    <label for="registerUsername" class="block text-sm font-medium text-gray-700">Username</label>
+                    <input type="text" id="registerUsername" name="username" required
+                           class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-base"
+                           placeholder="Choose a username">
+                </div>
+                <div>
+                    <label for="registerEmail" class="block text-sm font-medium text-gray-700">Email Address</label>
+                    <input type="email" id="registerEmail" name="email" required
+                           class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-base"
+                           placeholder="your.email@example.com">
+                </div>
+                <div>
+                    <label for="registerPassword" class="block text-sm font-medium text-gray-700">Password</label>
+                    <input type="password" id="registerPassword" name="password" required
+                           class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-base"
+                           placeholder="••••••••">
+                </div>
+                <button type="submit"
+                        class="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-lg text-lg font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition duration-300 ease-in-out transform hover:-translate-y-0.5">
+                    Register
+                </button>
+            </form>
         </div>
-    </footer>
+
+        <!-- Message Display Area for success/error messages -->
+        <p id="message" class="mt-6 text-center text-lg font-medium text-gray-800"></p>
+    </div>
 
     <script>
-        // Authentication Logic for Login/Registration Page
-        const authForm = document.getElementById('authForm');
-        const authTitle = document.getElementById('authTitle');
-        const toggleAuthBtn = document.getElementById('toggleAuth');
-        const submitBtn = document.getElementById('submitBtn');
-        const messageBox = document.getElementById('messageBox');
-        let isLogin = true; // State to track if it's currently login or registration
+        // Get references to DOM elements
+        const loginSection = document.getElementById('loginSection');
+        const registerSection = document.getElementById('registerSection');
+        const showLoginBtn = document.getElementById('showLoginBtn');
+        const showRegisterBtn = document.getElementById('showRegisterBtn');
+        const messageElement = document.getElementById('message');
 
-        function showMessage(message, type) {
-            messageBox.textContent = message;
-            messageBox.className = `message-box ${type}`; // Reset classes and add new ones
-            messageBox.classList.remove('hidden');
+        /**
+         * Displays a message to the user.
+         * @param {string} text - The message to display.
+         * @param {'info' | 'success' | 'error'} type - The type of message to determine color.
+         */
+        function showMessage(text, type = 'info') {
+            messageElement.textContent = text;
+            messageElement.className = `mt-6 text-center text-lg font-medium ${
+                type === 'success' ? 'text-green-700' :
+                type === 'error' ? 'text-red-700' :
+                'text-gray-800'
+            }`;
         }
 
-        function hideMessage() {
-            messageBox.classList.add('hidden');
-        }
+        /**
+         * Toggles visibility between the login and registration forms.
+         * @param {boolean} showLogin - True to show login, false to show registration.
+         */
+        function toggleForms(showLogin) {
+            if (showLogin) {
+                // Show login form, hide registration form
+                loginSection.classList.remove('hidden', 'form-fade-leave-to');
+                loginSection.classList.add('form-fade-enter-active');
+                registerSection.classList.add('hidden', 'form-fade-leave-to');
+                registerSection.classList.remove('form-fade-enter-active');
 
-        // Toggles between Login and Registration forms
-        toggleAuthBtn.addEventListener('click', (e) => {
-            e.preventDefault();
-            hideMessage();
-            isLogin = !isLogin;
-            if (isLogin) {
-                authTitle.textContent = 'User Login';
-                submitBtn.textContent = 'Login';
-                toggleAuthBtn.textContent = 'Register here';
-                // Remove email field if it was added for registration
-                const emailInputGroup = document.getElementById('email-group');
-                if (emailInputGroup) emailInputGroup.remove(); 
+                // Update button styles to reflect active form
+                showLoginBtn.classList.remove('bg-gray-200', 'text-gray-800');
+                showLoginBtn.classList.add('bg-blue-600', 'text-white');
+                showRegisterBtn.classList.remove('bg-green-600', 'text-white'); // Ensure register button is reset
+                showRegisterBtn.classList.add('bg-gray-200', 'text-gray-800');
             } else {
-                authTitle.textContent = 'User Registration';
-                submitBtn.textContent = 'Register';
-                toggleAuthBtn.textContent = 'Login here';
-                // Add email field for registration
-                const emailDiv = document.createElement('div');
-                emailDiv.id = 'email-group';
-                emailDiv.className = 'input-group';
-                emailDiv.innerHTML = `<svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
-                                      <label for="email" class="sr-only">Email</label>
-                                      <input type="email" id="email" placeholder="Email" required autocomplete="email">`;
-                authForm.insertBefore(emailDiv, document.getElementById('password').parentElement);
+                // Show registration form, hide login form
+                registerSection.classList.remove('hidden', 'form-fade-leave-to');
+                registerSection.classList.add('form-fade-enter-active');
+                loginSection.classList.add('hidden', 'form-fade-leave-to');
+                loginSection.classList.remove('form-fade-enter-active');
+
+                // Update button styles to reflect active form
+                showRegisterBtn.classList.remove('bg-gray-200', 'text-gray-800');
+                showRegisterBtn.classList.add('bg-green-600', 'text-white');
+                showLoginBtn.classList.remove('bg-blue-600', 'text-white'); // Ensure login button is reset
+                showLoginBtn.classList.add('bg-gray-200', 'text-gray-800');
             }
-        });
+            showMessage(''); // Clear any previous messages when switching forms
+        }
 
-        // Handles form submission (Login or Registration)
-        authForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            hideMessage();
+        // Event Listeners for form toggle buttons
+        showLoginBtn.addEventListener('click', () => toggleForms(true));
+        showRegisterBtn.addEventListener('click', () => toggleForms(false));
 
-            const usernameInput = document.getElementById('username').value.trim();
-            const passwordInput = document.getElementById('password').value.trim();
-            const emailInput = isLogin ? '' : document.getElementById('email')?.value.trim(); // Use optional chaining for email
+        // --- Handle Login Form Submission ---
+        document.getElementById('loginForm').addEventListener('submit', async function(event) {
+            event.preventDefault(); // Prevent default browser form submission
 
-            let endpoint = isLogin ? '/api/login' : '/api/register';
-            let payload = { username: usernameInput, password: passwordInput };
-
-            if (!isLogin) {
-                if (!emailInput) {
-                    showMessage('Please enter your email.', 'error');
-                    return;
-                }
-                payload = { username: usernameInput, email: emailInput, password: passwordInput, companyName: "Default Company" }; 
-            }
+            const identifier = document.getElementById('loginIdentifier').value; // Get username or email
+            const password = document.getElementById('loginPassword').value;
 
             try {
-                submitBtn.disabled = true; // Disable button during submission
-                submitBtn.textContent = isLogin ? 'Logging in...' : 'Registering...';
-                if (!isLogin) { // Add spinner for registration button
-                    submitBtn.innerHTML = `
-                        <svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                        </svg>
-                        Registering...
-                    `;
-                } else { // Add spinner for login button
-                     submitBtn.innerHTML = `
-                        <svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                        </svg>
-                        Logging in...
-                    `;
-                }
-
-
-                const response = await fetch(endpoint, {
+                // Send login data to the Netlify Function backend
+                const response = await fetch('/api/login', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
+                    // Send identifier instead of email
+                    body: JSON.stringify({ identifier, password })
                 });
 
-                const data = await response.json();
+                const data = await response.json(); // Parse the JSON response from the function
 
-                if (response.ok) {
-                    if (isLogin) {
-                        localStorage.setItem('jwtToken', data.token);
-                        showMessage('Login successful! Redirecting...', 'success');
-                        setTimeout(() => {
-                            window.location.href = '/dashboard.html'; // Redirect to dashboard
-                        }, 1000);
-                    } else {
-                        showMessage('Registration successful! Please login.', 'success');
-                        // Automatically switch to login form after successful registration
-                        isLogin = true;
-                        authTitle.textContent = 'User Login';
-                        submitBtn.textContent = 'Login';
-                        submitBtn.innerHTML = `
-                            Login
-                            <svg class="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3"></path></svg>
-                        `;
-                        toggleAuthBtn.textContent = 'Register here';
-                        const emailInputGroup = document.getElementById('email-group');
-                        if (emailInputGroup) emailInputGroup.remove();
-                    }
+                if (response.ok) { // Check if the HTTP status code is 2xx (success)
+                    showMessage('Login successful! Redirecting...', 'success');
+                    localStorage.setItem('jwtToken', data.token); // Store the JWT in local storage
+                    // Redirect to the dashboard after a short delay
+                    setTimeout(() => {
+                        window.location.href = '/dashboard.html';
+                    }, 1500);
                 } else {
-                    showMessage(data.message || `Error: ${response.statusText}`, 'error');
+                    // Display error message from the backend or a generic one
+                    showMessage(data.message || 'Login failed. Please try again.', 'error');
+                    console.error('Login error:', data.message);
                 }
             } catch (error) {
-                console.error('Network or server error:', error);
-                showMessage('Network error. Please try again later.', 'error');
-            } finally {
-                submitBtn.disabled = false;
-                // Restore button text if it was showing a spinner and not redirected
-                if (!isLogin && submitBtn.textContent !== 'Register') {
-                     submitBtn.innerHTML = `
-                        Register
-                        <svg class="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3"></path></svg>
-                    `;
-                } else if (isLogin && submitBtn.textContent !== 'Login') {
-                     submitBtn.innerHTML = `
-                        Login
-                        <svg class="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3"></path></svg>
-                    `;
-                }
+                // Catch network-level errors (e.g., server unreachable)
+                showMessage('Network error. Please check your connection.', 'error');
+                console.error('Fetch error during login:', error);
             }
         });
 
-        // Check for existing token on page load to potentially redirect
-        document.addEventListener('DOMContentLoaded', () => {
-            const token = localStorage.getItem('jwtToken');
-            if (token) {
-                // Attempt to verify token silently
-                fetch('/api/protected', {
-                    method: 'GET',
-                    headers: { 'Authorization': `Bearer ${token}` }
-                })
-                .then(response => {
-                    if (response.ok) {
-                        return response.json();
-                    } else {
-                        throw new Error('Token invalid or expired');
-                    }
-                })
-                .then(data => {
-                    // Token is valid, redirect to dashboard
-                    console.log('Token still valid. Redirecting to dashboard.');
-                    window.location.href = '/dashboard.html';
-                })
-                .catch(error => {
-                    // Token invalid, expired, or network error. Clear token and stay on login.
-                    console.error('Silent token verification failed:', error);
-                    localStorage.removeItem('jwtToken');
-                    showMessage('Your session has expired. Please log in again.', 'info');
+        // --- Handle Registration Form Submission ---
+        document.getElementById('registerForm').addEventListener('submit', async function(event) {
+            event.preventDefault(); // Prevent default browser form submission
+
+            const company_name = document.getElementById('registerCompanyName').value; // Get company name
+            const username = document.getElementById('registerUsername').value;
+            const email = document.getElementById('registerEmail').value;
+            const password = document.getElementById('registerPassword').value;
+
+            try {
+                // Send registration data to the Netlify Function backend
+                const response = await fetch('/api/register', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ company_name, username, email, password })
                 });
+
+                const data = await response.json(); // Parse the JSON response from the function
+
+                if (response.ok) { // Check if the HTTP status code is 2xx (success, specifically 201 Created)
+                    showMessage('Registration successful! Please log in with your new account.', 'success');
+                    // Optionally, pre-fill the login identifier with email
+                    document.getElementById('loginIdentifier').value = email;
+                    toggleForms(true); // Switch to the login form
+                } else {
+                    // Display error message from the backend or a generic one
+                    showMessage(data.message || 'Registration failed. Please try again.', 'error');
+                    console.error('Registration error:', data.message);
+                }
+            } catch (error) {
+                // Catch network-level errors
+                showMessage('Network error. Please check your connection.', 'error');
+                console.error('Fetch error during registration:', error);
             }
         });
+
+        // Initialize the page by showing the login form first
+        toggleForms(true);
     </script>
 </body>
 </html>
