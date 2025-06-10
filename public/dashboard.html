@@ -148,8 +148,8 @@
             <h2 class="text-2xl sm:text-3xl font-semibold text-center text-blue-700 mb-4">
                 Welcome, <span id="usernameDisplay"></span>!
             </h2>
-            <p id="companyNameDisplay" class="text-lg text-gray-700 text-center mb-6">
-                Your Company: <span>Loading company data...</span>
+            <p class="text-lg text-gray-700 text-center mb-6">
+                Your Company: <span id="actualCompanyName">Loading company data...</span>
             </p>
 
             <h3 class="text-xl sm:text-2xl font-semibold text-center text-gray-700 mb-6">
@@ -264,7 +264,8 @@
                 // Display user and company name
                 // FIX: Access username from the nested 'user' object
                 document.getElementById('usernameDisplay').textContent = userData.user.username;
-                document.getElementById('companyNameDisplay').textContent = `Your Company: ${userData.company_name}`; // This was already correct
+                // FIX: Update only the span for company name
+                document.getElementById('actualCompanyName').textContent = userData.company_name;
 
                 // Set profile link text
                 const profileLink = document.getElementById('profileLink');
