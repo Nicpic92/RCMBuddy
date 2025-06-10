@@ -418,9 +418,10 @@ input[type="file"] {
 }
 /* NEW: Ensure navigation links in the header are visible */
 header nav ul li a {
-    color: white !important; /* Force text to be white */
+    color: rgb(8, 8, 8) !important; /* Force text to be white */
 }
 header nav ul li a:hover {
     /* Use a lighter blue for hover state, adjust as needed */
     color: #bfdbfe !important; /* Tailwind's blue-200 equivalent */
 }
+
