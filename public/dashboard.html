@@ -88,6 +88,15 @@
         .tool-card.ticket-tracker a { background-color: theme('colors.orange.500'); }
         .tool-card.ticket-tracker a:hover { background-color: theme('colors.orange.600'); }
 
+        /* NEW: Tool Card for User Profile */
+        .tool-card.user-profile {
+            border-color: theme('colors.pink.200');
+            background-color: theme('colors.pink.50');
+        }
+        .tool-card.user-profile h3 { color: theme('colors.pink.600'); }
+        .tool-card.user-profile a { background-color: theme('colors.pink.500'); }
+        .tool-card.user-profile a:hover { background-color: theme('colors.pink.600'); }
+
 
         /* Styles for tools marked as 'development' (Coming Soon) */
         .development-tool {
@@ -135,7 +144,7 @@
                 <ul class="flex space-x-4">
                     <li><a href="/dashboard.html" class="text-white hover:text-blue-200 transition duration-300 active">Dashboard</a></li>
                     <li><a href="/tools.html" class="text-white hover:text-blue-200 transition duration-300">All Tools</a></li>
-                    <li><a href="#" id="profileLink" class="text-white hover:text-blue-200 transition duration-300">Profile</a></li>
+                    <li><a href="/profile.html" id="profileLink" class="text-white hover:text-blue-200 transition duration-300">Profile</a></li>
                     <li><a href="#" id="logoutBtn" class="text-white hover:text-blue-200 transition duration-300 cursor-pointer">Logout</a></li>
                 </ul>
             </nav>
@@ -200,6 +209,15 @@
                     <p class="text-gray-600 mb-4">Upload and visualize your ticket data from any Excel report with dynamic filtering and printing.</p>
                     <a href="/tools/ticket-tracker/ticket-tracker.html" class="inline-block bg-orange-500 hover:bg-orange-600 text-white font-bold py-2 px-4 rounded-full transition duration-300">
                         Launch Tracker
+                    </a>
+                </div>
+
+                <!-- NEW: Tool Card: User Profile -->
+                <div class="tool-card user-profile" data-status="ready">
+                    <h3 class="text-xl font-bold text-pink-600 mb-3">User Profile</h3>
+                    <p class="text-gray-600 mb-4">View and manage your personal account details and settings.</p>
+                    <a href="/profile.html" class="inline-block bg-pink-500 hover:bg-pink-600 text-white font-bold py-2 px-4 rounded-full transition duration-300">
+                        View Profile
                     </a>
                 </div>
 
@@ -280,7 +298,7 @@
                 const profileLink = document.getElementById('profileLink');
                 if (profileLink) {
                     profileLink.textContent = `Hello, ${userData.user.username}`;
-                    profileLink.href = '#'; // Placeholder, replace with actual profile page link if exists
+                    profileLink.href = '/profile.html'; // Direct link to the new profile page
                 }
 
             } catch (error) {
