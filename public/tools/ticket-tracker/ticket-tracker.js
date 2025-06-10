@@ -39,6 +39,7 @@ let sortDirections = {}; // Tracks sort direction for each column in each sheet
 let currentActiveTabName = ''; // Name of the currently active sheet tab
 
 let mainDataSheetName = null; // Dynamically identified name of the primary data sheet
+let mainIdColumn = null; // NEW: Stores the user-selected main ID column
 let columnHeaders = []; // Dynamically identified headers for the main data sheet
 let allSheetNames = []; // Stores all sheet names from the loaded workbook
 
@@ -86,14 +87,16 @@ function loadSavedData() {
         columnHeaders = parsedData.columnHeaders;
         sortDirections = parsedData.sortDirections || {};
         allSheetNames = Object.keys(workbookData); // Populate allSheetNames from loaded data
+        mainIdColumn = parsedData.mainIdColumn || null; // NEW: Load saved main ID column
 
         // Re-map column keys after loading saved data
-        mapColumnHeaders();
+        mapColumnHeaders(); // This will also call populateMainIdSelect
         populateMainSheetSelect(allSheetNames); // Populate the sheet selection dropdown
 
         statusDiv.innerHTML = `Displaying current report data from your last session. To update, load a new file.`;
         document.getElementById('statusFiltersContainer').style.display = 'block';
         document.getElementById('sheetSelectionContainer').style.display = 'block'; // Show sheet selection
+        document.getElementById('mainIdSelectionContainer').style.display = 'block'; // NEW: Show main ID selection
         // Only show print filters if main data exists
         document.getElementById('printFiltersContainer').style.display = (mainDataSheetName && workbookData[mainDataSheetName]?.data.length > 0) ? 'block' : 'none';
         displayUI();
@@ -102,6 +105,7 @@ function loadSavedData() {
         document.getElementById('statusFiltersContainer').style.display = 'none';
         document.getElementById('printFiltersContainer').style.display = 'none';
         document.getElementById('sheetSelectionContainer').style.display = 'none'; // Hide sheet selection
+        document.getElementById('mainIdSelectionContainer').style.display = 'none'; // NEW: Hide main ID selection
     }
     togglePrintButtonVisibility(); // Ensure print button state is correct on load
 }
@@ -117,6 +121,7 @@ function clearSavedData() {
         workbookData = {};
         sortDirections = {};
         mainDataSheetName = null;
+        mainIdColumn = null; // NEW: Clear main ID column
         columnHeaders = []; // Clear headers too
         allSheetNames = []; // Clear sheet names
         
@@ -125,6 +130,7 @@ function clearSavedData() {
         document.getElementById('statusFiltersContainer').style.display = 'none';
         document.getElementById('printFiltersContainer').style.display = 'none';
         document.getElementById('sheetSelectionContainer').style.display = 'none'; // Hide sheet selection
+        document.getElementById('mainIdSelectionContainer').style.display = 'none'; // NEW: Hide main ID selection
         document.getElementById('tabButtons').innerHTML = '';
         document.getElementById('tabContent').innerHTML = '';
         document.getElementById('dynamicStatusCheckboxes').innerHTML = ''; // Clear dynamic main status filters
@@ -134,6 +140,7 @@ function clearSavedData() {
         document.getElementById('printSortByInput').innerHTML = '<option value="">Default Sorting</option>'; // Reset print sort by filter
         currentActiveTabName = ''; // Reset active tab
         document.getElementById('mainSheetSelect').innerHTML = ''; // Clear sheet select options
+        document.getElementById('mainIdSelect').innerHTML = ''; // NEW: Clear main ID select options
     }
     togglePrintButtonVisibility(); // Ensure print button state is correct after clearing
 }
@@ -169,6 +176,7 @@ function processWorkbook(workbook) {
     workbookData = {}; // Reset workbook data
     sortDirections = {}; // Reset sort directions
     mainDataSheetName = null; // Reset main sheet name
+    mainIdColumn = null; // NEW: Reset main ID column
     columnHeaders = []; // Reset column headers
 
     // Iterate through all sheets in the workbook
@@ -226,14 +234,24 @@ function processWorkbook(workbook) {
     if (defaultMainSheet) {
         mainDataSheetName = defaultMainSheet;
         columnHeaders = workbookData[mainDataSheetName].headers;
+        // NEW: Try to find a default ID column, otherwise set to the first header
+        ID_COLUMN_KEY = findColumnName(config.columnMapping.id);
+        if (!ID_COLUMN_KEY && columnHeaders.length > 0) {
+            ID_COLUMN_KEY = columnHeaders[0]; // Fallback to the first header if no recognized ID column
+        }
+        mainIdColumn = ID_COLUMN_KEY; // Set mainIdColumn to the determined default
     } else {
         mainDataSheetName = null;
         columnHeaders = [];
+        ID_COLUMN_KEY = null;
+        mainIdColumn = null;
     }
 
-    // Populate sheet selection dropdown
+    // Populate sheet selection dropdown and main ID selection dropdown
     populateMainSheetSelect(allSheetNames);
+    populateMainIdSelect(columnHeaders); // NEW: Populate main ID dropdown after headers are set
     document.getElementById('sheetSelectionContainer').style.display = 'block'; // Show sheet selection
+    document.getElementById('mainIdSelectionContainer').style.display = 'block'; // NEW: Show main ID selection
 
     // Save the processed data to localStorage
     saveToLocalStorage();
@@ -250,7 +268,8 @@ function saveToLocalStorage() {
             workbookData: workbookData,
             mainDataSheetName: mainDataSheetName,
             columnHeaders: columnHeaders,
-            sortDirections: sortDirections
+            sortDirections: sortDirections,
+            mainIdColumn: mainIdColumn // NEW: Save mainIdColumn
         }));
         document.getElementById('status').textContent = `Successfully processed new report.`;
         document.getElementById('printFiltersContainer').style.display = (mainDataSheetName && workbookData[mainDataSheetName]?.data.length > 0) ? 'block' : 'none';
@@ -291,10 +310,76 @@ function handleSheetSelection(selectedSheetName) {
     mainDataSheetName = selectedSheetName;
     // Update columnHeaders based on the newly selected main sheet
     columnHeaders = workbookData[mainDataSheetName]?.headers || [];
-    mapColumnHeaders(); // Re-map column keys based on the new headers
-    saveToLocalStorage(); // Save the new main sheet selection
+    
+    // NEW: Reset ID_COLUMN_KEY and mainIdColumn as headers have changed
+    ID_COLUMN_KEY = null; 
+    mainIdColumn = null;
+
+    mapColumnHeaders(); // Re-map column keys based on the new headers (this calls populateMainIdSelect)
+    
+    // If after re-mapping, ID_COLUMN_KEY is still null (no recognized ID column found),
+    // and there are headers, default to the first header as the ID.
+    if (!ID_COLUMN_KEY && columnHeaders.length > 0) {
+        ID_COLUMN_KEY = columnHeaders[0];
+        mainIdColumn = ID_COLUMN_KEY;
+    } else if (ID_COLUMN_KEY) { // If a recognized ID was found, use it
+        mainIdColumn = ID_COLUMN_KEY;
+    }
+
+
+    saveToLocalStorage(); // Save the new main sheet selection and updated mainIdColumn
     displayUI(); // Re-render the UI with the new main sheet
     togglePrintButtonVisibility(); // Update print button visibility
+}
+
+/**
+ * NEW: Populates the main ID selection dropdown with headers from the current main sheet.
+ * @param {Array<string>} headers - An array of headers from the main data sheet.
+ */
+function populateMainIdSelect(headers) {
+    const selectElement = document.getElementById('mainIdSelect');
+    selectElement.innerHTML = ''; // Clear existing options
+
+    if (!headers || headers.length === 0) {
+        const option = document.createElement('option');
+        option.value = '';
+        option.textContent = 'No headers available';
+        selectElement.appendChild(option);
+        return;
+    }
+
+    headers.forEach(header => {
+        const option = document.createElement('option');
+        option.value = header;
+        option.textContent = header;
+        selectElement.appendChild(option);
+    });
+
+    // Set the dropdown to the currently identified main ID column
+    if (mainIdColumn && headers.includes(mainIdColumn)) {
+        selectElement.value = mainIdColumn;
+        ID_COLUMN_KEY = mainIdColumn; // Ensure ID_COLUMN_KEY reflects selection
+    } else if (headers.length > 0) {
+        // If mainIdColumn is not set or not found in new headers, default to the first header
+        selectElement.value = headers[0];
+        mainIdColumn = headers[0];
+        ID_COLUMN_KEY = headers[0];
+    } else {
+        // No headers at all
+        ID_COLUMN_KEY = null;
+        mainIdColumn = null;
+    }
+}
+
+/**
+ * NEW: Handles the selection of a new main ID column from the dropdown.
+ * @param {string} selectedIdColumn - The name of the column selected as the main ID.
+ */
+function handleMainIdSelection(selectedIdColumn) {
+    mainIdColumn = selectedIdColumn;
+    ID_COLUMN_KEY = selectedIdColumn; // Update the global ID_COLUMN_KEY
+    saveToLocalStorage(); // Save the new main ID selection
+    displayUI(); // Re-render the UI to reflect the new grouping
 }
 
 
@@ -304,8 +389,8 @@ function handleSheetSelection(selectedSheetName) {
  * This makes the tracker universal.
  */
 function mapColumnHeaders() {
-    // Use the findColumnName helper to set the actual header names
-    ID_COLUMN_KEY = findColumnName(config.columnMapping.id);
+    // These mappings are now primarily for fallback and specialized logic (e.g., date formatting)
+    // ID_COLUMN_KEY is now controlled by `mainIdColumn` selection
     STATUS_COLUMN_KEY = findColumnName(config.columnMapping.status);
     ACTIVITY_DESCRIPTION_KEY = findColumnName(config.columnMapping.activityDescription);
     NOTES_COLUMN_KEY = findColumnName(config.columnMapping.notes);
@@ -317,7 +402,10 @@ function mapColumnHeaders() {
     PLAN_COLUMN_KEY = findColumnName(config.columnMapping.plan);
     ASSIGNED_TO_COLUMN_KEY = findColumnName(config.columnMapping.assignedTo);
     
-    // Regenerate all dynamic filter options based on the newly mapped column keys
+    // Always repopulate main ID select here to ensure it's up to date with current headers
+    populateMainIdSelect(columnHeaders); 
+
+    // Regenerate other dynamic filter options based on the newly mapped column keys
     generateStatusFilters(); // For main view
     generatePrintStatusFilters(); // For print view
     generatePriorityFilter(); // For print view
@@ -452,8 +540,8 @@ function displayUI() {
     tabContentContainer.innerHTML = ''; // Clear existing tab content
 
     let displayableTabs = [];
-    // Only display summary if main data sheet has data
-    const hasMainData = mainDataSheetName && workbookData[mainDataSheetName] && workbookData[mainDataSheetName].data.length > 0;
+    // Only display summary if main data sheet has data AND a main ID column is selected
+    const hasMainData = mainDataSheetName && workbookData[mainDataSheetName] && workbookData[mainDataSheetName].data.length > 0 && ID_COLUMN_KEY;
 
     if (hasMainData) {
         displayableTabs.push('Summary');
@@ -476,6 +564,7 @@ function displayUI() {
         document.getElementById('statusFiltersContainer').style.display = 'none';
         document.getElementById('printFiltersContainer').style.display = 'none';
         document.getElementById('sheetSelectionContainer').style.display = 'none'; // Hide sheet selection if no data
+        document.getElementById('mainIdSelectionContainer').style.display = 'none'; // Hide main ID selection if no data
         let errorMessage = `No sheets with data found in the loaded file. Please ensure your Excel file has at least one sheet with data and a clear header row.`;
         document.getElementById('status').innerHTML = errorMessage;
         return;
@@ -485,7 +574,8 @@ function displayUI() {
     document.getElementById('main-content').style.display = 'block';
     document.getElementById('statusFiltersContainer').style.display = 'block';
     document.getElementById('sheetSelectionContainer').style.display = 'block'; // Show sheet selection
-    document.getElementById('printFiltersContainer').style.display = hasMainData ? 'block' : 'none'; // Print depends on main data
+    document.getElementById('mainIdSelectionContainer').style.display = 'block'; // Show main ID selection
+    document.getElementById('printFiltersContainer').style.display = hasMainData ? 'block' : 'none'; // Print depends on main data and ID
     document.getElementById('status').textContent = 'Current report data loaded. Select a tab to view.';
     
     // Create tab buttons and corresponding content panes
@@ -680,14 +770,20 @@ function generateSummaryFilterInputsHTML() {
 
 /**
  * Groups an array of data items by their ID column.
+ * Uses the dynamically selected `ID_COLUMN_KEY`.
  * @param {Array<Object>} data - The array of data items (rows).
  * @returns {Object} An object where keys are IDs and values are arrays of items belonging to that ID.
  */
 function groupDataById(data) {
     const grouped = {};
+    if (!ID_COLUMN_KEY) {
+        console.warn("ID_COLUMN_KEY is not defined. Cannot group data.");
+        // Return an empty object or handle as needed if no ID column is set.
+        // For display, we might want to group by a generic index if no ID is selected.
+        return { "No ID Column Selected": data };
+    }
     data.forEach(item => {
-        // Use the identified ID column key, default to 'No ID' if not found
-        const id = ID_COLUMN_KEY && item[ID_COLUMN_KEY] ? String(item[ID_COLUMN_KEY]).trim() : 'No ID';
+        const id = item[ID_COLUMN_KEY] ? String(item[ID_COLUMN_KEY]).trim() : 'No ' + ID_COLUMN_KEY;
         if (!grouped[id]) {
             grouped[id] = [];
         }
@@ -703,8 +799,9 @@ function groupDataById(data) {
  * @returns {string} The HTML string for the Summary view.
  */
 function generateSummaryViewHTML() {
-    if (!mainDataSheetName || !workbookData[mainDataSheetName] || workbookData[mainDataSheetName].data.length === 0) {
-        return `<p>No data available in "${mainDataSheetName}" to summarize.</p>`;
+    // Check if mainDataSheetName and workbookData[mainDataSheetName] exist, and also if ID_COLUMN_KEY is set.
+    if (!mainDataSheetName || !workbookData[mainDataSheetName] || workbookData[mainDataSheetName].data.length === 0 || !ID_COLUMN_KEY) {
+        return `<p>No data available in "${mainDataSheetName}" to summarize, or no Main ID Column selected.</p>`;
     }
 
     const data = workbookData[mainDataSheetName].data;
@@ -789,7 +886,7 @@ function showTab(tabName) {
     const paneElement = document.getElementById(paneId);
     if (paneElement) {
         // Render content based on tab type
-        if (tabName === 'Summary' && mainDataSheetName && workbookData[mainDataSheetName]) {
+        if (tabName === 'Summary' && mainDataSheetName && workbookData[mainDataSheetName] && ID_COLUMN_KEY) {
             paneElement.innerHTML = generateSummaryFilterInputsHTML() + generateSummaryViewHTML();
         } else if (workbookData[tabName]) {
             paneElement.innerHTML = generateTableHTML(tabName);
@@ -1052,8 +1149,8 @@ function generatePrintSubItemHtml(item) {
  */
 function togglePrintButtonVisibility() {
     const printButton = document.getElementById('printPriorityButton');
-    // Enable print button only if main data sheet has data
-    if (mainDataSheetName && workbookData[mainDataSheetName] && workbookData[mainDataSheetName].data.length > 0) {
+    // Enable print button only if main data sheet has data AND a main ID column is selected
+    if (mainDataSheetName && workbookData[mainDataSheetName] && workbookData[mainDataSheetName].data.length > 0 && ID_COLUMN_KEY) {
         printButton.disabled = false;
     } else {
         printButton.disabled = true;
@@ -1068,8 +1165,8 @@ function togglePrintButtonVisibility() {
 function handlePrint() { // Renamed from handlePrintView
     console.log("handlePrint called."); // Debugging: Confirm function call
 
-    if (!mainDataSheetName || !workbookData[mainDataSheetName] || workbookData[mainDataSheetName].data.length === 0) {
-        alert("No data available to print. Please load an Excel file with data.");
+    if (!mainDataSheetName || !workbookData[mainDataSheetName] || workbookData[mainDataSheetName].data.length === 0 || !ID_COLUMN_KEY) {
+        alert("No data available to print or no Main ID Column selected. Please load an Excel file with data and select a Main ID Column.");
         return;
     }
 
@@ -1089,13 +1186,22 @@ function handlePrint() { // Renamed from handlePrintView
         const assignedTo = ASSIGNED_TO_COLUMN_KEY ? String(item[ASSIGNED_TO_COLUMN_KEY] || '').trim().toLowerCase() : '';
         const priority = PRIORITY_COLUMN_KEY ? String(item[PRIORITY_COLUMN_KEY] || '').trim().toLowerCase() : '';
 
+        // Apply Plan filter
         const planMatch = !planFilterText || plan.includes(planFilterText);
+        
+        // Apply Assigned To filter
         const assignedToMatch = !assignedToFilterText || assignedTo.includes(assignedToFilterText);
+
+        // Apply Priority filter
         const priorityMatch = !priorityFilterValue || 
                               (priorityFilterValue === 'needs priority!' && (priority === '' || priority === 'needs priority!')) ||
                               (priorityFilterValue !== 'needs priority!' && priority === priorityFilterValue);
+
+        // Apply Status hide filters - only hide if checkbox is checked
         const isStatusHidden = printStatusesToHide.includes(status);
 
+        // IMPORTANT: Removed default exclusion for config.defaultExcludedStatusesForSummary here.
+        // Now, *only* statuses checked in the 'Hide Statuses' checkboxes will be hidden.
         return planMatch && assignedToMatch && priorityMatch && !isStatusHidden;
     });
 
@@ -1106,17 +1212,26 @@ function handlePrint() { // Renamed from handlePrintView
 
     let printHtml = '<div id="print-area">';
 
+    /**
+     * Helper function to build a single print section (e.g., "Priority Tasks").
+     * @param {string} title - The title of the print section.
+     * @param {Function} dataFilterFn - A function to filter items specific to this section.
+     * @param {Function} defaultSectionSortFn - The default sorting function for this section if no global sort is applied.
+     * @returns {string} HTML for the print section.
+     */
     const buildPrintSection = (title, dataFilterFn, defaultSectionSortFn) => {
+        // Include current filter summaries in the section title
         let filterSummary = [];
         if (planFilterText && PLAN_COLUMN_KEY) filterSummary.push(`Plan: "${document.getElementById('printPlanFilterInput').value}"`);
         if (assignedToFilterText && ASSIGNED_TO_COLUMN_KEY) filterSummary.push(`Assigned To: "${document.getElementById('printAssignedToFilterInput').value}"`);
         if (priorityFilterValue && PRIORITY_COLUMN_KEY) filterSummary.push(`Priority: "${document.getElementById('printPriorityFilterInput').value}"`);
-        if (printSortByColumn) filterSummary.push(`Sorted by: "${printSortByColumn}"`);
+        if (printSortByColumn) filterSummary.push(`Sorted by: "${printSortByColumn}"`); // Add global sort to summary
 
         let sectionTitleSuffix = filterSummary.length > 0 ? ` (${filterSummary.join(', ')})` : '';
 
         let sectionHtml = `<div class="print-section"><h2>${title}${sectionTitleSuffix}</h2>`;
         
+        // Filter items specifically for this section, starting from the already initially filtered data
         let sectionItems = initialFilteredData.filter(dataFilterFn);
 
         if (sectionItems.length === 0) {
@@ -1126,33 +1241,40 @@ function handlePrint() { // Renamed from handlePrintView
 
         const groupedSectionItems = groupDataById(sectionItems);
 
+        // Determine the primary sorting function for the SR # groups
         const primaryGroupSortFn = (idA, idB) => {
-            const itemA = groupedSectionItems[idA][0];
+            const itemA = groupedSectionItems[idA][0]; // Take first item of group for sorting criteria
             const itemB = groupedSectionItems[idB][0];
 
+            // 1. Apply global print sort column first, if selected
             if (printSortByColumn && columnHeaders.includes(printSortByColumn)) {
-                const valA = itemA[printSortByColumn];
+                const valA = itemA[printSortByColumn]; // Get raw value for comparison
                 const valB = itemB[printSortByColumn];
 
+                // Determine if it's a date column for oldest-first (ascending)
                 const isDateColumn = [START_DATE_KEY, ETA_COLUMN_KEY, COMPLETION_DATE_KEY].includes(printSortByColumn);
 
                 if (isDateColumn) {
+                    // Convert Excel date serial numbers to a comparable number (milliseconds since epoch)
                     const dateValA = typeof valA === 'number' && valA > 20000 ? 
                         new Date(Math.round((valA - 25569) * 86400 * 1000)).getTime() : Infinity;
                     const dateValB = typeof valB === 'number' && valB > 20000 ? 
                         new Date(Math.round((valB - 25569) * 86400 * 1000)).getTime() : Infinity;
                     
+                    // Handle null/undefined dates by pushing them to the end
                     if (dateValA === Infinity && dateValB === Infinity) return 0;
                     if (dateValA === Infinity) return 1;
                     if (dateValB === Infinity) return -1;
 
-                    if (dateValA !== dateValB) return dateValA - dateValB;
+                    if (dateValA !== dateValB) return dateValA - dateValB; // Oldest first (ascending)
                 } else {
+                    // Attempt numeric sort for other columns
                     const numValA = parseFloat(valA);
                     const numValB = parseFloat(valB);
-                    if (!isNaN(numValA) && !isNaN(numValB) && (typeof valA === 'number' || !isNaN(parseFloat(valA))) && (typeof valB === 'number' || !isNaN(parseFloat(valB)))) {
-                        if (numValA !== numValB) return numValA - numValB;
+                    if (!isNaN(numValA) && !isNaN(numValB) && (typeof valA === 'number' || !isNaN(parseFloat(valA))) && (typeof valB === 'number' || !isNaN(parseFloat(valB)))) { // Ensure values are truly numeric
+                        if (numValA !== numValB) return numValA - numValB; // Numeric ascending
                     } else {
+                        // Fallback to string sort
                         const strA = String(valA || '').toLowerCase();
                         const strB = String(valB || '').toLowerCase();
                         if (strA < strB) return -1;
@@ -1161,9 +1283,11 @@ function handlePrint() { // Renamed from handlePrintView
                 }
             }
             
+            // 2. Fallback to section-specific sort if no global sort column selected or if global sort resulted in a tie
             const sectionSortResult = defaultSectionSortFn(itemA, itemB);
             if (sectionSortResult !== 0) return sectionSortResult;
 
+            // 3. Final fallback: Sort by ID numerically, then alphabetically (for stable order)
             const numA = parseInt(idA, 10);
             const numB = parseInt(idB, 10);
             if (!isNaN(numA) && !isNaN(numB)) {
@@ -1172,6 +1296,7 @@ function handlePrint() { // Renamed from handlePrintView
             return idA.localeCompare(idB);
         };
 
+        // Group by Plan first if requested, otherwise directly sort by ID groups
         if (groupByPlan && PLAN_COLUMN_KEY) {
             const plans = [...new Set(sectionItems.map(item => String(item[PLAN_COLUMN_KEY] || 'Unspecified Plan')))].sort();
             
@@ -1181,11 +1306,13 @@ function handlePrint() { // Renamed from handlePrintView
                     sectionHtml += `<h3 class="plan-subheader">Plan: ${planName}</h3>`;
                     const groupedItemsForPlan = groupDataById(itemsForPlan);
                     
+                    // Sort IDs within each plan group using the determined primaryGroupSortFn
                     const sortedIdsForPlan = Object.keys(groupedItemsForPlan).sort(primaryGroupSortFn);
 
                     sortedIdsForPlan.forEach(id => {
                         sectionHtml += `<div class="print-item">`;
                         sectionHtml += `<h4 class="print-item-group-header">${ID_COLUMN_KEY || 'ID'}: ${id}</h4>`;
+                        // Sort sub-items within each ID group by Activity Description
                         if (ACTIVITY_DESCRIPTION_KEY) {
                             groupedItemsForPlan[id].sort((a, b) => (a[ACTIVITY_DESCRIPTION_KEY] || '').localeCompare(b[ACTIVITY_DESCRIPTION_KEY] || ''));
                         }
@@ -1196,12 +1323,13 @@ function handlePrint() { // Renamed from handlePrintView
                     });
                 }
             });
-        } else {
+        } else { // Not grouping by plan, just by ID (applying primaryGroupSortFn)
             const sortedIds = Object.keys(groupedSectionItems).sort(primaryGroupSortFn);
 
             sortedIds.forEach(id => {
                 sectionHtml += `<div class="print-item">`;
                 sectionHtml += `<h4 class="print-item-group-header">${ID_COLUMN_KEY || 'ID'}: ${id}</h4>`;
+                // Sort sub-items within each ID group by Activity Description
                 if (ACTIVITY_DESCRIPTION_KEY) {
                      groupedSectionItems[id].sort((a, b) => (a[ACTIVITY_DESCRIPTION_KEY] || '').localeCompare(b[ACTIVITY_DESCRIPTION_KEY] || ''));
                 }
@@ -1212,33 +1340,38 @@ function handlePrint() { // Renamed from handlePrintView
                 sectionHtml += `</div>`;
             });
         }
-        sectionHtml += '</div><div class="page-break"></div>';
+        sectionHtml += '</div><div class="page-break"></div>'; // Add a page break after each section
         return sectionHtml;
     };
 
+    // Defines the sorting function for "Priority Tasks" section (default when no global sort selected)
     const prioritySortFn = (a, b) => {
-        if (!PRIORITY_COLUMN_KEY) return 0;
+        if (!PRIORITY_COLUMN_KEY) return 0; // If no priority column, no special sorting
 
-        const priorityA = config.priorityLevels[String(a[PRIORITY_COLUMN_KEY] || '').trim().toLowerCase()] || 99;
+        // Map priority keywords to numeric values for comparison
+        const priorityA = config.priorityLevels[String(a[PRIORITY_COLUMN_KEY] || '').trim().toLowerCase()] || 99; // Default to high number for unknown priority
         const priorityB = config.priorityLevels[String(b[PRIORITY_COLUMN_KEY] || '').trim().toLowerCase()] || 99;
         if (priorityA !== priorityB) return priorityA - priorityB;
 
+        // Fallback to Start Date if priorities are equal
         const dateA = START_DATE_KEY && typeof a[START_DATE_KEY] === 'number' ? a[START_DATE_KEY] : Infinity;
         const dateB = START_DATE_KEY && typeof b[START_DATE_KEY] === 'number' ? b[START_DATE_KEY] : Infinity;
         return dateA - dateB;
     };
 
+    // Defines the sorting function for date-based sections (default when no global sort selected)
     const dateSortFn = (a, b) => {
-        if (!START_DATE_KEY) return 0;
+        if (!START_DATE_KEY) return 0; // If no start date column, no special sorting
         const dateA = typeof a[START_DATE_KEY] === 'number' ? a[START_DATE_KEY] : Infinity;
         const dateB = typeof b[START_DATE_KEY] === 'number' ? b[START_DATE_KEY] : Infinity;
         return dateA - dateB;
     };
 
+    // Define the different print sections with their titles, filters, and default sort functions
     const printSections = [
         {
             title: 'Priority Tasks to be Completed Next',
-            filter: item => true,
+            filter: item => true, // No default filtering here, all filtering happens in initialFilteredData
             sort: prioritySortFn
         },
         {
@@ -1253,12 +1386,14 @@ function handlePrint() { // Renamed from handlePrintView
         }
     ];
 
+    // Build print HTML for each defined section
     printSections.forEach(section => {
         printHtml += buildPrintSection(section.title, section.filter, section.sort);
     });
     
-    printHtml += '</div>';
+    printHtml += '</div>'; // Close print-area
 
+    // Create an invisible iframe to handle printing
     const iframe = document.createElement('iframe');
     iframe.style.height = '0';
     iframe.style.width = '0';
