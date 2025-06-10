@@ -6,12 +6,12 @@
     <title>Welcome - RCM Buddy</title>
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Google Fonts - Inter -->
+    <!-- Google Fonts - Inter (You might want to replace with a font similar to the example image) -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         /* General body and font styling */
         body {
-            font-family: 'Inter', sans-serif;
+            font-family: 'Inter', sans-serif; /* Keep Inter, or replace with a font from the example if identified */
             color: #212529; /* Default text color */
             /* Background image and styling for the entire body */
             background-image: url('181603687.png'); /* Path to your background image */
@@ -22,6 +22,7 @@
             display: flex;
             flex-direction: column;
             min-height: 100vh; /* Ensure body takes full viewport height */
+            overflow-x: hidden; /* Prevent horizontal scroll on small screens */
         }
 
         /* Header styling (consistent with other pages) */
@@ -43,47 +44,91 @@
             background-color: rgba(255, 255, 255, 0.15); /* Slightly darker background for active */
         }
 
-
-        /* Main content area styling */
+        /* Main content area styling for the split layout */
         main {
-            @apply flex-grow container mx-auto p-4 sm:p-6 lg:p-8 flex items-center justify-center;
-            position: relative; /* Needed for the pseudo-element overlay */
-            z-index: 1; /* Ensure content is above the overlay */
+            @apply flex-grow flex items-center justify-center p-4 sm:p-6 lg:p-8;
+            /* Using flex instead of grid for simpler 50/50 split and responsiveness */
+            position: relative; /* For pseudo-element overlay if needed below */
+            z-index: 1;
         }
-        /* Overlay for main content area to improve form readability on busy backgrounds */
-        main::before {
-            content: '';
+
+        /* Left section with welcome message and illustration */
+        .left-panel {
+            @apply hidden md:flex flex-col items-center justify-center p-8;
+            /* md:flex makes it visible on medium screens and up */
+            background-image: linear-gradient(to right, rgba(0, 75, 150, 0.7), rgba(0, 50, 100, 0.7)); /* Darker gradient for illustration background */
+            flex: 1; /* Takes equal space with the right panel */
+            max-width: 50%; /* Ensures 50% width on desktop */
+            min-height: 80vh; /* Ensure it takes up vertical space */
+            border-radius: 1rem; /* Rounded corners for the panel */
+            color: white;
+            text-align: center;
+            position: relative; /* For positioning the image */
+            overflow: hidden; /* Hide overflowing parts of the image */
+        }
+        .left-panel h2 {
+            @apply text-4xl font-bold mb-4 z-10; /* Bring text above image */
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5); /* Add text shadow for readability */
+        }
+        .left-panel p {
+            @apply text-xl mb-8 z-10;
+            text-shadow: 1px 1px 3px rgba(0,0,0,0.5);
+        }
+        .left-panel img {
             position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
             bottom: 0;
-            background-color: rgba(0, 0, 0, 0.3); /* Dark semi-transparent overlay */
-            z-index: -1; /* Place behind content but above background image */
-            border-radius: 8px; /* Match form container's border radius if desired */
+            left: 50%;
+            transform: translateX(-50%);
+            width: 80%; /* Adjust size of the illustration */
+            max-width: 500px;
+            height: auto;
+            opacity: 0.9; /* Slightly transparent to blend with background */
+            z-index: 0; /* Place behind text */
+        }
+
+        /* Right section with login form */
+        .right-panel {
+            @apply flex flex-col items-center justify-center flex-1 p-8;
+            max-width: 50%; /* Ensures 50% width on desktop */
+            min-height: 80vh; /* Match height of left panel */
+            border-radius: 1rem; /* Rounded corners for the panel */
+            background-color: rgba(255, 255, 255, 0.95); /* Slightly transparent white for form background */
+            box-shadow: 0 10px 25px rgba(0,0,0,0.2); /* More prominent shadow */
         }
 
 
         /* Form container styling */
         .auth-container {
-            @apply bg-white p-8 sm:p-10 rounded-xl shadow-2xl max-w-md w-full;
+            @apply p-8 sm:p-10 rounded-xl max-w-md w-full;
             border: 1px solid theme('colors.gray.200'); /* Subtle border */
-            margin-top: 2rem; /* Add some top margin to push it down from the header */
-            margin-bottom: 2rem; /* Add some bottom margin to separate from footer */
+            /* Removed direct margin-top/bottom as it's handled by flex positioning in right-panel */
+            box-shadow: none; /* Shadow handled by right-panel */
+            background-color: transparent; /* Make it transparent to use right-panel background */
         }
         .auth-container h2 {
             @apply text-3xl font-bold text-center text-blue-700 mb-6;
         }
-        .auth-container input {
-            @apply w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500;
+        .input-group {
+            @apply relative mb-6; /* Margin between input groups */
+        }
+        .input-group input {
+            @apply w-full px-4 py-3 pl-10 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500;
             color: #212529; /* Ensure input text is dark and readable */
         }
-        .auth-container input::placeholder {
+        .input-group input::placeholder {
             color: #6c757d; /* Darker placeholder for better visibility */
             opacity: 1; /* Ensure full opacity */
         }
+        .input-group svg {
+            @apply absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400;
+            width: 20px;
+            height: 20px;
+        }
         .auth-container button {
             @apply w-full py-3 px-4 rounded-lg text-lg font-semibold text-white transition duration-300 ease-in-out transform;
+            display: flex; /* Use flex for button content alignment */
+            align-items: center;
+            justify-content: center;
         }
         .auth-container .primary-btn {
             @apply bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500;
@@ -107,6 +152,23 @@
         .message-box.info {
             @apply bg-blue-100 text-blue-700 border border-blue-200;
         }
+
+        /* Responsive adjustments */
+        @media (max-width: 768px) {
+            .left-panel {
+                display: none; /* Hide left panel on smaller screens */
+            }
+            .right-panel {
+                max-width: 100%; /* Take full width */
+                min-height: 85vh; /* Adjust height */
+            }
+            main {
+                padding: 1rem;
+            }
+            .auth-container {
+                padding: 1.5rem;
+            }
+        }
     </style>
 </head>
 <body>
@@ -114,38 +176,54 @@
     <header class="bg-gradient-to-r from-blue-600 to-indigo-700 p-4 shadow-lg">
         <div class="container mx-auto flex items-center justify-between">
             <h1 class="text-white text-3xl font-bold">RCM Buddy</h1>
-            <!-- Navigation not typically present on login page, but keeping consistent structure for future if needed -->
-            <nav>
-                <ul class="flex space-x-4">
-                    <li><a href="/" class="text-white hover:text-blue-200 transition duration-300 active">Login</a></li>
-                    <!-- Registration link could be here, or handled by a button on the login form itself -->
-                </ul>
-            </nav>
+            <!-- The "Login" link from previous versions is removed as it's now part of the form's context -->
         </div>
     </header>
 
-    <!-- Main Content Section - Login/Registration Form -->
-    <main>
-        <div class="auth-container">
-            <h2 id="authTitle">Login to RCM Buddy</h2>
-            
-            <div id="messageBox" class="message-box hidden" role="alert"></div>
+    <!-- Main Content Section - Split Layout -->
+    <main class="container mx-auto">
+        <div class="left-panel">
+            <h2 class="text-white">Welcome to</h2>
+            <p class="text-white text-5xl font-extrabold leading-tight">Claims Adjudication</p>
+            <!-- Placeholder for your illustration -->
+            <img src="https://placehold.co/500x300/ffffff/000000?text=Your+Illustration+Here" alt="Claims Adjudication Illustration">
+            <!-- Replace the above with your actual image, e.g.:
+            <img src="path/to/your/illustration.png" alt="Claims Adjudication Illustration">
+            -->
+        </div>
 
-            <form id="authForm" class="space-y-6">
-                <div>
-                    <label for="username" class="sr-only">Username or Email</label>
-                    <input type="text" id="username" placeholder="Username or Email" required autocomplete="username" class="focus:ring-blue-500 focus:border-blue-500">
-                </div>
-                <div>
-                    <label for="password" class="sr-only">Password</label>
-                    <input type="password" id="password" placeholder="Password" required autocomplete="current-password" class="focus:ring-blue-500 focus:border-blue-500">
-                </div>
-                <button type="submit" id="submitBtn" class="primary-btn">Login</button>
-            </form>
+        <div class="right-panel">
+            <div class="auth-container">
+                <h2 id="authTitle">User Login</h2> <!-- Changed to "User Login" -->
+                
+                <div id="messageBox" class="message-box hidden" role="alert"></div>
 
-            <p class="text-center text-sm text-gray-600 mt-6">
-                Don't have an account? <a href="#" id="toggleAuth" class="link">Register here</a>
-            </p>
+                <form id="authForm" class="space-y-6">
+                    <div class="input-group">
+                        <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>
+                        <label for="username" class="sr-only">Username or Email</label>
+                        <input type="text" id="username" placeholder="Username or Email" required autocomplete="username">
+                    </div>
+                    <div class="input-group">
+                        <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v3h8z"></path></svg>
+                        <label for="password" class="sr-only">Password</label>
+                        <input type="password" id="password" placeholder="Password" required autocomplete="current-password">
+                    </div>
+                    
+                    <div class="text-right text-sm mb-4">
+                        <a href="#" class="link">Forgot Password?</a>
+                    </div>
+
+                    <button type="submit" id="submitBtn" class="primary-btn">
+                        Login
+                        <svg class="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3"></path></svg>
+                    </button>
+                </form>
+
+                <p class="text-center text-sm text-gray-600 mt-6">
+                    Don't have an account? <a href="#" id="toggleAuth" class="link">Register here</a>
+                </p>
+            </div>
         </div>
     </main>
 
@@ -181,20 +259,23 @@
             hideMessage();
             isLogin = !isLogin;
             if (isLogin) {
-                authTitle.textContent = 'Login to RCM Buddy';
+                authTitle.textContent = 'User Login';
                 submitBtn.textContent = 'Login';
                 toggleAuthBtn.textContent = 'Register here';
                 // Remove email field if it was added for registration
-                const emailInput = document.getElementById('email');
-                if (emailInput) emailInput.parentElement.remove(); 
+                const emailInputGroup = document.getElementById('email-group');
+                if (emailInputGroup) emailInputGroup.remove(); 
             } else {
-                authTitle.textContent = 'Register for RCM Buddy';
+                authTitle.textContent = 'User Registration';
                 submitBtn.textContent = 'Register';
                 toggleAuthBtn.textContent = 'Login here';
                 // Add email field for registration
                 const emailDiv = document.createElement('div');
-                emailDiv.innerHTML = `<label for="email" class="sr-only">Email</label>
-                                      <input type="email" id="email" placeholder="Email" required autocomplete="email" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500">`;
+                emailDiv.id = 'email-group';
+                emailDiv.className = 'input-group';
+                emailDiv.innerHTML = `<svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
+                                      <label for="email" class="sr-only">Email</label>
+                                      <input type="email" id="email" placeholder="Email" required autocomplete="email">`;
                 authForm.insertBefore(emailDiv, document.getElementById('password').parentElement);
             }
         });
@@ -206,7 +287,7 @@
 
             const usernameInput = document.getElementById('username').value.trim();
             const passwordInput = document.getElementById('password').value.trim();
-            const emailInput = isLogin ? '' : document.getElementById('email').value.trim();
+            const emailInput = isLogin ? '' : document.getElementById('email')?.value.trim(); // Use optional chaining for email
 
             let endpoint = isLogin ? '/api/login' : '/api/register';
             let payload = { username: usernameInput, password: passwordInput };
@@ -216,17 +297,30 @@
                     showMessage('Please enter your email.', 'error');
                     return;
                 }
-                // Add a placeholder for company name, as registration needs it on the backend
-                // This would ideally be a separate input field on the registration form
-                // For now, let's assume a default or infer it if necessary, or simplify for demo.
-                // Assuming backend creates a default company or handles missing company name gracefully.
-                // If company name is required for registration, you MUST add an input for it here.
                 payload = { username: usernameInput, email: emailInput, password: passwordInput, companyName: "Default Company" }; 
             }
 
             try {
                 submitBtn.disabled = true; // Disable button during submission
                 submitBtn.textContent = isLogin ? 'Logging in...' : 'Registering...';
+                if (!isLogin) { // Add spinner for registration button
+                    submitBtn.innerHTML = `
+                        <svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        Registering...
+                    `;
+                } else { // Add spinner for login button
+                     submitBtn.innerHTML = `
+                        <svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        Logging in...
+                    `;
+                }
+
 
                 const response = await fetch(endpoint, {
                     method: 'POST',
@@ -247,11 +341,15 @@
                         showMessage('Registration successful! Please login.', 'success');
                         // Automatically switch to login form after successful registration
                         isLogin = true;
-                        authTitle.textContent = 'Login to RCM Buddy';
+                        authTitle.textContent = 'User Login';
                         submitBtn.textContent = 'Login';
+                        submitBtn.innerHTML = `
+                            Login
+                            <svg class="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3"></path></svg>
+                        `;
                         toggleAuthBtn.textContent = 'Register here';
-                        const emailInputElem = document.getElementById('email');
-                        if (emailInputElem) emailInputElem.parentElement.remove();
+                        const emailInputGroup = document.getElementById('email-group');
+                        if (emailInputGroup) emailInputGroup.remove();
                     }
                 } else {
                     showMessage(data.message || `Error: ${response.statusText}`, 'error');
@@ -261,8 +359,17 @@
                 showMessage('Network error. Please try again later.', 'error');
             } finally {
                 submitBtn.disabled = false;
-                if (!isLogin) { // Restore original text if still in registration mode
-                    submitBtn.textContent = 'Register';
+                // Restore button text if it was showing a spinner and not redirected
+                if (!isLogin && submitBtn.textContent !== 'Register') {
+                     submitBtn.innerHTML = `
+                        Register
+                        <svg class="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3"></path></svg>
+                    `;
+                } else if (isLogin && submitBtn.textContent !== 'Login') {
+                     submitBtn.innerHTML = `
+                        Login
+                        <svg class="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3"></path></svg>
+                    `;
                 }
             }
         });
