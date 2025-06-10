@@ -865,7 +865,7 @@ function sortTable(sheetName, header) {
             const strA = String(aValue).toLowerCase();
             const strB = String(bValue).toLowerCase();
             if (strA < strB) return sortDirections[directionKey] ? -1 : 1;
-            if (strA > strB) return sortDirections[directionKey] ? 1 : -1;
+            if (strA > strB) return 1;
         }
         return 0; // Values are equal
     });
@@ -1065,9 +1065,10 @@ function togglePrintButtonVisibility() {
  * Generates and triggers the print view of the tracker data.
  * Filters and groups data based on user selections (Plan filter, Group by Plan, etc.).
  */
-function handlePrintView() {
+function handlePrint() { // Renamed from handlePrintView
+    console.log("handlePrint called."); // Debugging: Confirm function call
+
     if (!mainDataSheetName || !workbookData[mainDataSheetName] || workbookData[mainDataSheetName].data.length === 0) {
-        // Using alert here as it's a direct user action requiring immediate feedback
         alert("No data available to print. Please load an Excel file with data.");
         return;
     }
@@ -1076,67 +1077,46 @@ function handlePrintView() {
     const planFilterText = document.getElementById('printPlanFilterInput').value.trim().toLowerCase();
     const assignedToFilterText = document.getElementById('printAssignedToFilterInput').value.trim().toLowerCase();
     const priorityFilterValue = document.getElementById('printPriorityFilterInput').value.trim().toLowerCase();
-    const printSortByColumn = document.getElementById('printSortByInput').value; // Get the selected sort column
-    const groupByPlan = document.getElementById('printGroupByPlanCheckbox').checked; // Still exist for conditional grouping
+    const printSortByColumn = document.getElementById('printSortByInput').value;
+    const groupByPlan = document.getElementById('printGroupByPlanCheckbox').checked;
 
-    // Get active status hide checkboxes for print view
     const printHideStatusCheckboxes = document.querySelectorAll('#dynamicPrintStatusCheckboxes input[type="checkbox"]:checked');
     const printStatusesToHide = Array.from(printHideStatusCheckboxes).map(cb => cb.dataset.statusValue);
 
-    // First, filter all data based on all applied print filters
     let initialFilteredData = data.filter(item => {
         const status = STATUS_COLUMN_KEY ? String(item[STATUS_COLUMN_KEY] || '').toLowerCase() : '';
         const plan = PLAN_COLUMN_KEY ? String(item[PLAN_COLUMN_KEY] || '').trim().toLowerCase() : '';
         const assignedTo = ASSIGNED_TO_COLUMN_KEY ? String(item[ASSIGNED_TO_COLUMN_KEY] || '').trim().toLowerCase() : '';
         const priority = PRIORITY_COLUMN_KEY ? String(item[PRIORITY_COLUMN_KEY] || '').trim().toLowerCase() : '';
 
-        // Apply Plan filter
         const planMatch = !planFilterText || plan.includes(planFilterText);
-        
-        // Apply Assigned To filter
         const assignedToMatch = !assignedToFilterText || assignedTo.includes(assignedToFilterText);
-
-        // Apply Priority filter
         const priorityMatch = !priorityFilterValue || 
                               (priorityFilterValue === 'needs priority!' && (priority === '' || priority === 'needs priority!')) ||
                               (priorityFilterValue !== 'needs priority!' && priority === priorityFilterValue);
-
-        // Apply Status hide filters - only hide if checkbox is checked
         const isStatusHidden = printStatusesToHide.includes(status);
 
-        // IMPORTANT: Removed default exclusion for config.defaultExcludedStatusesForSummary here.
-        // Now, *only* statuses checked in the 'Hide Statuses' checkboxes will be hidden.
         return planMatch && assignedToMatch && priorityMatch && !isStatusHidden;
     });
 
     if (initialFilteredData.length === 0) {
-        // Using alert here as it's a direct user action requiring immediate feedback
         alert("No items found to print based on the current filter selections. Please adjust your filters.");
         return;
     }
 
     let printHtml = '<div id="print-area">';
 
-    /**
-     * Helper function to build a single print section (e.g., "Priority Tasks").
-     * @param {string} title - The title of the print section.
-     * @param {Function} dataFilterFn - A function to filter items specific to this section.
-     * @param {Function} defaultSectionSortFn - The default sorting function for this section if no global sort is applied.
-     * @returns {string} HTML for the print section.
-     */
     const buildPrintSection = (title, dataFilterFn, defaultSectionSortFn) => {
-        // Include current filter summaries in the section title
         let filterSummary = [];
         if (planFilterText && PLAN_COLUMN_KEY) filterSummary.push(`Plan: "${document.getElementById('printPlanFilterInput').value}"`);
         if (assignedToFilterText && ASSIGNED_TO_COLUMN_KEY) filterSummary.push(`Assigned To: "${document.getElementById('printAssignedToFilterInput').value}"`);
         if (priorityFilterValue && PRIORITY_COLUMN_KEY) filterSummary.push(`Priority: "${document.getElementById('printPriorityFilterInput').value}"`);
-        if (printSortByColumn) filterSummary.push(`Sorted by: "${printSortByColumn}"`); // Add global sort to summary
+        if (printSortByColumn) filterSummary.push(`Sorted by: "${printSortByColumn}"`);
 
         let sectionTitleSuffix = filterSummary.length > 0 ? ` (${filterSummary.join(', ')})` : '';
 
         let sectionHtml = `<div class="print-section"><h2>${title}${sectionTitleSuffix}</h2>`;
         
-        // Filter items specifically for this section, starting from the already initially filtered data
         let sectionItems = initialFilteredData.filter(dataFilterFn);
 
         if (sectionItems.length === 0) {
@@ -1146,40 +1126,33 @@ function handlePrintView() {
 
         const groupedSectionItems = groupDataById(sectionItems);
 
-        // Determine the primary sorting function for the SR # groups
         const primaryGroupSortFn = (idA, idB) => {
-            const itemA = groupedSectionItems[idA][0]; // Take first item of group for sorting criteria
+            const itemA = groupedSectionItems[idA][0];
             const itemB = groupedSectionItems[idB][0];
 
-            // 1. Apply global print sort column first, if selected
             if (printSortByColumn && columnHeaders.includes(printSortByColumn)) {
-                const valA = itemA[printSortByColumn]; // Get raw value for comparison
+                const valA = itemA[printSortByColumn];
                 const valB = itemB[printSortByColumn];
 
-                // Determine if it's a date column for oldest-first (ascending)
                 const isDateColumn = [START_DATE_KEY, ETA_COLUMN_KEY, COMPLETION_DATE_KEY].includes(printSortByColumn);
 
                 if (isDateColumn) {
-                    // Convert Excel date serial numbers to a comparable number (milliseconds since epoch)
                     const dateValA = typeof valA === 'number' && valA > 20000 ? 
                         new Date(Math.round((valA - 25569) * 86400 * 1000)).getTime() : Infinity;
                     const dateValB = typeof valB === 'number' && valB > 20000 ? 
                         new Date(Math.round((valB - 25569) * 86400 * 1000)).getTime() : Infinity;
                     
-                    // Handle null/undefined dates by pushing them to the end
                     if (dateValA === Infinity && dateValB === Infinity) return 0;
                     if (dateValA === Infinity) return 1;
                     if (dateValB === Infinity) return -1;
 
-                    if (dateValA !== dateValB) return dateValA - dateValB; // Oldest first (ascending)
+                    if (dateValA !== dateValB) return dateValA - dateValB;
                 } else {
-                    // Attempt numeric sort for other columns
                     const numValA = parseFloat(valA);
                     const numValB = parseFloat(valB);
-                    if (!isNaN(numValA) && !isNaN(numValB) && (typeof valA === 'number' || !isNaN(parseFloat(valA))) && (typeof valB === 'number' || !isNaN(parseFloat(valB)))) { // Ensure values are truly numeric
-                        if (numValA !== numValB) return numValA - numValB; // Numeric ascending
+                    if (!isNaN(numValA) && !isNaN(numValB) && (typeof valA === 'number' || !isNaN(parseFloat(valA))) && (typeof valB === 'number' || !isNaN(parseFloat(valB)))) {
+                        if (numValA !== numValB) return numValA - numValB;
                     } else {
-                        // Fallback to string sort
                         const strA = String(valA || '').toLowerCase();
                         const strB = String(valB || '').toLowerCase();
                         if (strA < strB) return -1;
@@ -1188,11 +1161,9 @@ function handlePrintView() {
                 }
             }
             
-            // 2. Fallback to section-specific sort if no global sort column selected or if global sort resulted in a tie
             const sectionSortResult = defaultSectionSortFn(itemA, itemB);
             if (sectionSortResult !== 0) return sectionSortResult;
 
-            // 3. Final fallback: Sort by ID numerically, then alphabetically (for stable order)
             const numA = parseInt(idA, 10);
             const numB = parseInt(idB, 10);
             if (!isNaN(numA) && !isNaN(numB)) {
@@ -1201,7 +1172,6 @@ function handlePrintView() {
             return idA.localeCompare(idB);
         };
 
-        // Group by Plan first if requested, otherwise directly sort by ID groups
         if (groupByPlan && PLAN_COLUMN_KEY) {
             const plans = [...new Set(sectionItems.map(item => String(item[PLAN_COLUMN_KEY] || 'Unspecified Plan')))].sort();
             
@@ -1211,13 +1181,11 @@ function handlePrintView() {
                     sectionHtml += `<h3 class="plan-subheader">Plan: ${planName}</h3>`;
                     const groupedItemsForPlan = groupDataById(itemsForPlan);
                     
-                    // Sort IDs within each plan group using the determined primaryGroupSortFn
                     const sortedIdsForPlan = Object.keys(groupedItemsForPlan).sort(primaryGroupSortFn);
 
                     sortedIdsForPlan.forEach(id => {
                         sectionHtml += `<div class="print-item">`;
                         sectionHtml += `<h4 class="print-item-group-header">${ID_COLUMN_KEY || 'ID'}: ${id}</h4>`;
-                        // Sort sub-items within each ID group by Activity Description
                         if (ACTIVITY_DESCRIPTION_KEY) {
                             groupedItemsForPlan[id].sort((a, b) => (a[ACTIVITY_DESCRIPTION_KEY] || '').localeCompare(b[ACTIVITY_DESCRIPTION_KEY] || ''));
                         }
@@ -1228,13 +1196,12 @@ function handlePrintView() {
                     });
                 }
             });
-        } else { // Not grouping by plan, just by ID (applying primaryGroupSortFn)
+        } else {
             const sortedIds = Object.keys(groupedSectionItems).sort(primaryGroupSortFn);
 
             sortedIds.forEach(id => {
                 sectionHtml += `<div class="print-item">`;
                 sectionHtml += `<h4 class="print-item-group-header">${ID_COLUMN_KEY || 'ID'}: ${id}</h4>`;
-                // Sort sub-items within each ID group by Activity Description
                 if (ACTIVITY_DESCRIPTION_KEY) {
                      groupedSectionItems[id].sort((a, b) => (a[ACTIVITY_DESCRIPTION_KEY] || '').localeCompare(b[ACTIVITY_DESCRIPTION_KEY] || ''));
                 }
@@ -1245,38 +1212,33 @@ function handlePrintView() {
                 sectionHtml += `</div>`;
             });
         }
-        sectionHtml += '</div><div class="page-break"></div>'; // Add a page break after each section
+        sectionHtml += '</div><div class="page-break"></div>';
         return sectionHtml;
     };
 
-    // Defines the sorting function for "Priority Tasks" section (default when no global sort selected)
     const prioritySortFn = (a, b) => {
-        if (!PRIORITY_COLUMN_KEY) return 0; // If no priority column, no special sorting
+        if (!PRIORITY_COLUMN_KEY) return 0;
 
-        // Map priority keywords to numeric values for comparison
-        const priorityA = config.priorityLevels[String(a[PRIORITY_COLUMN_KEY] || '').trim().toLowerCase()] || 99; // Default to high number for unknown priority
+        const priorityA = config.priorityLevels[String(a[PRIORITY_COLUMN_KEY] || '').trim().toLowerCase()] || 99;
         const priorityB = config.priorityLevels[String(b[PRIORITY_COLUMN_KEY] || '').trim().toLowerCase()] || 99;
         if (priorityA !== priorityB) return priorityA - priorityB;
 
-        // Fallback to Start Date if priorities are equal
         const dateA = START_DATE_KEY && typeof a[START_DATE_KEY] === 'number' ? a[START_DATE_KEY] : Infinity;
         const dateB = START_DATE_KEY && typeof b[START_DATE_KEY] === 'number' ? b[START_DATE_KEY] : Infinity;
         return dateA - dateB;
     };
 
-    // Defines the sorting function for date-based sections (default when no global sort selected)
     const dateSortFn = (a, b) => {
-        if (!START_DATE_KEY) return 0; // If no start date column, no special sorting
+        if (!START_DATE_KEY) return 0;
         const dateA = typeof a[START_DATE_KEY] === 'number' ? a[START_DATE_KEY] : Infinity;
         const dateB = typeof b[START_DATE_KEY] === 'number' ? b[START_DATE_KEY] : Infinity;
         return dateA - dateB;
     };
 
-    // Define the different print sections with their titles, filters, and default sort functions
     const printSections = [
         {
             title: 'Priority Tasks to be Completed Next',
-            filter: item => true, // No default filtering here, all filtering happens in initialFilteredData
+            filter: item => true,
             sort: prioritySortFn
         },
         {
@@ -1291,14 +1253,12 @@ function handlePrintView() {
         }
     ];
 
-    // Build print HTML for each defined section
     printSections.forEach(section => {
         printHtml += buildPrintSection(section.title, section.filter, section.sort);
     });
     
-    printHtml += '</div>'; // Close print-area
+    printHtml += '</div>';
 
-    // Create an invisible iframe to handle printing
     const iframe = document.createElement('iframe');
     iframe.style.height = '0';
     iframe.style.width = '0';
@@ -1306,36 +1266,51 @@ function handlePrintView() {
     iframe.style.visibility = 'hidden';
     document.body.appendChild(iframe);
 
-    // Write the generated print HTML and current page's styles into the iframe
+    // Use onload event to ensure content is fully loaded before printing
+    iframe.onload = function() {
+        console.log("Iframe loaded, attempting to print."); // Debugging: Confirm iframe load
+        try {
+            iframe.contentWindow.focus();
+            iframe.contentWindow.print();
+        } catch (printError) {
+            console.error("Error during iframe print:", printError);
+            alert("Could not trigger print. Please check your browser's print settings or try again.");
+        } finally {
+            // Remove the iframe after a short delay, regardless of print success
+            setTimeout(() => {
+                console.log("Removing iframe."); // Debugging: Confirm iframe removal
+                document.body.removeChild(iframe);
+            }, 1000);
+        }
+    };
+
     const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
     iframeDoc.open();
     iframeDoc.write('<html><head><title>Print View</title>');
+    
     // Copy all styles from the main document to the iframe
-    const printStyles = Array.from(document.styleSheets)
-        .map(styleSheet => {
-            try {
-                return Array.from(styleSheet.cssRules)
-                    .map(rule => rule.cssText)
-                    .join('');
-            } catch (e) {
-                console.warn("Could not access CSS rules for stylesheet:", styleSheet.href);
-                return '';
+    // This part is crucial for styling the print output.
+    let printStyles = '';
+    Array.from(document.styleSheets).forEach(styleSheet => {
+        try {
+            // Check if stylesheet is from the same origin to avoid security errors
+            if (styleSheet.href === null || styleSheet.href.startsWith(window.location.origin)) {
+                 printStyles += Array.from(styleSheet.cssRules)
+                                    .map(rule => rule.cssText)
+                                    .join('');
+            } else {
+                console.warn(`Skipping cross-origin stylesheet: ${styleSheet.href}`);
             }
-        })
-        .join('');
+        } catch (e) {
+            console.warn("Could not access CSS rules for stylesheet:", styleSheet.href, e);
+        }
+    });
+
     iframeDoc.write('<style>' + printStyles + '</style>');
     iframeDoc.write('</head><body>');
     iframeDoc.write(printHtml);
     iframeDoc.write('</body></html>');
-    iframeDoc.close();
+    iframeDoc.close(); // Important: Closes the document stream, which triggers rendering.
 
-    // Focus the iframe and trigger the print dialog
-    iframe.contentWindow.focus();
-    iframe.contentWindow.print();
-
-    // Remove the iframe after a short delay
-    setTimeout(() => {
-        document.body.removeChild(iframe);
-    }, 1000);
+    console.log("Iframe content written. Waiting for iframe onload."); // Debugging: Confirm content write
 }
-
