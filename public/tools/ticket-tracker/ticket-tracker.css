@@ -57,20 +57,20 @@ h1 {
 }
 
 /* Styling for filter containers (status filters, print options) */
-#statusFiltersContainer, #printFiltersContainer {
+#statusFiltersContainer, #printFiltersContainer, #sheetSelectionContainer { /* Added sheetSelectionContainer */
     margin-bottom: 15px;
     padding: 15px;
     background-color: #fdfdff; /* Off-white background */
     border: 1px solid var(--border-color);
     border-radius: 6px;
 }
-#statusFiltersContainer h4, #printFiltersContainer h4 {
+#statusFiltersContainer h4, #printFiltersContainer h4, #sheetSelectionContainer h4 { /* Added sheetSelectionContainer */
     margin-top: 0;
     margin-bottom: 10px;
     font-size: 1.05em;
     color: var(--header-text-color);
 }
-#statusFiltersContainer label, #printFiltersContainer label {
+#statusFiltersContainer label, #printFiltersContainer label, #sheetSelectionContainer label { /* Added sheetSelectionContainer */
     margin-right: 15px;
     font-size: 0.9em;
     cursor: pointer;
@@ -80,7 +80,7 @@ h1 {
     margin-right: 5px;
     vertical-align: middle; /* Align checkbox with text */
 }
-#printPlanFilterInput, #printAssignedToFilterInput, #printPriorityFilterInput, #printSortByInput { /* Added new input IDs */
+#printPlanFilterInput, #printAssignedToFilterInput, #printPriorityFilterInput, #printSortByInput, #mainSheetSelect { /* Added mainSheetSelect */
     padding: 8px 10px;
     border: 1px solid var(--border-color);
     border-radius: 4px;
@@ -89,12 +89,12 @@ h1 {
     max-width: 280px;
     margin-right: 10px;
 }
-#printFiltersContainer .print-options-line {
+.print-options-line, .report-options-line { /* Combined for consistency */
     display: flex;
     align-items: center;
     margin-bottom: 10px;
 }
-#printFiltersContainer .print-options-line:last-child {
+.print-options-line:last-child, .report-options-line:last-child {
     margin-bottom: 0;
 }
 
