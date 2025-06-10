@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Tools - Excel Buddy</title> <!-- FIX: Changed title from MirraBuddy to Excel Buddy -->
+    <title>Tools - RCM Buddy</title> <!-- FIX: Changed title to RCM Buddy -->
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
@@ -11,7 +11,7 @@
         body {
             font-family: 'Inter', sans-serif;
             background-color: #f0f4f8; /* Light background */
-            text-gray-800; /* Default text color */
+            color: #212529; /* Default text color */
         }
         /* Header styling (consistent with other pages) */
         header {
@@ -76,8 +76,19 @@
         .tool-card.data-dictionary-builder a { background-color: theme('colors.purple.500'); }
         .tool-card.data-dictionary-builder a:hover { background-color: theme('colors.purple.600'); }
 
+        /* NEW: Tool Card for Universal Ticket Tracker */
+        .tool-card.ticket-tracker {
+            border-color: theme('colors.orange.200'); /* Using orange for contrast */
+            background-color: theme('colors.orange.50');
+        }
+        .tool-card.ticket-tracker h2 { color: theme('colors.orange.600'); }
+        .tool-card.ticket-tracker a { background-color: theme('colors.orange.500'); }
+        .tool-card.ticket-tracker a:hover { background-color: theme('colors.orange.600'); }
+
+
         /* Styles for tools marked as 'development' (Coming Soon) */
         .development-tool {
+            display: none; /* Hides development tools completely */
             opacity: 0.7; /* Make it slightly faded */
             filter: grayscale(20%); /* Slight grayscale effect */
             position: relative;
@@ -127,40 +138,47 @@
     </header>
 
     <main class="flex-grow container mx-auto p-4 sm:p-6 lg:p-8">
-        <section class="bg-white p-6 sm:p-8 rounded-xl shadow-lg mb-8"> <!-- FIX: Added section wrapper for consistent styling -->
+        <section class="bg-white p-6 sm:p-8 rounded-xl shadow-lg mb-8">
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
 
                 <!-- Tool Card: File Manager -->
-                <div class="tool-card file-manager" data-status="ready"> <!-- FIX: Added data-status and file-manager class -->
+                <div class="tool-card file-manager" data-status="ready">
                     <h2>File Manager</h2>
                     <p>Securely upload, list, download, and delete your company files.</p>
                     <a href="/file-manager.html">Go to File Manager &rarr;</a>
                 </div>
 
                 <!-- Tool Card: Data Cleaner -->
-                <div class="tool-card data-cleaner" data-status="ready"> <!-- FIX: Added data-status and data-cleaner class -->
+                <div class="tool-card data-cleaner" data-status="ready">
                     <h2>Data Cleaner</h2>
                     <p>Client-side tool for basic Excel data cleaning (duplicates, trimming, case standardization).</p>
                     <a href="/tools/data-cleaner.html">Go to Data Cleaner &rarr;</a>
                 </div>
 
                 <!-- Tool Card: Excel Validate -->
-                <div class="tool-card validation-engine" data-status="ready"> <!-- FIX: Added data-status and validation-engine class -->
+                <div class="tool-card validation-engine" data-status="ready">
                     <h2>Excel Validate</h2>
                     <p>Analyze Excel/CSV files for data quality issues using custom validation rules.</p>
                     <a href="/tools/validation-engine.html">Go to Excel Validate &rarr;</a>
                 </div>
 
                 <!-- Tool Card: Data Dictionary Builder -->
-                <div class="tool-card data-dictionary-builder" data-status="ready"> <!-- FIX: Added data-status and data-dictionary-builder class -->
+                <div class="tool-card data-dictionary-builder" data-status="ready">
                     <h2>Data Dictionary Builder</h2>
                     <p>Create and manage custom data dictionaries to define validation rules for your columns.</p>
                     <a href="/tools/data-dictionary-builder.html">Build Dictionary &rarr;</a>
                 </div>
 
-                <!-- Placeholder for future development tools -->
+                <!-- NEW: Tool Card: Universal Ticket Tracker -->
+                <div class="tool-card ticket-tracker" data-status="ready">
+                    <h2>Universal Ticket Tracker</h2>
+                    <p>Upload and visualize your ticket data from any Excel report with dynamic filtering and printing.</p>
+                    <a href="/tools/ticket-tracker/ticket-tracker.html">Launch Tracker &rarr;</a>
+                </div>
+
+                <!-- Placeholder for future development tools (these are now hidden by CSS) -->
                 <!-- Removed: Report Automator -->
-                <div class="tool-card development-tool" data-status="development"> <!-- FIX: Added development-tool class and data-status -->
+                <div class="tool-card development-tool" data-status="development">
                     <h2>Merger & Splitter</h2>
                     <p>Efficiently combine multiple Excel files or split large spreadsheets into manageable parts.</p>
                     <span>Coming Soon!</span>
@@ -168,12 +186,12 @@
                 <!-- Removed: Macro Recorder & Editor -->
                 <!-- Removed: Custom Formula Builder -->
             </div>
-        </section> <!-- FIX: Closed section tag -->
+        </section>
     </main>
 
     <footer class="bg-gray-800 text-white p-4 mt-8">
         <div class="container mx-auto text-center text-sm">
-            &copy; 2025 Excel Buddy. All rights reserved.
+            &copy; 2025 RCM Buddy. All rights reserved.
         </div>
     </footer>
 
