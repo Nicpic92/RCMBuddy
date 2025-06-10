@@ -37,7 +37,7 @@
 
     <!-- Print options section, hidden by default until data is loaded -->
     <div class="container" id="printFiltersContainer" style="display: none;">
-        <h4>Print Priority View Options:</h4>
+        <h4>Print Options:</h4>
         <div class="print-options-line">
             <label for="printPlanFilterInput">Filter by Plan:</label>
             <input type="text" id="printPlanFilterInput" placeholder="Enter Plan name (optional)..." oninput="togglePrintButtonVisibility()">
@@ -59,12 +59,15 @@
             </select>
         </div>
         <div class="print-options-line">
+            <label><input type="checkbox" id="printGroupByPlanCheckbox"> Group by Plan</label>
+        </div>
+        <div class="print-options-line">
             <label>Hide Statuses:</label>
             <div id="dynamicPrintStatusCheckboxes">
                 <!-- Dynamic checkboxes for print statuses will be inserted here by JavaScript -->
             </div>
         </div>
-        <button id="printPriorityButton" onclick="handlePrintView()">Print Priority View</button>
+        <button id="printPriorityButton" onclick="handlePrint()">Print</button>
     </div>
 
     <hr style="border: none; border-top: 1px solid #dee2e6; margin: 20px 0;">
