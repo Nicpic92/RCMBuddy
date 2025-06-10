@@ -35,6 +35,17 @@
         </div>
     </div>
 
+    <!-- NEW: Main ID Type Selection -->
+    <div class="container" id="mainIdSelectionContainer" style="display: none;">
+        <h4>Select Main ID Column:</h4>
+        <div class="report-options-line">
+            <label for="mainIdSelect">Choose ID Column:</label>
+            <select id="mainIdSelect" onchange="handleMainIdSelection(this.value)">
+                <!-- Options will be dynamically populated by JavaScript -->
+            </select>
+        </div>
+    </div>
+
     <!-- Print options section, hidden by default until data is loaded -->
     <div class="container" id="printFiltersContainer" style="display: none;">
         <h4>Print Options:</h4>
