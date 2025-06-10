@@ -56,21 +56,21 @@ h1 {
     font-size: 0.95em;
 }
 
-/* Styling for filter containers (status filters, print options) */
-#statusFiltersContainer, #printFiltersContainer, #sheetSelectionContainer { /* Added sheetSelectionContainer */
+/* Styling for filter containers (status filters, print options, sheet selection, ID selection) */
+#statusFiltersContainer, #printFiltersContainer, #sheetSelectionContainer, #mainIdSelectionContainer {
     margin-bottom: 15px;
     padding: 15px;
     background-color: #fdfdff; /* Off-white background */
     border: 1px solid var(--border-color);
     border-radius: 6px;
 }
-#statusFiltersContainer h4, #printFiltersContainer h4, #sheetSelectionContainer h4 { /* Added sheetSelectionContainer */
+#statusFiltersContainer h4, #printFiltersContainer h4, #sheetSelectionContainer h4, #mainIdSelectionContainer h4 {
     margin-top: 0;
     margin-bottom: 10px;
     font-size: 1.05em;
     color: var(--header-text-color);
 }
-#statusFiltersContainer label, #printFiltersContainer label, #sheetSelectionContainer label { /* Added sheetSelectionContainer */
+#statusFiltersContainer label, #printFiltersContainer label, #sheetSelectionContainer label, #mainIdSelectionContainer label {
     margin-right: 15px;
     font-size: 0.9em;
     cursor: pointer;
@@ -80,7 +80,7 @@ h1 {
     margin-right: 5px;
     vertical-align: middle; /* Align checkbox with text */
 }
-#printPlanFilterInput, #printAssignedToFilterInput, #printPriorityFilterInput, #printSortByInput, #mainSheetSelect { /* Added mainSheetSelect */
+#printPlanFilterInput, #printAssignedToFilterInput, #printPriorityFilterInput, #printSortByInput, #mainSheetSelect, #mainIdSelect {
     padding: 8px 10px;
     border: 1px solid var(--border-color);
     border-radius: 4px;
