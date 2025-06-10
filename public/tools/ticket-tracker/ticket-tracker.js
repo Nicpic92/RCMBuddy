@@ -40,6 +40,7 @@ let currentActiveTabName = ''; // Name of the currently active sheet tab
 
 let mainDataSheetName = null; // Dynamically identified name of the primary data sheet
 let columnHeaders = []; // Dynamically identified headers for the main data sheet
+let allSheetNames = []; // Stores all sheet names from the loaded workbook
 
 // Mapped column keys based on found headers from the current main data sheet.
 // These will hold the *actual* header names found in the Excel file.
@@ -84,12 +85,15 @@ function loadSavedData() {
         mainDataSheetName = parsedData.mainDataSheetName;
         columnHeaders = parsedData.columnHeaders;
         sortDirections = parsedData.sortDirections || {};
+        allSheetNames = Object.keys(workbookData); // Populate allSheetNames from loaded data
 
         // Re-map column keys after loading saved data
         mapColumnHeaders();
-        
+        populateMainSheetSelect(allSheetNames); // Populate the sheet selection dropdown
+
         statusDiv.innerHTML = `Displaying current report data from your last session. To update, load a new file.`;
         document.getElementById('statusFiltersContainer').style.display = 'block';
+        document.getElementById('sheetSelectionContainer').style.display = 'block'; // Show sheet selection
         // Only show print filters if main data exists
         document.getElementById('printFiltersContainer').style.display = (mainDataSheetName && workbookData[mainDataSheetName]?.data.length > 0) ? 'block' : 'none';
         displayUI();
@@ -97,6 +101,7 @@ function loadSavedData() {
         statusDiv.textContent = 'No current report data saved. Please load an Excel file to get started.';
         document.getElementById('statusFiltersContainer').style.display = 'none';
         document.getElementById('printFiltersContainer').style.display = 'none';
+        document.getElementById('sheetSelectionContainer').style.display = 'none'; // Hide sheet selection
     }
     togglePrintButtonVisibility(); // Ensure print button state is correct on load
 }
@@ -113,11 +118,13 @@ function clearSavedData() {
         sortDirections = {};
         mainDataSheetName = null;
         columnHeaders = []; // Clear headers too
+        allSheetNames = []; // Clear sheet names
         
         document.getElementById('status').textContent = 'Current report data has been cleared. Please load a file.';
         document.getElementById('main-content').style.display = 'none';
         document.getElementById('statusFiltersContainer').style.display = 'none';
         document.getElementById('printFiltersContainer').style.display = 'none';
+        document.getElementById('sheetSelectionContainer').style.display = 'none'; // Hide sheet selection
         document.getElementById('tabButtons').innerHTML = '';
         document.getElementById('tabContent').innerHTML = '';
         document.getElementById('dynamicStatusCheckboxes').innerHTML = ''; // Clear dynamic main status filters
@@ -126,6 +133,7 @@ function clearSavedData() {
         document.getElementById('printAssignedToFilterInput').value = ''; // Clear print assigned to filter
         document.getElementById('printSortByInput').innerHTML = '<option value="">Default Sorting</option>'; // Reset print sort by filter
         currentActiveTabName = ''; // Reset active tab
+        document.getElementById('mainSheetSelect').innerHTML = ''; // Clear sheet select options
     }
     togglePrintButtonVisibility(); // Ensure print button state is correct after clearing
 }
@@ -146,6 +154,7 @@ function handleFile(e) {
         const data = new Uint8Array(event.target.result);
         // Use XLSX.read to parse the Excel file
         const workbook = XLSX.read(data, {type: 'array'});
+        allSheetNames = workbook.SheetNames; // Store all sheet names globally
         processWorkbook(workbook);
     };
     reader.readAsArrayBuffer(file);
@@ -202,13 +211,6 @@ function processWorkbook(workbook) {
                 data: rows,
                 headers: headers
             };
-
-            // Set the first sheet with actual data as the main tracker sheet
-            if (!mainDataSheetName && rows.length > 0) {
-                mainDataSheetName = sheetName;
-                columnHeaders = headers; // Store headers of the main sheet
-                mapColumnHeaders(); // Map generic column keys based on these headers
-            }
         } else {
              // If no headers/data found, store empty arrays
              workbookData[sheetName] = {
@@ -218,7 +220,31 @@ function processWorkbook(workbook) {
         }
     }
 
+    // After processing all sheets, set the main data sheet based on criteria
+    // Default to the first sheet with data if no previous selection or invalid selection
+    let defaultMainSheet = allSheetNames.find(name => workbookData[name]?.data.length > 0);
+    if (defaultMainSheet) {
+        mainDataSheetName = defaultMainSheet;
+        columnHeaders = workbookData[mainDataSheetName].headers;
+    } else {
+        mainDataSheetName = null;
+        columnHeaders = [];
+    }
+
+    // Populate sheet selection dropdown
+    populateMainSheetSelect(allSheetNames);
+    document.getElementById('sheetSelectionContainer').style.display = 'block'; // Show sheet selection
+
     // Save the processed data to localStorage
+    saveToLocalStorage();
+    displayUI(); // Update the user interface with the new data
+    togglePrintButtonVisibility(); // Ensure print button state is correct after processing
+}
+
+/**
+ * Saves current workbookData and relevant state to localStorage.
+ */
+function saveToLocalStorage() {
     try {
         localStorage.setItem(storageKey, JSON.stringify({
             workbookData: workbookData,
@@ -227,16 +253,50 @@ function processWorkbook(workbook) {
             sortDirections: sortDirections
         }));
         document.getElementById('status').textContent = `Successfully processed new report.`;
-        document.getElementById('statusFiltersContainer').style.display = 'block';
-        // Only display print filters if a main data sheet was successfully processed with data
         document.getElementById('printFiltersContainer').style.display = (mainDataSheetName && workbookData[mainDataSheetName]?.data.length > 0) ? 'block' : 'none';
     } catch (error) {
         console.error("Error saving to localStorage:", error);
-        document.getElementById('status').textContent = "Could not save new report to browser storage. Data might be too large.";
+        document.getElementById('status').textContent = "Could not save new report to browser storage. Data might be too large. (See console for details)";
     }
-    displayUI(); // Update the user interface with the new data
-    togglePrintButtonVisibility(); // Ensure print button state is correct after processing
 }
+
+
+/**
+ * Populates the main sheet selection dropdown with names of all sheets from the loaded workbook.
+ * @param {Array<string>} sheetNames - An array of all sheet names.
+ */
+function populateMainSheetSelect(sheetNames) {
+    const selectElement = document.getElementById('mainSheetSelect');
+    selectElement.innerHTML = ''; // Clear existing options
+
+    // Add options for each sheet name
+    sheetNames.forEach(name => {
+        const option = document.createElement('option');
+        option.value = name;
+        option.textContent = name;
+        selectElement.appendChild(option);
+    });
+
+    // Set the currently selected main sheet if one is already identified
+    if (mainDataSheetName) {
+        selectElement.value = mainDataSheetName;
+    }
+}
+
+/**
+ * Handles the selection of a new main report sheet from the dropdown.
+ * @param {string} selectedSheetName - The name of the sheet selected by the user.
+ */
+function handleSheetSelection(selectedSheetName) {
+    mainDataSheetName = selectedSheetName;
+    // Update columnHeaders based on the newly selected main sheet
+    columnHeaders = workbookData[mainDataSheetName]?.headers || [];
+    mapColumnHeaders(); // Re-map column keys based on the new headers
+    saveToLocalStorage(); // Save the new main sheet selection
+    displayUI(); // Re-render the UI with the new main sheet
+    togglePrintButtonVisibility(); // Update print button visibility
+}
+
 
 /**
  * Maps generic column keys (e.g., 'ID', 'Status') to the actual
@@ -392,17 +452,17 @@ function displayUI() {
     tabContentContainer.innerHTML = ''; // Clear existing tab content
 
     let displayableTabs = [];
+    // Only display summary if main data sheet has data
     const hasMainData = mainDataSheetName && workbookData[mainDataSheetName] && workbookData[mainDataSheetName].data.length > 0;
 
-    // Add the "Summary" tab if main data sheet has data
     if (hasMainData) {
         displayableTabs.push('Summary');
     }
 
     // Add tabs for all other sheets that have headers defined
-    for (const sheetName in workbookData) {
-        // Ensure we don't duplicate the main data sheet if it's already added as 'Summary'
-        if (sheetName !== mainDataSheetName && workbookData[sheetName].headers.length > 0) {
+    // Filter out sheets that don't have data OR don't have headers
+    for (const sheetName of allSheetNames) { // Use allSheetNames as the source for tabs
+        if (workbookData[sheetName]?.headers.length > 0 && sheetName !== mainDataSheetName) {
             displayableTabs.push(sheetName);
         }
     }
@@ -415,6 +475,7 @@ function displayUI() {
         document.getElementById('main-content').style.display = 'none';
         document.getElementById('statusFiltersContainer').style.display = 'none';
         document.getElementById('printFiltersContainer').style.display = 'none';
+        document.getElementById('sheetSelectionContainer').style.display = 'none'; // Hide sheet selection if no data
         let errorMessage = `No sheets with data found in the loaded file. Please ensure your Excel file has at least one sheet with data and a clear header row.`;
         document.getElementById('status').innerHTML = errorMessage;
         return;
@@ -423,7 +484,8 @@ function displayUI() {
     // Show main content and filter containers if data is present
     document.getElementById('main-content').style.display = 'block';
     document.getElementById('statusFiltersContainer').style.display = 'block';
-    document.getElementById('printFiltersContainer').style.display = hasMainData ? 'block' : 'none';
+    document.getElementById('sheetSelectionContainer').style.display = 'block'; // Show sheet selection
+    document.getElementById('printFiltersContainer').style.display = hasMainData ? 'block' : 'none'; // Print depends on main data
     document.getElementById('status').textContent = 'Current report data loaded. Select a tab to view.';
     
     // Create tab buttons and corresponding content panes
@@ -565,20 +627,20 @@ function generateTableHTML(sheetName) {
     // Create table headers with sort functionality
     headers.forEach(header => {
         tableHTML += `<th data-header-name="${header}">
-                        <span class="header-text" onclick="sortTable('${sheetName}', '${header}')">
-                            ${header} <span class="sort-arrow">&#x25B2;&#x25BC;</span>
-                        </span>
-                       </th>`;
+                                <span class="header-text" onclick="sortTable('${sheetName}', '${header}')">
+                                    ${header} <span class="sort-arrow">&#x25B2;&#x25BC;</span>
+                                </span>
+                               </th>`;
     });
     tableHTML += '</tr><tr>';
     // Create filter inputs for each column
     headers.forEach(header => {
         tableHTML += `<th>
-                        <input type="text" class="column-filter"
-                                data-column-header="${header}"
-                                oninput="applyAllFilters()"
-                                placeholder="Filter ${header}...">
-                       </th>`;
+                                <input type="text" class="column-filter"
+                                        data-column-header="${header}"
+                                        oninput="applyAllFilters()"
+                                        placeholder="Filter ${header}...">
+                               </th>`;
     });
     tableHTML += '</tr></thead><tbody>';
 
@@ -608,9 +670,9 @@ function generateSummaryFilterInputsHTML() {
     let filtersHTML = '<div class="summary-filters-container">';
     headers.forEach(fieldKey => {
         filtersHTML += `<input type="text" class="summary-field-filter"
-                                data-filter-key="${fieldKey}"
-                                oninput="applyAllFilters()"
-                                placeholder="Filter ${fieldKey}...">`;
+                                        data-filter-key="${fieldKey}"
+                                        oninput="applyAllFilters()"
+                                        placeholder="Filter ${fieldKey}...">`;
     });
     filtersHTML += '</div>';
     return filtersHTML;
@@ -796,7 +858,7 @@ function sortTable(sheetName, header) {
         const numB = typeof bValue === 'number' ? bValue : parseFloat(bValue);
 
         // If both are valid numbers, compare numerically
-        if (!isNaN(numA) && !isNaN(numB) && !isNaN(aValue) && !isNaN(bValue)) {
+        if (!isNaN(numA) && !isNaN(numB) && (typeof aValue === 'number' || !isNaN(parseFloat(aValue))) && (typeof bValue === 'number' || !isNaN(parseFloat(bValue)))) { // Ensure values are truly numeric
             return sortDirections[directionKey] ? numA - numB : numB - numA;
         } else {
             // Otherwise, perform a case-insensitive string comparison
