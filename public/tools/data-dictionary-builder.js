@@ -138,7 +138,7 @@ async function populateExistingDictionariesDropdown() {
     dropdown.innerHTML = '<option value="">-- Loading --</option>'; // Temporary loading message
 
     allExistingRulesMap = new Map(); // Clear previous map content
-    
+
     try {
         const response = await fetch('/api/list-data-dictionaries', {
             method: 'GET',
@@ -169,10 +169,11 @@ async function populateExistingDictionariesDropdown() {
                 dropdown.appendChild(option);
 
                 // NEW: Populate allExistingRulesMap for pre-population
+                // Use the new structure: dict.rules_json is an array of objects, each object represents a header's full definition
                 if (dict.rules_json && Array.isArray(dict.rules_json)) {
                     dict.rules_json.forEach(rule => {
-                        const colName = String(rule['Column Name']).trim();
-                        if (colName && !allExistingRulesMap.has(colName)) { // Store the first rule found for a unique column name
+                        const colName = String(rule['Column Name'] || rule.column_name || '').trim(); // Adapt to potential old/new naming
+                        if (colName && !allExistingRulesMap.has(colName)) {
                             allExistingRulesMap.set(colName, rule);
                         }
                     });
@@ -231,15 +232,17 @@ async function loadDictionaryForEditing() {
         document.getElementById('dictionaryName').value = dictionary.name;
         isEditingExistingDictionary = true;
 
+        // currentHeaders from source_headers_json or inferred from rules_json if source_headers_json is empty
         currentHeaders = dictionary.source_headers_json || [];
         const rulesToPreFill = dictionary.rules_json || [];
 
-        if (currentHeaders.length === 0) {
-            console.warn("loadDictionaryForEditing: No source headers found in the loaded dictionary. This dictionary might not have been created from a file with headers.");
-            displayMessage('existingDictStatus', 'Dictionary loaded, but no source headers found to build table. Consider uploading a new file to get headers, or editing an existing dictionary that has source headers.', 'info');
-        }
-        if (rulesToPreFill.length === 0) {
-            console.warn("loadDictionaryForEditing: No rules found in the loaded dictionary.");
+        if (currentHeaders.length === 0 && rulesToPreFill.length > 0) {
+            // If no source headers, but rules exist, infer headers from rules
+            currentHeaders = rulesToPreFill.map(rule => String(rule['Column Name'] || rule.column_name || '').trim()).filter(h => h !== '');
+            console.warn("loadDictionaryForEditing: Inferring headers from rules_json as source_headers_json is empty.");
+        } else if (currentHeaders.length === 0 && rulesToPreFill.length === 0) {
+             console.warn("loadDictionaryForEditing: No source headers or rules found in the loaded dictionary.");
+             displayMessage('existingDictStatus', 'Dictionary loaded, but no content. Consider uploading a new file to get headers.', 'info');
         }
 
         renderHeadersTable(currentHeaders, rulesToPreFill);
@@ -312,7 +315,7 @@ async function startNewDictionaryFromUpload() {
             currentHeaders = headers;
             document.getElementById('dictionaryName').value = uploadedOriginalFileName.replace(/\.(xlsx|xls|csv)$/i, '').trim();
 
-            // NEW: Pre-populate rules from allExistingRulesMap
+            // NEW: Pre-populate all comprehensive rules from allExistingRulesMap
             const rulesToPreFillForNew = [];
             console.log("startNewDictionaryFromUpload: Headers from new file:", currentHeaders); // NEW log
             currentHeaders.forEach(header => {
@@ -324,11 +327,13 @@ async function startNewDictionaryFromUpload() {
                     console.log(`startNewDictionaryFromUpload: Found matching rule for "${cleanedHeader}":`, rule); // NEW log
                 } else {
                     console.log(`startNewDictionaryFromUpload: No existing rule found for "${cleanedHeader}".`); // NEW log
+                    // If no existing rule, create a basic placeholder with just the column name
+                    rulesToPreFillForNew.push({ 'Column Name': cleanedHeader });
                 }
             });
             console.log("startNewDictionaryFromUpload: Final rules to pre-fill for new dictionary:", rulesToPreFillForNew); // NEW log
-            
-            renderHeadersTable(currentHeaders, rulesToPreFillForNew); // Pass pre-filled rules
+
+            renderHeadersTable(currentHeaders, rulesToPreFillForNew); // Pass comprehensive pre-filled rules
 
             document.getElementById('initialSelectionSection').classList.add('hidden');
             document.getElementById('dictionaryBuilderSection').classList.remove('hidden');
@@ -350,10 +355,57 @@ async function startNewDictionaryFromUpload() {
 
 // --- Core Logic: Render Headers Table for Rule Definition ---
 
+// Common dropdown options for Data Type and Security Classification
+const dataTypeOptions = [
+    { value: '', text: 'Select Data Type' },
+    { value: 'Text/String', text: 'Text/String' },
+    { value: 'Integer', text: 'Integer' },
+    { value: 'Decimal', text: 'Decimal' },
+    { value: 'Date', text: 'Date' },
+    { value: 'Boolean', text: 'Boolean (True/False)' }
+];
+
+const nullabilityOptions = [
+    { value: '', text: 'Select Nullability' },
+    { value: 'Required', text: 'Required' },
+    { value: 'Optional', text: 'Optional' }
+];
+
+const securityClassificationOptions = [
+    { value: '', text: 'Select Classification' },
+    { value: 'Public', text: 'Public' },
+    { value: 'Internal', text: 'Internal' },
+    { value: 'Confidential', text: 'Confidential' },
+    { value: 'PII', text: 'PII (Personally Identifiable Info)' },
+    { value: 'PHI', text: 'PHI (Protected Health Info)' },
+    { value: 'Restricted', text: 'Restricted' }
+];
+
+/**
+ * Renders a select dropdown with given options and optional pre-selected value.
+ * @param {Array<object>} options - Array of {value, text} for select options.
+ * @param {string} selectedValue - The value to pre-select.
+ * @returns {HTMLSelectElement} The created select element.
+ */
+function createSelectElement(options, selectedValue = '') {
+    const select = document.createElement('select');
+    select.classList.add('p-2', 'border', 'border-gray-300', 'rounded-md', 'focus:ring-blue-500', 'focus:border-blue-500', 'text-gray-800', 'w-full');
+    options.forEach(optionData => {
+        const option = document.createElement('option');
+        option.value = optionData.value;
+        option.textContent = optionData.text;
+        if (optionData.value === selectedValue) {
+            option.selected = true;
+        }
+        select.appendChild(option);
+    });
+    return select;
+}
+
 /**
  * Renders the table of headers, pre-filling rules if `rulesToPreFill` are provided.
  * @param {Array<string>} headers - Headers to display in the table.
- * @param {Array<object>} rulesToPreFill - Existing rules to pre-fill the form (optional).
+ * @param {Array<object>} rulesToPreFill - Existing rules to pre-fill the form (optional). This array now contains comprehensive rule objects.
  */
 function renderHeadersTable(headers, rulesToPreFill = []) {
     console.log("renderHeadersTable: Function started.");
@@ -368,15 +420,15 @@ function renderHeadersTable(headers, rulesToPreFill = []) {
     }
     tbody.innerHTML = ''; // Clear existing rows
 
-    // Create a map for quick lookup of rules by column name (for pre-filling logic)
+    // Create a map for quick lookup of comprehensive rules by column name (for pre-filling logic)
     const rulesMap = new Map();
     rulesToPreFill.forEach(rule => {
-        const colName = String(rule['Column Name']).trim();
+        const colName = String(rule['Column Name'] || rule.column_name || '').trim(); // Be flexible with column name key
         if (colName) {
-            rulesMap.set(colName, rule); // Assuming one rule per column for pre-fill
+            rulesMap.set(colName, rule);
         }
     });
-    console.log("renderHeadersTable: Rules map created for current rendering:", rulesMap); // NEW log
+    console.log("renderHeadersTable: Rules map created for current rendering:", rulesMap);
 
     const validationTypes = [
         { value: '', text: 'None' },
@@ -391,7 +443,7 @@ function renderHeadersTable(headers, rulesToPreFill = []) {
     if (headers.length === 0) {
         const row = tbody.insertRow();
         const cell = row.insertCell();
-        cell.colSpan = 4;
+        cell.colSpan = 20; // Adjusted colspan for all new columns
         cell.textContent = "No headers available to define rules. Upload a file or load a dictionary with headers.";
         cell.style.textAlign = 'center';
         cell.style.padding = '20px';
@@ -408,11 +460,109 @@ function renderHeadersTable(headers, rulesToPreFill = []) {
         console.log(`renderHeadersTable: Processing header: "${header}" (Index: ${index})`);
 
         const row = tbody.insertRow();
-        row.insertCell().textContent = header;
+        row.insertCell().textContent = header; // Column Name (Read-only from file)
 
+        const existingRule = rulesMap.get(String(header).trim()) || {}; // Get existing comprehensive rule or empty object
+
+        // --- Add new comprehensive data dictionary fields ---
+
+        // Display Name
+        const displayNameInput = document.createElement('input');
+        displayNameInput.type = 'text';
+        displayNameInput.classList.add('dd-display-name', 'p-2', 'border', 'border-gray-300', 'rounded-md', 'focus:ring-blue-500', 'focus:border-blue-500', 'text-gray-800', 'w-full');
+        displayNameInput.placeholder = 'e.g., Patient ID';
+        displayNameInput.value = existingRule.display_name || ''; // Pre-fill
+        row.insertCell().appendChild(displayNameInput);
+
+        // Definition/Description
+        const descriptionTextarea = document.createElement('textarea');
+        descriptionTextarea.classList.add('dd-description', 'p-2', 'border', 'border-gray-300', 'rounded-md', 'focus:ring-blue-500', 'focus:border-blue-500', 'text-gray-800', 'w-full', 'h-20'); // Added h-20 for height
+        descriptionTextarea.placeholder = 'e.g., A unique identifier assigned to each patient.';
+        descriptionTextarea.value = existingRule.description || ''; // Pre-fill
+        row.insertCell().appendChild(descriptionTextarea);
+
+        // Data Type
+        const dataTypeSelect = createSelectElement(dataTypeOptions, existingRule.data_type); // Pre-fill
+        dataTypeSelect.classList.add('dd-data-type');
+        row.insertCell().appendChild(dataTypeSelect);
+
+        // Length/Size
+        const lengthInput = document.createElement('input');
+        lengthInput.type = 'text'; // Can be text to allow "max 255" or numbers only
+        lengthInput.classList.add('dd-length-size', 'p-2', 'border', 'border-gray-300', 'rounded-md', 'focus:ring-blue-500', 'focus:border-blue-500', 'text-gray-800', 'w-full');
+        lengthInput.placeholder = 'e.g., 50 or 10,2';
+        lengthInput.value = existingRule.length_size || ''; // Pre-fill
+        row.insertCell().appendChild(lengthInput);
+
+        // Format
+        const formatInput = document.createElement('input');
+        formatInput.type = 'text';
+        formatInput.classList.add('dd-format', 'p-2', 'border', 'border-gray-300', 'rounded-md', 'focus:ring-blue-500', 'focus:border-blue-500', 'text-gray-800', 'w-full');
+        formatInput.placeholder = 'e.g., YYYY-MM-DD';
+        formatInput.value = existingRule.format || ''; // Pre-fill
+        row.insertCell().appendChild(formatInput);
+
+        // Allowable Values/Domain
+        const allowableValuesTextarea = document.createElement('textarea');
+        allowableValuesTextarea.classList.add('dd-allowable-values', 'p-2', 'border', 'border-gray-300', 'rounded-md', 'focus:ring-blue-500', 'focus:border-blue-500', 'text-gray-800', 'w-full', 'h-20'); // Added h-20 for height
+        allowableValuesTextarea.placeholder = 'e.g., Yes,No,Maybe or 1-100';
+        allowableValuesTextarea.value = existingRule.allowable_values || ''; // Pre-fill
+        row.insertCell().appendChild(allowableValuesTextarea);
+
+        // Nullability
+        const nullabilitySelect = createSelectElement(nullabilityOptions, existingRule.nullability); // Pre-fill
+        nullabilitySelect.classList.add('dd-nullability');
+        row.insertCell().appendChild(nullabilitySelect);
+
+        // Source System(s)
+        const sourceSystemInput = document.createElement('input');
+        sourceSystemInput.type = 'text';
+        sourceSystemInput.classList.add('dd-source-systems', 'p-2', 'border', 'border-gray-300', 'rounded-md', 'focus:ring-blue-500', 'focus:border-blue-500', 'text-gray-800', 'w-full');
+        sourceSystemInput.placeholder = 'e.g., Enrollment System';
+        sourceSystemInput.value = existingRule.source_systems || ''; // Pre-fill
+        row.insertCell().appendChild(sourceSystemInput);
+
+        // Target System(s)/Usage
+        const targetSystemInput = document.createElement('input');
+        targetSystemInput.type = 'text';
+        targetSystemInput.classList.add('dd-target-systems', 'p-2', 'border', 'border-gray-300', 'rounded-md', 'focus:ring-blue-500', 'focus:border-blue-500', 'text-gray-800', 'w-full');
+        targetSystemInput.placeholder = 'e.g., Reporting, Claims';
+        targetSystemInput.value = existingRule.target_systems || ''; // Pre-fill
+        row.insertCell().appendChild(targetSystemInput);
+
+        // Business Rules/Constraints
+        const businessRulesTextarea = document.createElement('textarea');
+        businessRulesTextarea.classList.add('dd-business-rules', 'p-2', 'border', 'border-gray-300', 'rounded-md', 'focus:ring-blue-500', 'focus:border-blue-500', 'text-gray-800', 'w-full', 'h-20');
+        businessRulesTextarea.placeholder = 'e.g., Must be unique per customer.';
+        businessRulesTextarea.value = existingRule.business_rules || ''; // Pre-fill
+        row.insertCell().appendChild(businessRulesTextarea);
+
+        // Relationship to Other Elements/Tables
+        const relationshipInput = document.createElement('input');
+        relationshipInput.type = 'text';
+        relationshipInput.classList.add('dd-relationship', 'p-2', 'border', 'border-gray-300', 'rounded-md', 'focus:ring-blue-500', 'focus:border-blue-500', 'text-gray-800', 'w-full');
+        relationshipInput.placeholder = 'e.g., FK to Customers.CustID';
+        relationshipInput.value = existingRule.relationships || ''; // Pre-fill
+        row.insertCell().appendChild(relationshipInput);
+
+        // Ownership/Stewardship
+        const ownershipInput = document.createElement('input');
+        ownershipInput.type = 'text';
+        ownershipInput.classList.add('dd-ownership', 'p-2', 'border', 'border-gray-300', 'rounded-md', 'focus:ring-blue-500', 'focus:border-blue-500', 'text-gray-800', 'w-full');
+        ownershipInput.placeholder = 'e.g., IT Data Team';
+        ownershipInput.value = existingRule.ownership || ''; // Pre-fill
+        row.insertCell().appendChild(ownershipInput);
+
+        // Security Classification
+        const securitySelect = createSelectElement(securityClassificationOptions, existingRule.security_classification); // Pre-fill
+        securitySelect.classList.add('dd-security-classification');
+        row.insertCell().appendChild(securitySelect);
+
+        // --- Existing Validation Fields ---
+        // Validation Type
         const typeCell = row.insertCell();
         const typeSelect = document.createElement('select');
-        typeSelect.classList.add('validation-type-select', 'p-2', 'border', 'border-gray-300', 'rounded-md', 'focus:ring-blue-500', 'focus:border-blue-500', 'text-gray-800');
+        typeSelect.classList.add('validation-type-select', 'p-2', 'border', 'border-gray-300', 'rounded-md', 'focus:ring-blue-500', 'focus:border-blue-500', 'text-gray-800', 'w-full');
         typeSelect.name = `type_${index}`;
         validationTypes.forEach(type => {
             const option = document.createElement('option');
@@ -422,19 +572,21 @@ function renderHeadersTable(headers, rulesToPreFill = []) {
         });
         typeCell.appendChild(typeSelect);
 
+        // Validation Value
         const valueCell = row.insertCell();
         const valueInput = document.createElement('input');
         valueInput.type = 'text';
         valueInput.classList.add('validation-value-input', 'mt-1', 'block', 'w-full', 'p-2', 'border', 'border-gray-300', 'rounded-md', 'focus:ring-green-500', 'focus:border-green-500', 'text-gray-800');
         valueInput.name = `value_${index}`;
         valueInput.placeholder = 'e.g., Value1,Value2 or 0-100 or ^\\d{5}$';
-        valueInput.style.setProperty('display', 'none', 'important');
+        valueInput.style.setProperty('display', 'none', 'important'); // Hidden by default
         valueCell.appendChild(valueInput);
 
         const descriptionDiv = document.createElement('div');
-        descriptionDiv.classList.add('rule-description');
+        descriptionDiv.classList.add('rule-description', 'text-xs', 'text-gray-500', 'mt-1');
         valueCell.appendChild(descriptionDiv);
 
+        // Failure Message
         const messageCell = row.insertCell();
         const messageInput = document.createElement('input');
         messageInput.type = 'text';
@@ -443,35 +595,54 @@ function renderHeadersTable(headers, rulesToPreFill = []) {
         messageInput.placeholder = 'e.g., Field cannot be blank.';
         messageCell.appendChild(messageInput);
 
-        const existingRule = rulesMap.get(String(header).trim());
-        console.log(`renderHeadersTable: Checking for rule for column "${header}" in rulesMap for current render:`, existingRule); // NEW log
-        if (existingRule) {
-            console.log(`renderHeadersTable: Pre-filling rule for "${header}" from rulesMap:`, existingRule); // NEW log
-            typeSelect.value = existingRule['Validation Type'] || '';
-            valueInput.value = existingRule['Validation Value'] || '';
-            messageInput.value = existingRule['Failure Message'] || '';
+        // --- Read-only Metadata Fields ---
+        // These are typically managed by the backend on save/load, not directly editable by user here.
+        // They will be populated when loading an existing dictionary.
+        const lastUpdatedDateCell = row.insertCell();
+        lastUpdatedDateCell.classList.add('dd-last-updated-date-cell');
+        lastUpdatedDateCell.textContent = existingRule.updated_at ? new Date(existingRule.updated_at).toLocaleDateString() : ''; // Display formatted date
+        
+        const updatedByCell = row.insertCell();
+        updatedByCell.classList.add('dd-updated-by-cell');
+        updatedByCell.textContent = existingRule.updated_by || ''; // Assuming 'updated_by' exists in rules_json if set
+
+        const versionCell = row.insertCell();
+        versionCell.classList.add('dd-version-cell');
+        versionCell.textContent = existingRule.version || ''; // Assuming 'version' exists in rules_json if set
+
+
+        // --- Pre-fill Existing Validation Rule ---
+        // This needs to check for the existing 'Validation Type' from the 'validation_rules' array
+        // Assuming existingRule.validation_rules is an array of validation objects, and we just use the first one for simplicity for pre-fill
+        const existingValidationRule = (existingRule.validation_rules && existingRule.validation_rules.length > 0) ? existingRule.validation_rules[0] : null;
+
+        if (existingValidationRule) {
+            typeSelect.value = existingValidationRule.type || '';
+            valueInput.value = existingValidationRule.value || '';
+            messageInput.value = existingValidationRule.message || '';
             typeSelect.dispatchEvent(new Event('change')); // Trigger change to set initial visibility
         } else {
-            console.log(`renderHeadersTable: No rule found for "${header}" in rulesMap for current render.`); // NEW log
+            // Ensure inputs are hidden if no existing rule
             valueInput.style.setProperty('display', 'none', 'important');
             valueInput.required = false;
             valueInput.placeholder = '';
             descriptionDiv.textContent = '';
         }
 
+
         typeSelect.addEventListener('change', (e) => {
             const selectedType = e.target.value;
             const input = e.target.closest('tr').querySelector('.validation-value-input');
             const descDiv = e.target.closest('tr').querySelector('.rule-description');
 
-            input.value = '';
-            descDiv.textContent = '';
+            input.value = ''; // Clear value when type changes
+            descDiv.textContent = ''; // Clear description when type changes
 
             if (['ALLOWED_VALUES', 'NUMERIC_RANGE', 'REGEX'].includes(selectedType)) {
                 input.style.setProperty('display', 'block', 'important');
                 input.required = true;
                 if (selectedType === 'ALLOWED_VALUES') {
-                    input.placeholder = 'Comma-separated values (e.g., Apple,Orange,Banana)';
+                    input.placeholder = 'Comma-separated values (e.g., Apple,Orange)';
                     descDiv.textContent = 'Enter values separated by commas (e.g., "Yes,No").';
                 } else if (selectedType === 'NUMERIC_RANGE') {
                     input.placeholder = 'Min-Max (e.g., 0-100)';
@@ -494,9 +665,12 @@ function renderHeadersTable(headers, rulesToPreFill = []) {
                 descDiv.textContent = 'Values in this column must be unique across the sheet.';
             }
         });
+        // Manually trigger change for newly created elements to set initial display
+        typeSelect.dispatchEvent(new Event('change'));
     });
     console.log("renderHeadersTable: Function finished rendering table.");
 }
+
 
 /**
  * Collects all defined rules from the headers table.
@@ -512,24 +686,64 @@ function collectRules() {
 
     const rows = tbody.querySelectorAll('tr');
     rows.forEach(row => {
+        // Extract original column name
         const columnName = row.cells[0].textContent.trim();
+
+        // Extract new data dictionary fields
+        const displayName = row.querySelector('.dd-display-name').value.trim();
+        const description = row.querySelector('.dd-description').value.trim();
+        const dataType = row.querySelector('.dd-data-type').value;
+        const lengthSize = row.querySelector('.dd-length-size').value.trim();
+        const format = row.querySelector('.dd-format').value.trim();
+        const allowableValues = row.querySelector('.dd-allowable-values').value.trim();
+        const nullability = row.querySelector('.dd-nullability').value;
+        const sourceSystems = row.querySelector('.dd-source-systems').value.trim();
+        const targetSystems = row.querySelector('.dd-target-systems').value.trim();
+        const businessRules = row.querySelector('.dd-business-rules').value.trim();
+        const relationship = row.querySelector('.dd-relationship').value.trim();
+        const ownership = row.querySelector('.dd-ownership').value.trim();
+        const securityClassification = row.querySelector('.dd-security-classification').value;
+
+        // Extract validation rule fields
         const validationType = row.querySelector('.validation-type-select').value;
         const validationValueInput = row.querySelector('.validation-value-input');
+        const validationValue = validationValueInput.style.display !== 'none' ? validationValueInput.value.trim() : "";
         const failureMessage = row.querySelector('.failure-message-input').value.trim();
 
+        // Construct the comprehensive rule object
+        const rule = {
+            "Column Name": columnName, // Original header
+            display_name: displayName,
+            description: description,
+            data_type: dataType,
+            length_size: lengthSize,
+            format: format,
+            allowable_values: allowableValues,
+            nullability: nullability,
+            source_systems: sourceSystems,
+            target_systems: targetSystems,
+            business_rules: businessRules,
+            relationships: relationship,
+            ownership: ownership,
+            security_classification: securityClassification,
+            validation_rules: [] // Array for validation rules
+        };
+
+        // Add validation rule if one is selected
         if (validationType && validationType !== '') {
-            const rule = {
-                "Column Name": columnName,
-                "Validation Type": validationType,
-                "Validation Value": validationValueInput.style.display !== 'none' ? validationValueInput.value.trim() : "",
-                "Failure Message": failureMessage
-            };
-            rules.push(rule);
+            rule.validation_rules.push({
+                type: validationType,
+                value: validationValue,
+                message: failureMessage
+            });
         }
+
+        rules.push(rule);
     });
-    console.log("Collected Rules:", rules);
+    console.log("Collected Comprehensive Rules:", rules);
     return rules;
 }
+
 
 /**
  * Handles saving a new data dictionary or updating an existing one.
@@ -537,7 +751,7 @@ function collectRules() {
 async function saveDataDictionary() {
     const dictionaryNameInput = document.getElementById('dictionaryName');
     const dictionaryName = dictionaryNameInput.value.trim();
-    const rules = collectRules();
+    const rules = collectRules(); // Now collects comprehensive rules
     const sourceHeaders = currentHeaders;
 
     if (!dictionaryName) {
@@ -546,7 +760,7 @@ async function saveDataDictionary() {
         return;
     }
     if (rules.length === 0) {
-        displayMessage('saveStatus', 'Please define at least one validation rule.', 'error');
+        displayMessage('saveStatus', 'Please define at least one header definition or validation rule.', 'error'); // Updated message
         return;
     }
 
@@ -564,8 +778,8 @@ async function saveDataDictionary() {
 
     const payload = {
         dictionaryName,
-        rules,
-        sourceHeaders,
+        rules_json: rules, // Send the comprehensive rules array
+        source_headers_json: sourceHeaders, // The original headers used to build it
         ...(isEditingExistingDictionary && currentDictionaryId && { id: currentDictionaryId })
     };
 
@@ -587,7 +801,7 @@ async function saveDataDictionary() {
                 currentDictionaryId = result.dictionaryId;
                 isEditingExistingDictionary = true;
             }
-            await populateExistingDictionariesDropdown();
+            await populateExistingDictionariesDropdown(); // Re-populate to show new/updated dict
         } else {
             displayMessage('saveStatus', `Error saving: ${result.message || 'Unknown error.'}`, 'error');
             console.error('Save error:', result.error || result.message);
@@ -606,7 +820,7 @@ async function saveDataDictionary() {
  */
 function handlePrintDictionary() {
     const dictionaryName = document.getElementById('dictionaryName').value.trim();
-    const rules = collectRules();
+    const rules = collectRules(); // Now collects comprehensive rules
 
     if (!dictionaryName || rules.length === 0) {
         displayMessage('saveStatus', 'Please load or create a data dictionary with rules to print.', 'error');
@@ -650,16 +864,24 @@ function handlePrintDictionary() {
                     border-bottom: 2px solid #eee;
                     padding-bottom: 5px;
                 }
+                .meta-info p {
+                    margin: 5px 0;
+                    font-size: 0.95em;
+                }
+                .meta-info strong {
+                    color: #2c3e50;
+                }
                 table {
                     width: 100%;
                     border-collapse: collapse;
                     margin-bottom: 20px;
-                    font-size: 0.9em;
+                    font-size: 0.8em; /* Slightly smaller font for more columns */
                 }
                 th, td {
                     border: 1px solid #ddd;
-                    padding: 10px;
+                    padding: 8px; /* Slightly less padding for more columns */
                     text-align: left;
+                    vertical-align: top; /* Align content to top for textareas */
                 }
                 th {
                     background-color: #f2f2f2;
@@ -668,13 +890,6 @@ function handlePrintDictionary() {
                 }
                 tr:nth-child(even) {
                     background-color: #f9f9f9;
-                }
-                .meta-info p {
-                    margin: 5px 0;
-                    font-size: 0.95em;
-                }
-                .meta-info strong {
-                    color: #2c3e50;
                 }
                 @media print {
                     body, h1, h2, h3, p, strong, table, th, td {
@@ -695,26 +910,69 @@ function handlePrintDictionary() {
                 <p><strong>Dictionary Name:</strong> ${dictionaryName}</p>
                 <p><strong>Generated On:</strong> ${new Date().toLocaleString()}</p>
             </div>
-            <h2>Validation Rules</h2>
+            <h2>Column Definitions & Validation Rules</h2>
             <table>
                 <thead>
                     <tr>
                         <th>Column Name</th>
+                        <th>Display Name</th>
+                        <th>Definition/Description</th>
+                        <th>Data Type</th>
+                        <th>Length/Size</th>
+                        <th>Format</th>
+                        <th>Allowable Values/Domain</th>
+                        <th>Nullability</th>
+                        <th>Source System(s)</th>
+                        <th>Target System(s)/Usage</th>
+                        <th>Business Rules/Constraints</th>
+                        <th>Relationship to Other Elements/Tables</th>
+                        <th>Ownership/Stewardship</th>
+                        <th>Security Classification</th>
                         <th>Validation Type</th>
                         <th>Validation Value</th>
                         <th>Failure Message</th>
+                        <th>Last Updated Date</th>
+                        <th>Updated By</th>
+                        <th>Version</th>
                     </tr>
                 </thead>
                 <tbody>
     `;
 
     rules.forEach(rule => {
+        // Prepare validation details if present
+        let validationType = 'None';
+        let validationValue = '';
+        let failureMessage = '';
+        if (rule.validation_rules && rule.validation_rules.length > 0) {
+            const valRule = rule.validation_rules[0]; // Assuming one main validation rule per column for simplicity
+            validationType = validationTypes.find(vt => vt.value === valRule.type)?.text || valRule.type;
+            validationValue = valRule.value || '';
+            failureMessage = valRule.message || '';
+        }
+
         printContent += `
             <tr>
                 <td>${rule['Column Name'] || ''}</td>
-                <td>${rule['Validation Type'] || ''}</td>
-                <td>${rule['Validation Value'] || ''}</td>
-                <td>${rule['Failure Message'] || ''}</td>
+                <td>${rule.display_name || ''}</td>
+                <td>${rule.description || ''}</td>
+                <td>${rule.data_type || ''}</td>
+                <td>${rule.length_size || ''}</td>
+                <td>${rule.format || ''}</td>
+                <td>${rule.allowable_values || ''}</td>
+                <td>${rule.nullability || ''}</td>
+                <td>${rule.source_systems || ''}</td>
+                <td>${rule.target_systems || ''}</td>
+                <td>${rule.business_rules || ''}</td>
+                <td>${rule.relationships || ''}</td>
+                <td>${rule.ownership || ''}</td>
+                <td>${rule.security_classification || ''}</td>
+                <td>${validationType}</td>
+                <td>${validationValue}</td>
+                <td>${failureMessage}</td>
+                <td>${rule.updated_at ? new Date(rule.updated_at).toLocaleDateString() : ''}</td>
+                <td>${rule.updated_by || ''}</td>
+                <td>${rule.version || ''}</td>
             </tr>
         `;
     });
