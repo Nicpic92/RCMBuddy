@@ -12,10 +12,11 @@ main {
     flex-grow: 1;
     justify-content: center;
     align-items: flex-start; /* Align content to top */
-    /* Padding for main is now set directly in HTML with Tailwind classes, or removed */
-    padding: 1rem; /* Reverted to original padding for main content area */
+    /* MODIFIED: Reverted padding for main content area as the modal is now separate */
+    padding: 1rem; /* Responsive padding */
     width: 100%;
-    max-width: none; /* Ensure no explicit max-width here if main has no container class */
+    /* Ensure no explicit max-width here if main has no container class */
+    max-width: none; /* Reverted */
     box-sizing: border-box;
 }
 
@@ -26,7 +27,7 @@ section {
     box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
     margin-bottom: 2rem; /* Spacing at the bottom */
     width: 100%; /* Ensure section fills its parent */
-    /* Reverted section max-width, as it's now back in the normal flow within main */
+    /* MODIFIED: Reverted section max-width to its original as it's now back in the normal flow within main */
     max-width: 900px; /* Original max-width for the section when it's NOT a modal */
     box-sizing: border-box;
 }
@@ -137,10 +138,11 @@ input[type="file"] {
     padding: 1.5rem 2rem;
     border-radius: 0.75rem;
     box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3); /* Stronger shadow for modal */
-    width: 95%; /* Take up 95% of the overlay's width */
-    max-width: 1500px; /* Max width for the modal content itself. Adjust as needed! */
-    height: 90%; /* Take up 90% of the overlay's height */
-    max-height: 95vh; /* Ensure it doesn't exceed viewport height */
+    /* MODIFIED: Increased width and height for a slightly bigger popup */
+    width: 98%; /* Take up 98% of the overlay's width */
+    height: 98%; /* Take up 98% of the overlay's height */
+    max-width: 1600px; /* Max width for the modal content itself. Adjusted from 1500px! */
+    max-height: 98vh; /* Ensure it doesn't exceed viewport height */
     display: flex; /* Enable flexbox for internal content layout */
     flex-direction: column; /* Stack content vertically */
     box-sizing: border-box; /* Include padding in dimensions */
@@ -165,7 +167,7 @@ input[type="file"] {
 #headersTable th,
 #headersTable td {
     padding: 12px 16px; /* Generous padding for readability */
-    border: 1px solid #e2e8f0; /* Light border for cells */
+    border: 1px solid #ddd; /* Light border for cells (changed from e2e8f0 for slightly more contrast) */
     vertical-align: top; /* Align content to the top */
 }
 
