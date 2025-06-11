@@ -7,6 +7,9 @@ let uploadedOriginalFileName = null; // Stores the name of the file uploaded to 
 let isEditingExistingDictionary = false; // Flag to differentiate between creating new and editing existing
 let allExistingRulesMap = new Map(); // Stores all rules from all existing dictionaries for pre-population by column name
 let currentWorkbook = null; // NEW: Stores the parsed Excel workbook object for multi-sheet validation
+let currentSheetName = null; // NEW: Stores the name of the currently active sheet for rule definition
+let sheetHeadersMap = new Map(); // NEW: Stores headers for each sheet: Map<sheetName, Array<headerStrings>>
+let sheetRulesMap = new Map(); // NEW: Stores rules for each sheet that the user has defined/loaded: Map<sheetName, Array<ruleObjects>>
 
 // --- Helper Functions (reused and adapted) ---
 
@@ -237,21 +240,29 @@ async function loadDictionaryForEditing() {
         currentHeaders = dictionary.source_headers_json || [];
         const rulesToPreFill = dictionary.rules_json || [];
 
-        if (currentHeaders.length === 0 && rulesToPreFill.length > 0) {
-            // If no source headers, but rules exist, infer headers from rules
-            currentHeaders = rulesToPreFill.map(rule => String(rule['Column Name'] || rule.column_name || '').trim()).filter(h => h !== '');
-            console.warn("loadDictionaryForEditing: Inferring headers from rules_json as source_headers_json is empty.");
-        } else if (currentHeaders.length === 0 && rulesToPreFill.length === 0) {
-            console.warn("loadDictionaryForEditing: No source headers or rules found in the loaded dictionary.");
-            displayMessage('existingDictStatus', 'Dictionary loaded, but no content. Consider uploading a new file to get headers.', 'info');
+        // MODIFIED: Update sheetRulesMap with rules for the loaded dictionary's sheet
+        // Assuming a loaded dictionary corresponds to a single sheet for now
+        const sheetNameFromDict = dictionary.name.split(' - ').pop(); // Infer sheet name if format is "FileName - SheetName"
+        currentSheetName = sheetNameFromDict || 'Sheet1'; // Default to Sheet1 if not found
+        sheetRulesMap.set(currentSheetName, rulesToPreFill);
+
+        // Pre-fill sheetHeadersMap with this dictionary's headers, useful if no file is uploaded yet
+        sheetHeadersMap.set(currentSheetName, currentHeaders);
+
+        // If no file is currently uploaded, simulate one with just this sheet
+        if (!currentWorkbook) {
+             currentWorkbook = { SheetNames: [currentSheetName], Sheets: {} };
+             currentWorkbook.Sheets[currentSheetName] = XLSX.utils.aoa_to_sheet([currentHeaders]);
+             populateSheetSelectionDropdown(currentWorkbook.SheetNames);
+             document.getElementById('sheetSelector').value = currentSheetName; // Select the loaded sheet
         }
+
 
         renderHeadersTable(currentHeaders, rulesToPreFill);
 
         // MODIFIED: Hide initial section and show the full-screen overlay for the builder
         document.getElementById('initialSelectionSection').classList.add('hidden');
         document.getElementById('dataDictionaryOverlay').classList.remove('hidden'); // Show the overlay
-        // The print button will be disabled if no file is currently uploaded (currentWorkbook is null)
         document.getElementById('printDictionaryBtn').disabled = (currentWorkbook === null);
 
 
@@ -285,6 +296,8 @@ async function startNewDictionaryFromUpload() {
     uploadedOriginalFileName = excelFile.name;
     isEditingExistingDictionary = false;
     currentWorkbook = null; // Clear previous workbook on new upload
+    sheetHeadersMap.clear(); // Clear previous sheet headers
+    sheetRulesMap.clear(); // Clear previous sheet rules
 
     const reader = new FileReader();
     reader.onload = function(e) {
@@ -297,62 +310,71 @@ async function startNewDictionaryFromUpload() {
                 throw new Error('No sheets found in the uploaded file.');
             }
 
-            const firstSheetName = workbook.SheetNames[0];
-            const worksheet = workbook.Sheets[firstSheetName];
-            const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: null });
+            // Populate sheet selection dropdown
+            populateSheetSelectionDropdown(workbook.SheetNames);
 
-            if (jsonData.length === 0) {
-                throw new Error('The first sheet is empty and contains no headers.');
-            }
-
-            let headers = [];
-            for(let i = 0; i < jsonData.length; i++) {
-                const row = jsonData[i];
-                if (row && row.some(cell => cell !== null && String(cell).trim() !== '')) {
-                    headers = row.map(h => h === null || h === undefined ? '' : String(h).trim()).filter(h => h !== '');
-                    break;
+            // Extract headers for all sheets and store them
+            workbook.SheetNames.forEach(sheetName => {
+                const worksheet = workbook.Sheets[sheetName];
+                const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: null });
+                
+                let headers = [];
+                if (jsonData.length > 0) {
+                    for(let i = 0; i < jsonData.length; i++) {
+                        const row = jsonData[i];
+                        if (row && row.some(cell => cell !== null && String(cell).trim() !== '')) {
+                            headers = row.map(h => h === null || h === undefined ? '' : String(h).trim()).filter(h => h !== '');
+                            break;
+                        }
+                    }
                 }
+                sheetHeadersMap.set(sheetName, headers);
+            });
+
+            // Automatically load the first sheet's headers and rules for initial display
+            currentSheetName = workbook.SheetNames[0];
+            document.getElementById('sheetSelector').value = currentSheetName; // Select the first sheet in dropdown
+
+            const firstSheetHeaders = sheetHeadersMap.get(currentSheetName) || [];
+            
+            if (firstSheetHeaders.length === 0) {
+                // If the first sheet has no headers, try to find one that does or warn
+                console.warn(`First sheet "${currentSheetName}" has no headers. Please select another sheet if available.`);
+                // Still proceed to render, but table will be empty.
             }
 
-            if (headers.length === 0) {
-                throw new Error('Could not find any valid headers in the first sheet.');
-            }
-
-            currentHeaders = headers;
-            document.getElementById('dictionaryName').value = uploadedOriginalFileName.replace(/\.(xlsx|xls|csv)$/i, '').trim();
-
-            // NEW: Pre-populate all comprehensive rules from allExistingRulesMap
-            const rulesToPreFillForNew = [];
-            console.log("startNewDictionaryFromUpload: Headers from new file:", currentHeaders); // NEW log
-            currentHeaders.forEach(header => {
+            // Pre-populate comprehensive rules for the first sheet based on allExistingRulesMap
+            const rulesToPreFillForFirstSheet = [];
+            firstSheetHeaders.forEach(header => {
                 const cleanedHeader = String(header).trim();
-                console.log(`startNewDictionaryFromUpload: Checking header "${cleanedHeader}" for existing rules...`); // NEW log
                 if (allExistingRulesMap.has(cleanedHeader)) {
-                    const rule = allExistingRulesMap.get(cleanedHeader);
-                    rulesToPreFillForNew.push(rule);
-                    console.log(`startNewDictionaryFromUpload: Found matching rule for "${cleanedHeader}":`, rule); // NEW log
+                    rulesToPreFillForFirstSheet.push(allExistingRulesMap.get(cleanedHeader));
                 } else {
-                    console.log(`startNewDictionaryFromUpload: No existing rule found for "${cleanedHeader}".`); // NEW log
-                    // If no existing rule, create a basic placeholder with just the column name
-                    rulesToPreFillForNew.push({ 'Column Name': cleanedHeader });
+                    rulesToPreFillForFirstSheet.push({ 'Column Name': cleanedHeader });
                 }
             });
-            console.log("startNewDictionaryFromUpload: Final rules to pre-fill for new dictionary:", rulesToPreFillForNew); // NEW log
+            sheetRulesMap.set(currentSheetName, rulesToPreFillForFirstSheet); // Store for the first sheet
 
-            renderHeadersTable(currentHeaders, rulesToPreFillForNew); // Pass comprehensive pre-filled rules
+            currentHeaders = firstSheetHeaders; // Set currentHeaders for rendering
+            document.getElementById('dictionaryName').value = `${uploadedOriginalFileName.replace(/\.(xlsx|xls|csv)$/i, '').trim()} - ${currentSheetName}`;
+
+            renderHeadersTable(currentHeaders, sheetRulesMap.get(currentSheetName)); // Render table for the first sheet
 
             // MODIFIED: Hide initial section and show the full-screen overlay for the builder
             document.getElementById('initialSelectionSection').classList.add('hidden');
             document.getElementById('dataDictionaryOverlay').classList.remove('hidden'); // Show the overlay
             document.getElementById('printDictionaryBtn').disabled = false; // Enable print since workbook is available
 
-            displayMessage('newDictStatus', `Headers extracted from "${excelFile.name}". Existing rules pre-populated.`, 'success');
+            displayMessage('newDictStatus', `Headers extracted from "${excelFile.name}". Select a sheet to define rules.`, 'success');
 
         } catch (error) {
             console.error('Error processing uploaded file for headers:', error);
             displayMessage('newDictStatus', `Failed to extract headers: ${error.message}`, 'error');
             currentHeaders = [];
             currentWorkbook = null; // Clear workbook if processing failed
+            sheetHeadersMap.clear();
+            sheetRulesMap.clear();
+            populateSheetSelectionDropdown([]); // Clear sheet dropdown
         } finally {
             hideLoader('initialLoader');
             document.getElementById('excelFile').value = '';
@@ -360,6 +382,70 @@ async function startNewDictionaryFromUpload() {
     };
     reader.readAsArrayBuffer(excelFile);
 }
+
+/**
+ * NEW: Populates the sheet selection dropdown with sheet names.
+ * @param {Array<string>} sheetNames - An array of sheet names.
+ */
+function populateSheetSelectionDropdown(sheetNames) {
+    const sheetSelector = document.getElementById('sheetSelector');
+    sheetSelector.innerHTML = ''; // Clear existing options
+
+    if (sheetNames.length === 0) {
+        sheetSelector.innerHTML = '<option value="">No sheets found</option>';
+        sheetSelector.disabled = true;
+    } else {
+        sheetNames.forEach(name => {
+            const option = document.createElement('option');
+            option.value = name;
+            option.textContent = name;
+            sheetSelector.appendChild(option);
+        });
+        sheetSelector.disabled = false;
+    }
+}
+
+/**
+ * NEW: Handles the change event for the sheet selection dropdown.
+ * Loads the selected sheet's headers and rules into the UI.
+ */
+function handleSheetSelectionChange() {
+    const selectedSheet = document.getElementById('sheetSelector').value;
+    if (selectedSheet && currentWorkbook && sheetHeadersMap.has(selectedSheet)) {
+        // First, save rules for the *currently active* sheet before switching
+        if (currentSheetName && sheetRulesMap.has(currentSheetName)) {
+            const currentSheetRules = collectRules(); // Collect from UI
+            sheetRulesMap.set(currentSheetName, currentSheetRules); // Save to map
+        }
+
+        currentSheetName = selectedSheet;
+        currentHeaders = sheetHeadersMap.get(currentSheetName);
+        
+        // Load rules for the newly selected sheet, or initialize if none exist yet
+        let rulesToPreFill = sheetRulesMap.get(currentSheetName);
+        if (!rulesToPreFill) {
+            rulesToPreFill = [];
+            currentHeaders.forEach(header => {
+                const cleanedHeader = String(header).trim();
+                if (allExistingRulesMap.has(cleanedHeader)) {
+                    rulesToPreFill.push(allExistingRulesMap.get(cleanedHeader));
+                } else {
+                    rulesToPreFill.push({ 'Column Name': cleanedHeader });
+                }
+            });
+            sheetRulesMap.set(currentSheetName, rulesToPreFill); // Store newly initialized rules
+        }
+
+        document.getElementById('dictionaryName').value = `${uploadedOriginalFileName.replace(/\.(xlsx|xls|csv)$/i, '').trim()} - ${currentSheetName}`;
+        renderHeadersTable(currentHeaders, rulesToPreFill);
+        displayMessage('saveStatus', `Now defining rules for sheet: "${currentSheetName}".`, 'info');
+    } else {
+        console.warn("Sheet selection changed to empty or invalid sheet.");
+        displayMessage('saveStatus', 'Please select a valid sheet.', 'error');
+        resetBuilderUI(); // Potentially reset if something is wrong
+    }
+}
+
 
 // --- Core Logic: Render Headers Table for Rule Definition ---
 
@@ -451,7 +537,7 @@ function renderHeadersTable(headers, rulesToPreFill = []) {
     if (headers.length === 0) {
         const row = tbody.insertRow();
         const cell = row.insertCell();
-        // MODIFIED: colSpan adjusted from 20 to 19 after removing 'Display Name' column
+        // MODIFIED: colSpan adjusted to 19 (original columns - 1 for Display Name)
         cell.colSpan = 19;
         cell.textContent = "No headers available to define rules. Upload a file or load a dictionary with headers.";
         cell.style.textAlign = 'center';
@@ -756,7 +842,7 @@ function collectRules() {
  */
 async function saveDataDictionary() {
     const dictionaryNameInput = document.getElementById('dictionaryName');
-    const dictionaryName = dictionaryNameInput.value.trim();
+    let dictionaryName = dictionaryNameInput.value.trim();
     const rules = collectRules(); // Now collects comprehensive rules
     const sourceHeaders = currentHeaders;
 
@@ -768,6 +854,15 @@ async function saveDataDictionary() {
     if (rules.length === 0) {
         displayMessage('saveStatus', 'Please define at least one header definition or validation rule.', 'error'); // Updated message
         return;
+    }
+
+    // MODIFIED: Ensure dictionary name includes sheet name for clarity and uniqueness
+    if (currentWorkbook && currentSheetName && !dictionaryName.includes(` - ${currentSheetName}`)) {
+        dictionaryName = `${uploadedOriginalFileName.replace(/\.(xlsx|xls|csv)$/i, '').trim()} - ${currentSheetName}`;
+        document.getElementById('dictionaryName').value = dictionaryName; // Update UI
+    } else if (!currentWorkbook && !dictionaryName.includes(' - Sheet1')) { // If no workbook, default to Sheet1 suffix
+        dictionaryName = `${dictionaryName} - Sheet1`;
+        document.getElementById('dictionaryName').value = dictionaryName;
     }
 
     displayMessage('saveStatus', 'Saving data dictionary...', 'info');
@@ -806,6 +901,10 @@ async function saveDataDictionary() {
             if (!isEditingExistingDictionary && result.dictionaryId) {
                 currentDictionaryId = result.dictionaryId;
                 isEditingExistingDictionary = true;
+            }
+            // MODIFIED: After saving, update the sheetRulesMap with the collected rules
+            if (currentSheetName) {
+                sheetRulesMap.set(currentSheetName, rules);
             }
             await populateExistingDictionariesDropdown(); // Re-populate to show new/updated dict
         } else {
@@ -1244,6 +1343,9 @@ function resetBuilderUI() {
     uploadedOriginalFileName = null;
     isEditingExistingDictionary = false;
     currentWorkbook = null; // NEW: Clear the workbook on UI reset
+    currentSheetName = null; // NEW: Clear current sheet name
+    sheetHeadersMap.clear(); // NEW: Clear sheet headers map
+    sheetRulesMap.clear(); // NEW: Clear sheet rules map
 
     document.getElementById('dictionaryName').value = '';
     document.querySelector('#headersTable tbody').innerHTML = '';
@@ -1253,6 +1355,14 @@ function resetBuilderUI() {
     // MODIFIED: Hide the overlay and show the initial selection section
     document.getElementById('dataDictionaryOverlay').classList.add('hidden'); // Ensure overlay is hidden
     document.getElementById('initialSelectionSection').classList.remove('hidden'); // Show initial choices
+
+    // Also reset sheet selector dropdown
+    const sheetSelector = document.getElementById('sheetSelector');
+    if (sheetSelector) {
+        sheetSelector.innerHTML = '<option value="">No file loaded</option>';
+        sheetSelector.disabled = true;
+    }
+
 
     displayMessage('existingDictStatus', '', 'info');
     displayMessage('newDictStatus', '', 'info');
@@ -1277,6 +1387,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (closeModalBtn) {
         closeModalBtn.addEventListener('click', closeModal);
     }
+
+    // NEW: Add event listener for the sheet selector dropdown
+    const sheetSelector = document.getElementById('sheetSelector');
+    if (sheetSelector) {
+        sheetSelector.addEventListener('change', handleSheetSelectionChange);
+    }
+
 
     document.getElementById('existingDictionarySelect').addEventListener('change', () => {
         displayMessage('existingDictStatus', '', 'info');
