@@ -141,7 +141,7 @@ input[type="file"] {
     /* MODIFIED: Increased width and height for a slightly bigger popup */
     width: 98%; /* Take up 98% of the overlay's width */
     height: 98%; /* Take up 98% of the overlay's height */
-    max-width: 1600px; /* Max width for the modal content itself. Adjusted from 1500px! */
+    max-width: 1700px; /* Adjusted max width for the modal content itself, even bigger */
     max-height: 98vh; /* Ensure it doesn't exceed viewport height */
     display: flex; /* Enable flexbox for internal content layout */
     flex-direction: column; /* Stack content vertically */
