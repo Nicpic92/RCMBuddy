@@ -1,15 +1,18 @@
 // public/tools/data-dictionary-builder.js
 
 // --- Global Variables ---
-let currentHeaders = []; // Stores the headers of the currently processed file/dictionary
+let currentHeaders = []; // Stores the headers of the currently processed file/dictionary (for active sheet)
 let currentDictionaryId = null; // Stores the ID of the dictionary currently being edited (null for new ones)
 let uploadedOriginalFileName = null; // Stores the name of the file uploaded to extract headers for a NEW dictionary
 let isEditingExistingDictionary = false; // Flag to differentiate between creating new and editing existing
 let allExistingRulesMap = new Map(); // Stores all rules from all existing dictionaries for pre-population by column name
-let currentWorkbook = null; // NEW: Stores the parsed Excel workbook object for multi-sheet validation
-let currentSheetName = null; // NEW: Stores the name of the currently active sheet for rule definition
+
+let currentWorkbook = null; // Stores the parsed Excel workbook object for multi-sheet validation
+let currentSheetName = null; // Stores the name of the currently active sheet for rule definition
+
 let sheetHeadersMap = new Map(); // NEW: Stores headers for each sheet: Map<sheetName, Array<headerStrings>>
 let sheetRulesMap = new Map(); // NEW: Stores rules for each sheet that the user has defined/loaded: Map<sheetName, Array<ruleObjects>>
+
 
 // --- Helper Functions (reused and adapted) ---
 
@@ -131,6 +134,7 @@ function setupNavigation(userData) {
  * Also populates allExistingRulesMap for pre-population feature.
  */
 async function populateExistingDictionariesDropdown() {
+    console.log("populateExistingDictionariesDropdown: Starting fetch."); // DEBUG
     const token = localStorage.getItem('jwtToken');
     if (!token) {
         console.warn('populateExistingDictionariesDropdown: No token found. Cannot fetch dictionaries.');
@@ -161,6 +165,7 @@ async function populateExistingDictionariesDropdown() {
 
         const result = await response.json();
         const dataDictionaries = result.dictionaries || [];
+        console.log("populateExistingDictionariesDropdown: Fetched dataDictionaries:", dataDictionaries); // DEBUG
 
         dropdown.innerHTML = '<option value="">-- Select an Existing Dictionary --</option>';
 
@@ -172,8 +177,7 @@ async function populateExistingDictionariesDropdown() {
                 option.textContent = dict.name;
                 dropdown.appendChild(option);
 
-                // NEW: Populate allExistingRulesMap for pre-population
-                // Use the new structure: dict.rules_json is an array of objects, each object represents a header's full definition
+                // Populate allExistingRulesMap for pre-population
                 if (dict.rules_json && Array.isArray(dict.rules_json)) {
                     dict.rules_json.forEach(rule => {
                         const colName = String(rule['Column Name'] || rule.column_name || '').trim(); // Adapt to potential old/new naming
@@ -193,8 +197,8 @@ async function populateExistingDictionariesDropdown() {
         dropdown.disabled = !hasDataDictionaries;
         document.getElementById('loadExistingDictionaryBtn').disabled = !hasDataDictionaries;
 
-        console.log("populateExistingDictionariesDropdown: allExistingRulesMap populated with (size):", allExistingRulesMap.size); // For debugging
-        console.log("populateExistingDictionariesDropdown: allExistingRulesMap contents:", Array.from(allExistingRulesMap.entries())); // For debugging
+        console.log("populateExistingDictionariesDropdown: allExistingRulesMap populated with (size):", allExistingRulesMap.size); // DEBUG
+        console.log("populateExistingDictionariesDropdown: allExistingRulesMap contents (first 5):", Array.from(allExistingRulesMap.entries()).slice(0, 5)); // DEBUG
 
     } catch (error) {
         console.error('populateExistingDictionariesDropdown: Network or parsing error:', error);
@@ -209,6 +213,7 @@ async function populateExistingDictionariesDropdown() {
  * Loads the selected data dictionary's rules from the backend for editing.
  */
 async function loadDictionaryForEditing() {
+    console.log("loadDictionaryForEditing: Starting."); // DEBUG
     const selectedDictId = document.getElementById('existingDictionarySelect').value;
     if (!selectedDictId) {
         displayMessage('existingDictStatus', 'Please select a dictionary from the list to load for editing.', 'error');
@@ -230,43 +235,49 @@ async function loadDictionaryForEditing() {
         }
         const dictionary = await response.json();
 
-        console.log("loadDictionaryForEditing: Received dictionary data:", dictionary);
+        console.log("loadDictionaryForEditing: Received dictionary data:", dictionary); // DEBUG
 
         currentDictionaryId = dictionary.id;
         document.getElementById('dictionaryName').value = dictionary.name;
         isEditingExistingDictionary = true;
 
-        // currentHeaders from source_headers_json or inferred from rules_json if source_headers_json is empty
-        currentHeaders = dictionary.source_headers_json || [];
-        const rulesToPreFill = dictionary.rules_json || [];
+        const loadedRules = dictionary.rules_json || [];
+        const loadedSourceHeaders = dictionary.source_headers_json || [];
 
-        // MODIFIED: Update sheetRulesMap with rules for the loaded dictionary's sheet
-        // Assuming a loaded dictionary corresponds to a single sheet for now
-        const sheetNameFromDict = dictionary.name.split(' - ').pop(); // Infer sheet name if format is "FileName - SheetName"
-        currentSheetName = sheetNameFromDict || 'Sheet1'; // Default to Sheet1 if not found
-        sheetRulesMap.set(currentSheetName, rulesToPreFill);
+        // Determine currentSheetName based on dictionary name format
+        const nameParts = dictionary.name.split(' - ');
+        currentSheetName = (nameParts.length > 1) ? nameParts[nameParts.length - 1] : 'Sheet1'; // Assumes last part is sheet name
+        uploadedOriginalFileName = dictionary.name.replace(` - ${currentSheetName}`, ''); // Infer original file name
 
-        // Pre-fill sheetHeadersMap with this dictionary's headers, useful if no file is uploaded yet
-        sheetHeadersMap.set(currentSheetName, currentHeaders);
+        // Reset and populate sheet maps
+        sheetHeadersMap.clear();
+        sheetRulesMap.clear();
 
-        // If no file is currently uploaded, simulate one with just this sheet
+        // If a dictionary is loaded, its rules and headers correspond to ONE sheet
+        sheetHeadersMap.set(currentSheetName, loadedSourceHeaders);
+        sheetRulesMap.set(currentSheetName, loadedRules);
+
+        // Simulate a workbook with just this sheet for validation purposes if needed
         if (!currentWorkbook) {
-             currentWorkbook = { SheetNames: [currentSheetName], Sheets: {} };
-             currentWorkbook.Sheets[currentSheetName] = XLSX.utils.aoa_to_sheet([currentHeaders]);
-             populateSheetSelectionDropdown(currentWorkbook.SheetNames);
-             document.getElementById('sheetSelector').value = currentSheetName; // Select the loaded sheet
+            currentWorkbook = { SheetNames: [currentSheetName], Sheets: {} };
+            currentWorkbook.Sheets[currentSheetName] = XLSX.utils.aoa_to_sheet([loadedSourceHeaders]);
         }
+        
+        // Populate sheet selector dropdown and select the loaded sheet
+        populateSheetSelectionDropdown(currentWorkbook.SheetNames);
+        document.getElementById('sheetSelector').value = currentSheetName;
 
-
-        renderHeadersTable(currentHeaders, rulesToPreFill);
+        currentHeaders = loadedSourceHeaders; // Set currentHeaders for rendering
+        renderHeadersTable(currentHeaders, loadedRules);
 
         // MODIFIED: Hide initial section and show the full-screen overlay for the builder
         document.getElementById('initialSelectionSection').classList.add('hidden');
         document.getElementById('dataDictionaryOverlay').classList.remove('hidden'); // Show the overlay
-        document.getElementById('printDictionaryBtn').disabled = (currentWorkbook === null);
+        document.getElementById('printDictionaryBtn').disabled = (currentWorkbook === null); // Enable print if a workbook (even a simulated one) is present
 
 
         displayMessage('existingDictStatus', `Dictionary "${dictionary.name}" loaded for editing.`, 'success');
+        console.log("loadDictionaryForEditing: Finished. currentSheetName:", currentSheetName, "sheetRulesMap:", sheetRulesMap); // DEBUG
 
     } catch (error) {
         console.error('Error loading dictionary for editing:', error);
@@ -283,6 +294,7 @@ async function loadDictionaryForEditing() {
  * Now pre-populates rules from other existing dictionaries if matching headers are found.
  */
 async function startNewDictionaryFromUpload() {
+    console.log("startNewDictionaryFromUpload: Starting."); // DEBUG
     const excelFile = document.getElementById('excelFile').files[0];
     if (!excelFile) {
         displayMessage('newDictStatus', 'Please select an Excel or CSV file to extract headers.', 'error');
@@ -295,9 +307,11 @@ async function startNewDictionaryFromUpload() {
     currentDictionaryId = null;
     uploadedOriginalFileName = excelFile.name;
     isEditingExistingDictionary = false;
+
     currentWorkbook = null; // Clear previous workbook on new upload
     sheetHeadersMap.clear(); // Clear previous sheet headers
     sheetRulesMap.clear(); // Clear previous sheet rules
+    currentSheetName = null; // Clear current sheet name
 
     const reader = new FileReader();
     reader.onload = function(e) {
@@ -305,6 +319,7 @@ async function startNewDictionaryFromUpload() {
             const data = new Uint8Array(e.target.result);
             const workbook = XLSX.read(data, { type: 'array' });
             currentWorkbook = workbook; // Store the workbook globally
+            console.log("startNewDictionaryFromUpload: Workbook loaded:", currentWorkbook); // DEBUG
 
             if (workbook.SheetNames.length === 0) {
                 throw new Error('No sheets found in the uploaded file.');
@@ -322,6 +337,7 @@ async function startNewDictionaryFromUpload() {
                 if (jsonData.length > 0) {
                     for(let i = 0; i < jsonData.length; i++) {
                         const row = jsonData[i];
+                        // Find the first non-empty row to consider as headers
                         if (row && row.some(cell => cell !== null && String(cell).trim() !== '')) {
                             headers = row.map(h => h === null || h === undefined ? '' : String(h).trim()).filter(h => h !== '');
                             break;
@@ -329,7 +345,21 @@ async function startNewDictionaryFromUpload() {
                     }
                 }
                 sheetHeadersMap.set(sheetName, headers);
+                // Initialize rules for this sheet (pre-fill from allExistingRulesMap if match)
+                const initialRulesForSheet = [];
+                headers.forEach(header => {
+                    const cleanedHeader = String(header).trim();
+                    if (allExistingRulesMap.has(cleanedHeader)) {
+                        initialRulesForSheet.push(allExistingRulesMap.get(cleanedHeader));
+                    } else {
+                        initialRulesForSheet.push({ 'Column Name': cleanedHeader });
+                    }
+                });
+                sheetRulesMap.set(sheetName, initialRulesForSheet); // Store for each sheet
             });
+            console.log("startNewDictionaryFromUpload: sheetHeadersMap:", sheetHeadersMap); // DEBUG
+            console.log("startNewDictionaryFromUpload: sheetRulesMap (initial):", sheetRulesMap); // DEBUG
+
 
             // Automatically load the first sheet's headers and rules for initial display
             currentSheetName = workbook.SheetNames[0];
@@ -338,22 +368,8 @@ async function startNewDictionaryFromUpload() {
             const firstSheetHeaders = sheetHeadersMap.get(currentSheetName) || [];
             
             if (firstSheetHeaders.length === 0) {
-                // If the first sheet has no headers, try to find one that does or warn
                 console.warn(`First sheet "${currentSheetName}" has no headers. Please select another sheet if available.`);
-                // Still proceed to render, but table will be empty.
             }
-
-            // Pre-populate comprehensive rules for the first sheet based on allExistingRulesMap
-            const rulesToPreFillForFirstSheet = [];
-            firstSheetHeaders.forEach(header => {
-                const cleanedHeader = String(header).trim();
-                if (allExistingRulesMap.has(cleanedHeader)) {
-                    rulesToPreFillForFirstSheet.push(allExistingRulesMap.get(cleanedHeader));
-                } else {
-                    rulesToPreFillForFirstSheet.push({ 'Column Name': cleanedHeader });
-                }
-            });
-            sheetRulesMap.set(currentSheetName, rulesToPreFillForFirstSheet); // Store for the first sheet
 
             currentHeaders = firstSheetHeaders; // Set currentHeaders for rendering
             document.getElementById('dictionaryName').value = `${uploadedOriginalFileName.replace(/\.(xlsx|xls|csv)$/i, '').trim()} - ${currentSheetName}`;
@@ -374,6 +390,7 @@ async function startNewDictionaryFromUpload() {
             currentWorkbook = null; // Clear workbook if processing failed
             sheetHeadersMap.clear();
             sheetRulesMap.clear();
+            currentSheetName = null;
             populateSheetSelectionDropdown([]); // Clear sheet dropdown
         } finally {
             hideLoader('initialLoader');
@@ -388,6 +405,7 @@ async function startNewDictionaryFromUpload() {
  * @param {Array<string>} sheetNames - An array of sheet names.
  */
 function populateSheetSelectionDropdown(sheetNames) {
+    console.log("populateSheetSelectionDropdown: Populating with names:", sheetNames); // DEBUG
     const sheetSelector = document.getElementById('sheetSelector');
     sheetSelector.innerHTML = ''; // Clear existing options
 
@@ -410,39 +428,53 @@ function populateSheetSelectionDropdown(sheetNames) {
  * Loads the selected sheet's headers and rules into the UI.
  */
 function handleSheetSelectionChange() {
+    console.log("handleSheetSelectionChange: Event triggered."); // DEBUG
     const selectedSheet = document.getElementById('sheetSelector').value;
     if (selectedSheet && currentWorkbook && sheetHeadersMap.has(selectedSheet)) {
-        // First, save rules for the *currently active* sheet before switching
-        if (currentSheetName && sheetRulesMap.has(currentSheetName)) {
-            const currentSheetRules = collectRules(); // Collect from UI
+        // Step 1: Save rules for the *currently active* sheet (before switching)
+        // Ensure that there was a previous sheet selected and it had content to collect rules from
+        if (currentSheetName && sheetHeadersMap.get(currentSheetName).length > 0) {
+            const currentSheetRules = collectRules(); // Collect from UI for the sheet we are leaving
             sheetRulesMap.set(currentSheetName, currentSheetRules); // Save to map
+            console.log(`handleSheetSelectionChange: Saved rules for previous sheet "${currentSheetName}":`, currentSheetRules); // DEBUG
         }
-
+        
+        // Step 2: Update global sheet reference
         currentSheetName = selectedSheet;
         currentHeaders = sheetHeadersMap.get(currentSheetName);
-        
-        // Load rules for the newly selected sheet, or initialize if none exist yet
-        let rulesToPreFill = sheetRulesMap.get(currentSheetName);
-        if (!rulesToPreFill) {
-            rulesToPreFill = [];
+        console.log(`handleSheetSelectionChange: Switched to sheet "${currentSheetName}". Headers:`, currentHeaders); // DEBUG
+
+        // Step 3: Load rules for the newly selected sheet, or initialize if none exist yet
+        let rulesToRender = sheetRulesMap.get(currentSheetName);
+        if (!rulesToRender) {
+            // This case should ideally not happen if sheetRulesMap is populated on upload
+            // but as a fallback, re-initialize if somehow missing
+            rulesToRender = [];
             currentHeaders.forEach(header => {
                 const cleanedHeader = String(header).trim();
                 if (allExistingRulesMap.has(cleanedHeader)) {
-                    rulesToPreFill.push(allExistingRulesMap.get(cleanedHeader));
+                    rulesToRender.push(allExistingRulesMap.get(cleanedHeader));
                 } else {
-                    rulesToPreFill.push({ 'Column Name': cleanedHeader });
+                    rulesToRender.push({ 'Column Name': cleanedHeader });
                 }
             });
-            sheetRulesMap.set(currentSheetName, rulesToPreFill); // Store newly initialized rules
+            sheetRulesMap.set(currentSheetName, rulesToRender);
+            console.log(`handleSheetSelectionChange: Re-initialized rules for "${currentSheetName}":`, rulesToRender); // DEBUG
         }
+        console.log(`handleSheetSelectionChange: Rules to render for "${currentSheetName}":`, rulesToRender); // DEBUG
 
+
+        // Step 4: Update Dictionary Name input
         document.getElementById('dictionaryName').value = `${uploadedOriginalFileName.replace(/\.(xlsx|xls|csv)$/i, '').trim()} - ${currentSheetName}`;
-        renderHeadersTable(currentHeaders, rulesToPreFill);
+
+        // Step 5: Render table for the newly selected sheet
+        renderHeadersTable(currentHeaders, rulesToRender);
         displayMessage('saveStatus', `Now defining rules for sheet: "${currentSheetName}".`, 'info');
     } else {
-        console.warn("Sheet selection changed to empty or invalid sheet.");
+        console.warn("handleSheetSelectionChange: Sheet selection changed to empty or invalid sheet. Selected:", selectedSheet, "currentWorkbook:", currentWorkbook, "sheetHeadersMap.has(selectedSheet):", sheetHeadersMap.has(selectedSheet)); // DEBUG
         displayMessage('saveStatus', 'Please select a valid sheet.', 'error');
-        resetBuilderUI(); // Potentially reset if something is wrong
+        // Do NOT call resetBuilderUI here, as it clears the whole workbook state.
+        // The user might just select an invalid option momentarily.
     }
 }
 
@@ -522,7 +554,7 @@ function renderHeadersTable(headers, rulesToPreFill = []) {
             rulesMap.set(colName, rule);
         }
     });
-    console.log("renderHeadersTable: Rules map created for current rendering:", rulesMap);
+    console.log("renderHeadersTable: Rules map created for current rendering:", rulesMap); // DEBUG
 
     const validationTypes = [
         { value: '', text: 'None' },
@@ -537,8 +569,7 @@ function renderHeadersTable(headers, rulesToPreFill = []) {
     if (headers.length === 0) {
         const row = tbody.insertRow();
         const cell = row.insertCell();
-        // MODIFIED: colSpan adjusted to 19 (original columns - 1 for Display Name)
-        cell.colSpan = 19;
+        cell.colSpan = 19; // Adjusted colspan for all new columns
         cell.textContent = "No headers available to define rules. Upload a file or load a dictionary with headers.";
         cell.style.textAlign = 'center';
         cell.style.padding = '20px';
@@ -552,7 +583,7 @@ function renderHeadersTable(headers, rulesToPreFill = []) {
     }
 
     headers.forEach((header, index) => {
-        console.log(`renderHeadersTable: Processing header: "${header}" (Index: ${index})`);
+        console.log(`renderHeadersTable: Processing header: "${header}" (Index: ${index})`); // DEBUG
 
         const row = tbody.insertRow();
         row.insertCell().textContent = header; // Column Name (Read-only from file)
@@ -759,7 +790,7 @@ function renderHeadersTable(headers, rulesToPreFill = []) {
         // Manually trigger change for newly created elements to set initial display
         typeSelect.dispatchEvent(new Event('change'));
     });
-    console.log("renderHeadersTable: Function finished rendering table.");
+    console.log("renderHeadersTable: Function finished rendering table."); // DEBUG
 }
 
 
@@ -768,6 +799,7 @@ function renderHeadersTable(headers, rulesToPreFill = []) {
  * @returns {Array<object>} An array of rule objects, ready for saving.
  */
 function collectRules() {
+    console.log("collectRules: Starting collection from UI."); // DEBUG
     const rules = [];
     const tbody = document.querySelector('#headersTable tbody');
     if (!tbody) {
@@ -780,9 +812,8 @@ function collectRules() {
         // Extract original column name
         const columnName = row.cells[0].textContent.trim();
 
-        // Removed: Display Name input field collection
-
         // Extract new data dictionary fields
+        // Note: Display Name input field collection is intentionally removed
         const description = row.querySelector('.dd-description').value.trim();
         const dataType = row.querySelector('.dd-data-type').value;
         const lengthSize = row.querySelector('.dd-length-size').value.trim();
@@ -805,7 +836,6 @@ function collectRules() {
         // Construct the comprehensive rule object
         const rule = {
             "Column Name": columnName, // Original header
-            // Removed: display_name: displayName,
             description: description,
             data_type: dataType,
             length_size: lengthSize,
@@ -813,7 +843,7 @@ function collectRules() {
             allowable_values: allowableValues,
             nullability: nullability,
             source_systems: sourceSystems,
-            target_systems: targetSystems,
+            target_systems: target_systems,
             business_rules: businessRules,
             relationships: relationship,
             ownership: ownership,
@@ -832,7 +862,7 @@ function collectRules() {
 
         rules.push(rule);
     });
-    console.log("Collected Comprehensive Rules:", rules);
+    console.log("collectRules: Collected Comprehensive Rules:", rules); // DEBUG
     return rules;
 }
 
@@ -841,29 +871,56 @@ function collectRules() {
  * Handles saving a new data dictionary or updating an existing one.
  */
 async function saveDataDictionary() {
+    console.log("saveDataDictionary: Starting."); // DEBUG
     const dictionaryNameInput = document.getElementById('dictionaryName');
     let dictionaryName = dictionaryNameInput.value.trim();
-    const rules = collectRules(); // Now collects comprehensive rules
-    const sourceHeaders = currentHeaders;
+
+    // IMPORTANT: Collect rules for the CURRENTLY ACTIVE SHEET before saving
+    // This ensures sheetRulesMap has the latest UI state for the current sheet
+    if (currentSheetName) {
+        const currentSheetRulesFromUI = collectRules();
+        sheetRulesMap.set(currentSheetName, currentSheetRulesFromUI);
+        console.log(`saveDataDictionary: Saved current UI rules to sheetRulesMap for "${currentSheetName}":`, currentSheetRulesFromUI); // DEBUG
+    } else {
+        console.warn("saveDataDictionary: currentSheetName is null. Cannot save rules to sheetRulesMap."); // DEBUG
+    }
+
+    // Now, get the rules for saving from the map
+    const rulesToSave = sheetRulesMap.get(currentSheetName);
+    if (!rulesToSave || rulesToSave.length === 0) {
+        displayMessage('saveStatus', 'No rules defined for the current sheet to save.', 'error');
+        console.error("saveDataDictionary: No rules to save for current sheet."); // DEBUG
+        return;
+    }
+
+    // Get headers for the current sheet from the map
+    const sourceHeadersToSave = sheetHeadersMap.get(currentSheetName);
+    if (!sourceHeadersToSave || sourceHeadersToSave.length === 0) {
+        displayMessage('saveStatus', 'Cannot save: No headers found for the current sheet.', 'error');
+        console.error("saveDataDictionary: No headers to save for current sheet."); // DEBUG
+        return;
+    }
+
 
     if (!dictionaryName) {
         displayMessage('saveStatus', 'Please enter a name for your data dictionary.', 'error');
         dictionaryNameInput.focus();
         return;
     }
-    if (rules.length === 0) {
-        displayMessage('saveStatus', 'Please define at least one header definition or validation rule.', 'error'); // Updated message
-        return;
+    
+    // Ensure dictionary name includes sheet name for clarity and uniqueness
+    // Only append if it doesn't already contain the sheet name (to avoid double appending)
+    if (uploadedOriginalFileName && currentSheetName && !dictionaryName.includes(currentSheetName)) {
+        dictionaryName = `${uploadedOriginalFileName.replace(/\.(xlsx|xls|csv)$/i, '').trim()} - ${currentSheetName}`;
+        document.getElementById('dictionaryName').value = dictionaryName; // Update UI with full name
+        console.log("saveDataDictionary: Auto-adjusted dictionary name to:", dictionaryName); // DEBUG
+    } else if (!uploadedOriginalFileName && currentSheetName && !dictionaryName.includes(currentSheetName)) {
+        // Fallback for loading from existing dict without original file name
+        dictionaryName = `${dictionaryName.split(' - ')[0].trim()} - ${currentSheetName}`;
+        document.getElementById('dictionaryName').value = dictionaryName; // Update UI with full name
+        console.log("saveDataDictionary: Adjusted dictionary name for loaded dict to:", dictionaryName); // DEBUG
     }
 
-    // MODIFIED: Ensure dictionary name includes sheet name for clarity and uniqueness
-    if (currentWorkbook && currentSheetName && !dictionaryName.includes(` - ${currentSheetName}`)) {
-        dictionaryName = `${uploadedOriginalFileName.replace(/\.(xlsx|xls|csv)$/i, '').trim()} - ${currentSheetName}`;
-        document.getElementById('dictionaryName').value = dictionaryName; // Update UI
-    } else if (!currentWorkbook && !dictionaryName.includes(' - Sheet1')) { // If no workbook, default to Sheet1 suffix
-        dictionaryName = `${dictionaryName} - Sheet1`;
-        document.getElementById('dictionaryName').value = dictionaryName;
-    }
 
     displayMessage('saveStatus', 'Saving data dictionary...', 'info');
     document.getElementById('saveDictionaryBtn').disabled = true;
@@ -879,10 +936,11 @@ async function saveDataDictionary() {
 
     const payload = {
         dictionaryName,
-        rules_json: rules, // Send the comprehensive rules array
-        source_headers_json: sourceHeaders, // The original headers used to build it
+        rules_json: rulesToSave, // Send the comprehensive rules array
+        source_headers_json: sourceHeadersToSave, // The original headers used to build it
         ...(isEditingExistingDictionary && currentDictionaryId && { id: currentDictionaryId })
     };
+    console.log("saveDataDictionary: Payload being sent:", payload); // DEBUG
 
     try {
         const response = await fetch('/api/save-data-dictionary', {
@@ -902,18 +960,15 @@ async function saveDataDictionary() {
                 currentDictionaryId = result.dictionaryId;
                 isEditingExistingDictionary = true;
             }
-            // MODIFIED: After saving, update the sheetRulesMap with the collected rules
-            if (currentSheetName) {
-                sheetRulesMap.set(currentSheetName, rules);
-            }
             await populateExistingDictionariesDropdown(); // Re-populate to show new/updated dict
+            console.log("saveDataDictionary: Successfully saved and dropdown re-populated."); // DEBUG
         } else {
             displayMessage('saveStatus', `Error saving: ${result.message || 'Unknown error.'}`, 'error');
-            console.error('Save error:', result.error || result.message);
+            console.error('Save error:', result.error || result.message); // DEBUG
         }
     } catch (error) {
         displayMessage('saveStatus', `Network error during save: ${error.message}`, 'error');
-        console.error('Frontend save error:', error);
+        console.error('Frontend save error:', error); // DEBUG
     } finally {
         document.getElementById('saveDictionaryBtn').disabled = false;
         document.getElementById('printDictionaryBtn').disabled = false;
@@ -927,8 +982,10 @@ async function saveDataDictionary() {
  * @returns {Array<object>} An array of validation error objects.
  */
 function validateSheetData(sheetData, rules) {
+    console.log("validateSheetData: Validating sheet. SheetData length:", sheetData ? sheetData.length : 0, "Rules length:", rules ? rules.length : 0); // DEBUG
     const errors = [];
     if (!sheetData || sheetData.length < 2) { // Need at least header row and one data row
+        console.log("validateSheetData: No data rows found or sheet is empty."); // DEBUG
         return errors;
     }
 
@@ -940,6 +997,8 @@ function validateSheetData(sheetData, rules) {
     rules.forEach(rule => {
         rulesMap.set(String(rule['Column Name']).trim(), rule);
     });
+    console.log("validateSheetData: Headers from sheet:", headers); // DEBUG
+    console.log("validateSheetData: Rules Map for validation:", rulesMap); // DEBUG
 
     dataRows.forEach((row, rowIndex) => {
         headers.forEach((header, colIndex) => {
@@ -956,6 +1015,11 @@ function validateSheetData(sheetData, rules) {
             let isValid = true;
             let errorMessage = validationRule.message || `Validation failed for column "${header}" with value "${actualValue}".`;
 
+            // Skip validation if value is empty/whitespace AND rule is not 'REQUIRED'
+            if (actualValue === '' && validationRule.type !== 'REQUIRED') {
+                return;
+            }
+
             switch (validationRule.type) {
                 case 'REQUIRED':
                     if (actualValue === '') {
@@ -963,38 +1027,35 @@ function validateSheetData(sheetData, rules) {
                     }
                     break;
                 case 'ALLOWED_VALUES':
-                    if (actualValue === '' && rule.nullability === 'Optional') { // Allow empty if optional
-                        isValid = true;
-                    } else if (validationRule.value) {
+                    if (validationRule.value) {
                         const allowedValues = validationRule.value.split(',').map(v => v.trim().toLowerCase());
                         if (!allowedValues.includes(actualValue.toLowerCase())) {
                             isValid = false;
                             errorMessage = validationRule.message || `Value "${actualValue}" not in allowed values: ${validationRule.value}.`;
                         }
+                    } else { // If ALLOWED_VALUES type is selected but no values provided, it's an invalid rule setup
+                        isValid = false;
+                        errorMessage = `Allowed Values rule defined for "${header}" but no allowed values provided.`;
                     }
                     break;
                 case 'NUMERIC_RANGE':
-                    if (actualValue === '' && rule.nullability === 'Optional') {
-                        isValid = true;
-                    } else if (validationRule.value) {
+                    if (validationRule.value) {
                         const [minStr, maxStr] = validationRule.value.split('-').map(s => s.trim());
                         const min = parseFloat(minStr);
                         const max = parseFloat(maxStr);
                         const numValue = parseFloat(actualValue);
 
-                        if (isNaN(numValue) || numValue < min || numValue > max) {
+                        if (isNaN(numValue) || numValue < min || numValue > max || minStr === '' || maxStr === '') {
                             isValid = false;
-                            errorMessage = validationRule.message || `Value "${actualValue}" is not a number or outside range ${min}-${max}.`;
+                            errorMessage = validationRule.message || `Value "${actualValue}" is not a number or outside range ${validationRule.value}.`;
                         }
-                    } else if (isNaN(parseFloat(actualValue))) { // If no range, just check if it's a number
+                    } else { // If NUMERIC_RANGE type is selected but no range provided
                         isValid = false;
-                        errorMessage = validationRule.message || `Value "${actualValue}" is not a valid number.`;
+                        errorMessage = `Numeric Range rule defined for "${header}" but no range provided.`;
                     }
                     break;
                 case 'REGEX':
-                    if (actualValue === '' && rule.nullability === 'Optional') {
-                        isValid = true;
-                    } else if (validationRule.value) {
+                    if (validationRule.value) {
                         try {
                             const regex = new RegExp(validationRule.value);
                             if (!regex.test(actualValue)) {
@@ -1003,31 +1064,26 @@ function validateSheetData(sheetData, rules) {
                             }
                         } catch (e) {
                             isValid = false; // Invalid regex pattern itself is an error
-                            errorMessage = `Invalid regex pattern for column "${header}": ${validationRule.value}.`;
+                            errorMessage = `Invalid regex pattern for column "${header}": ${validationRule.value}. Error: ${e.message}`;
                             console.error(errorMessage, e);
                         }
+                    } else { // If REGEX type is selected but no pattern provided
+                        isValid = false;
+                        errorMessage = `Regex rule defined for "${header}" but no pattern provided.`;
                     }
                     break;
                 case 'DATE_PAST':
-                    if (actualValue === '' && rule.nullability === 'Optional') {
-                        isValid = true;
-                    } else {
-                        const date = new Date(actualValue);
-                        const today = new Date();
-                        today.setHours(0,0,0,0); // Compare dates, not times
+                    const date = new Date(actualValue);
+                    const today = new Date();
+                    today.setHours(0,0,0,0); // Compare dates, not times
 
-                        if (isNaN(date.getTime()) || date >= today) {
-                            isValid = false;
-                            errorMessage = validationRule.message || `Date "${actualValue}" is not a valid date or is not in the past.`;
-                        }
+                    if (isNaN(date.getTime()) || date >= today) {
+                        isValid = false;
+                        errorMessage = validationRule.message || `Date "${actualValue}" is not a valid date or is not in the past.`;
                     }
                     break;
                 case 'UNIQUE':
-                    // This validation type typically requires checking across the *entire column* for the sheet.
-                    // For simplicity here, we'll flag it, but actual implementation might need a separate pass
-                    // after collecting all column values for the sheet.
-                    // For current purpose, it means "This column should have unique values".
-                    // Full unique check is outside the scope of cell-by-cell.
+                    // Unique validation is handled after the main loop for the entire column
                     break;
                 case 'None':
                     // No specific validation, always valid based on this rule
@@ -1036,7 +1092,7 @@ function validateSheetData(sheetData, rules) {
 
             if (!isValid) {
                 errors.push({
-                    sheet: sheetData[0], // header row
+                    sheetName: "N/A", // Will be filled later
                     header: header,
                     rowIndex: rowIndex + 1, // +1 for 0-indexed dataRows, +1 for header row
                     colIndex: colIndex,
@@ -1047,7 +1103,7 @@ function validateSheetData(sheetData, rules) {
         });
     });
 
-    // Special handling for 'UNIQUE' rule: needs to check entire column
+    // Special handling for 'UNIQUE' rule: needs to check entire column after all rows are processed
     rules.forEach(rule => {
         const colName = String(rule['Column Name']).trim();
         if (rule.validation_rules && rule.validation_rules.length > 0 && rule.validation_rules[0].type === 'UNIQUE') {
@@ -1058,9 +1114,9 @@ function validateSheetData(sheetData, rules) {
                 columnValues.forEach((value, dataRowIdx) => {
                     if (value !== '' && seenValues.has(value)) { // Only check non-empty duplicates
                         errors.push({
-                            sheet: sheetData[0],
+                            sheetName: "N/A", // Will be filled later
                             header: colName,
-                            rowIndex: dataRowIdx + 1, // Adjust to actual row number
+                            rowIndex: dataRowIdx + 1, // Adjust to actual row number in dataRows
                             colIndex: headerIndex,
                             value: value,
                             message: rule.validation_rules[0].message || `Value "${value}" in column "${colName}" is not unique.`
@@ -1072,7 +1128,7 @@ function validateSheetData(sheetData, rules) {
             }
         }
     });
-
+    console.log("validateSheetData: Validation finished. Errors found:", errors.length); // DEBUG
     return errors;
 }
 
@@ -1082,22 +1138,34 @@ function validateSheetData(sheetData, rules) {
  * in the currently uploaded workbook.
  */
 function handlePrintDictionary() {
+    console.log("handlePrintDictionary: Starting."); // DEBUG
     const dictionaryName = document.getElementById('dictionaryName').value.trim();
-    const rules = collectRules(); // Now collects comprehensive rules from the UI
+    
+    // Ensure rules from the current sheet are saved to map before generating report
+    if (currentSheetName) {
+        const currentSheetRulesFromUI = collectRules(); // Collect from UI for the sheet we are on
+        sheetRulesMap.set(currentSheetName, currentSheetRulesFromUI); // Save to map
+        console.log(`handlePrintDictionary: Saved current UI rules to sheetRulesMap for "${currentSheetName}":`, currentSheetRulesFromUI); // DEBUG
+    }
 
-    if (!dictionaryName || rules.length === 0) {
+    const rulesForCurrentSheet = sheetRulesMap.get(currentSheetName);
+
+    if (!dictionaryName || !rulesForCurrentSheet || rulesForCurrentSheet.length === 0) {
         displayMessage('saveStatus', 'Please load or create a data dictionary with rules to print.', 'error');
+        console.error("handlePrintDictionary: No dictionary name or rules for current sheet to print."); // DEBUG
         return;
     }
 
     if (!currentWorkbook) {
         displayMessage('saveStatus', 'No file uploaded for validation report. Please upload a file first.', 'error');
+        console.error("handlePrintDictionary: No workbook uploaded."); // DEBUG
         return;
     }
 
     const printWindow = window.open('', '', 'height=800,width=1200'); // Larger print window
     if (!printWindow) {
         displayMessage('saveStatus', 'Please allow pop-ups for printing this report.', 'error');
+        console.error("handlePrintDictionary: Pop-up blocked."); // DEBUG
         return;
     }
 
@@ -1215,7 +1283,7 @@ function handlePrintDictionary() {
                 <p><strong>Generated On:</strong> ${new Date().toLocaleString()}</p>
                 <p><strong>Source File:</strong> ${uploadedOriginalFileName || 'N/A'}</p>
             </div>
-            <h2>Defined Column Rules</h2>
+            <h2>Defined Column Rules (For Current Sheet: "${currentSheetName || 'N/A'}")</h2>
             <table>
                 <thead>
                     <tr>
@@ -1243,7 +1311,7 @@ function handlePrintDictionary() {
                 <tbody>
     `;
 
-    rules.forEach(rule => {
+    rulesForCurrentSheet.forEach(rule => { // Use rulesForCurrentSheet for printing
         let validationType = 'None';
         let validationValue = '';
         let failureMessage = '';
@@ -1284,12 +1352,16 @@ function handlePrintDictionary() {
             </table>
             <h2>Validation Results per Sheet</h2>
     `;
+    console.log("handlePrintDictionary: Starting validation for all sheets in workbook."); // DEBUG
 
     // Perform validation for each sheet in the workbook
     currentWorkbook.SheetNames.forEach(sheetName => {
+        // Use the rules from sheetRulesMap for each sheet if they exist, otherwise fallback to currentSheetRules
+        const rulesToApplyForSheet = sheetRulesMap.get(sheetName) || rulesForCurrentSheet;
+        
         const worksheet = currentWorkbook.Sheets[sheetName];
         const sheetData = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: null });
-        const validationErrors = validateSheetData(sheetData, rules);
+        const validationErrors = validateSheetData(sheetData, rulesToApplyForSheet); // Pass appropriate rules for each sheet
 
         printContent += `
             <h3>Sheet: "${sheetName}"</h3>
@@ -1314,6 +1386,7 @@ function handlePrintDictionary() {
         }
         printContent += `</div>`;
     });
+    console.log("handlePrintDictionary: Finished validation and report generation."); // DEBUG
 
     printContent += `
         </body>
@@ -1330,6 +1403,7 @@ function handlePrintDictionary() {
  * Closes the full-screen data dictionary builder modal.
  */
 function closeModal() {
+    console.log("closeModal: Closing modal and resetting UI."); // DEBUG
     document.getElementById('dataDictionaryOverlay').classList.add('hidden');
     resetBuilderUI(); // Also resets the form and shows initial selection
 }
@@ -1338,21 +1412,22 @@ function closeModal() {
  * Resets the builder UI to its initial state (showing selection options).
  */
 function resetBuilderUI() {
+    console.log("resetBuilderUI: Resetting all global state and UI."); // DEBUG
     currentHeaders = [];
     currentDictionaryId = null;
     uploadedOriginalFileName = null;
     isEditingExistingDictionary = false;
-    currentWorkbook = null; // NEW: Clear the workbook on UI reset
-    currentSheetName = null; // NEW: Clear current sheet name
-    sheetHeadersMap.clear(); // NEW: Clear sheet headers map
-    sheetRulesMap.clear(); // NEW: Clear sheet rules map
+    currentWorkbook = null; // Clear the workbook on UI reset
+    currentSheetName = null; // Clear current sheet name
+    sheetHeadersMap.clear(); // Clear sheet headers map
+    sheetRulesMap.clear(); // Clear sheet rules map
 
     document.getElementById('dictionaryName').value = '';
     document.querySelector('#headersTable tbody').innerHTML = '';
     document.getElementById('saveDictionaryBtn').disabled = true;
     document.getElementById('printDictionaryBtn').disabled = true; // Disable print button on reset
 
-    // MODIFIED: Hide the overlay and show the initial selection section
+    // Hide the overlay and show the initial selection section
     document.getElementById('dataDictionaryOverlay').classList.add('hidden'); // Ensure overlay is hidden
     document.getElementById('initialSelectionSection').classList.remove('hidden'); // Show initial choices
 
@@ -1363,14 +1438,15 @@ function resetBuilderUI() {
         sheetSelector.disabled = true;
     }
 
-
     displayMessage('existingDictStatus', '', 'info');
     displayMessage('newDictStatus', '', 'info');
     displayMessage('saveStatus', '', 'info');
+    console.log("resetBuilderUI: Reset complete."); // DEBUG
 }
 
 // --- Event Listeners and Initial Load ---
 document.addEventListener('DOMContentLoaded', async () => {
+    console.log("DOMContentLoaded: Event fired. Starting initial setup."); // DEBUG
     const userData = await verifyToken();
     if (userData) {
         setupNavigation(userData);
@@ -1382,18 +1458,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('saveDictionaryBtn').addEventListener('click', saveDataDictionary);
     document.getElementById('printDictionaryBtn').addEventListener('click', handlePrintDictionary);
 
-    // NEW: Add event listener for a close button on the modal (you'll need to add this button in HTML)
     const closeModalBtn = document.getElementById('closeModalBtn');
     if (closeModalBtn) {
         closeModalBtn.addEventListener('click', closeModal);
     }
 
-    // NEW: Add event listener for the sheet selector dropdown
     const sheetSelector = document.getElementById('sheetSelector');
     if (sheetSelector) {
         sheetSelector.addEventListener('change', handleSheetSelectionChange);
     }
-
 
     document.getElementById('existingDictionarySelect').addEventListener('change', () => {
         displayMessage('existingDictStatus', '', 'info');
@@ -1406,4 +1479,5 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Ensure the initial selection UI is visible when the page loads
     // and the overlay is hidden.
     resetBuilderUI();
+    console.log("DOMContentLoaded: Initial setup complete."); // DEBUG
 });
