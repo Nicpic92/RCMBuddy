@@ -24,8 +24,8 @@ section {
     box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
     margin-bottom: 2rem; /* Spacing at the bottom */
     width: 100%;
-    /* --- MODIFIED: Increased max-width for a larger overall window --- */
-    max-width: 1200px; /* Original: 900px. Adjust as needed (e.g., 1100px, 1400px, or 90vw) */
+    /* --- REVERTED: max-width is now handled by Tailwind classes in HTML (max-w-screen-xl) --- */
+    /* max-width: 900px; /* Original value or a custom CSS override if not using Tailwind's max-w-* classes */
     box-sizing: border-box;
 }
 
