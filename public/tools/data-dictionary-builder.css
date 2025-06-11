@@ -10,22 +10,25 @@ body {
 main {
     display: flex;
     flex-grow: 1;
-    justify-content: center;
-    align-items: flex-start; /* Align content to top */
-    padding: 1rem; /* Responsive padding */
+    justify-content: center; /* Still center content within main if it doesn't take 100% */
+    align-items: flex-start;
+    /* --- MODIFIED: Removed padding from main, now handled by its children or external layout --- */
+    padding: 0; /* Changed from 1rem */
     width: 100%;
+    /* --- MODIFIED: Ensure main has no max-width from custom CSS, handled by HTML w-full --- */
+    max-width: none;
     box-sizing: border-box;
 }
 
 section {
     background-color: #ffffff;
-    padding: 1.5rem 2rem; /* Responsive padding */
+    padding: 1.5rem 2rem; /* Keep section's internal padding */
     border-radius: 0.75rem; /* Rounded corners */
     box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
     margin-bottom: 2rem; /* Spacing at the bottom */
-    width: 100%;
-    /* --- REVERTED: max-width is now handled by Tailwind classes in HTML (max-w-screen-2xl) --- */
-    /* max-width: 900px; /* Original value or a custom CSS override if not using Tailwind's max-w-* classes */
+    width: 100%; /* Explicitly ensure section takes 100% of parent's width */
+    /* --- MODIFIED: Ensure section has no max-width from custom CSS, handled by HTML w-full --- */
+    max-width: none;
     box-sizing: border-box;
 }
 
@@ -115,8 +118,8 @@ input[type="file"] {
 
 /* Specific styling for the data dictionary builder table */
 #headersTableContainer {
-    /* --- MODIFIED: Increased max-height for more visible table rows --- */
-    max-height: 700px; /* Original: 500px. Adjust as needed (e.g., 800px, 900px, or 60vh) */
+    /* --- MODIFIED: Increased max-height significantly to take up more viewport height --- */
+    max-height: 80vh; /* Changed from 700px to allow more vertical filling */
     overflow-y: auto; /* Enable vertical scrolling */
     border: 1px solid #e2e8f0; /* Light border around the table container */
     border-radius: 0.5rem; /* Rounded corners for table container */
