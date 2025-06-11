@@ -241,14 +241,15 @@ async function loadDictionaryForEditing() {
             currentHeaders = rulesToPreFill.map(rule => String(rule['Column Name'] || rule.column_name || '').trim()).filter(h => h !== '');
             console.warn("loadDictionaryForEditing: Inferring headers from rules_json as source_headers_json is empty.");
         } else if (currentHeaders.length === 0 && rulesToPreFill.length === 0) {
-             console.warn("loadDictionaryForEditing: No source headers or rules found in the loaded dictionary.");
-             displayMessage('existingDictStatus', 'Dictionary loaded, but no content. Consider uploading a new file to get headers.', 'info');
+            console.warn("loadDictionaryForEditing: No source headers or rules found in the loaded dictionary.");
+            displayMessage('existingDictStatus', 'Dictionary loaded, but no content. Consider uploading a new file to get headers.', 'info');
         }
 
         renderHeadersTable(currentHeaders, rulesToPreFill);
 
+        // MODIFIED: Hide initial section and show the full-screen overlay for the builder
         document.getElementById('initialSelectionSection').classList.add('hidden');
-        document.getElementById('dictionaryBuilderSection').classList.remove('hidden');
+        document.getElementById('dataDictionaryOverlay').classList.remove('hidden'); // Show the overlay
         document.getElementById('printDictionaryBtn').disabled = false;
 
         displayMessage('existingDictStatus', `Dictionary "${dictionary.name}" loaded for editing.`, 'success');
@@ -335,8 +336,9 @@ async function startNewDictionaryFromUpload() {
 
             renderHeadersTable(currentHeaders, rulesToPreFillForNew); // Pass comprehensive pre-filled rules
 
+            // MODIFIED: Hide initial section and show the full-screen overlay for the builder
             document.getElementById('initialSelectionSection').classList.add('hidden');
-            document.getElementById('dictionaryBuilderSection').classList.remove('hidden');
+            document.getElementById('dataDictionaryOverlay').classList.remove('hidden'); // Show the overlay
             document.getElementById('printDictionaryBtn').disabled = false;
 
             displayMessage('newDictStatus', `Headers extracted from "${excelFile.name}". Existing rules pre-populated.`, 'success');
@@ -655,6 +657,7 @@ function renderHeadersTable(headers, rulesToPreFill = []) {
                 input.style.setProperty('display', 'none', 'important');
                 input.required = false;
                 input.placeholder = '';
+                descriptionDiv.textContent = '';
             }
 
             if (selectedType === 'REQUIRED') {
@@ -829,7 +832,8 @@ function handlePrintDictionary() {
 
     const printWindow = window.open('', '', 'height=600,width=800');
     if (!printWindow) {
-        alert('Please allow pop-ups for printing this report.');
+        // Changed from alert() to a more user-friendly message or modal
+        displayMessage('saveStatus', 'Please allow pop-ups for printing this report.', 'error');
         return;
     }
 
@@ -1001,6 +1005,13 @@ function handlePrintDictionary() {
     printWindow.print();
 }
 
+/**
+ * Closes the full-screen data dictionary builder modal.
+ */
+function closeModal() {
+    document.getElementById('dataDictionaryOverlay').classList.add('hidden');
+    resetBuilderUI(); // Also resets the form and shows initial selection
+}
 
 /**
  * Resets the builder UI to its initial state (showing selection options).
@@ -1016,8 +1027,9 @@ function resetBuilderUI() {
     document.getElementById('saveDictionaryBtn').disabled = true;
     document.getElementById('printDictionaryBtn').disabled = true;
 
-    document.getElementById('initialSelectionSection').classList.remove('hidden');
-    document.getElementById('dictionaryBuilderSection').classList.add('hidden');
+    // MODIFIED: Hide the overlay and show the initial selection section
+    document.getElementById('dataDictionaryOverlay').classList.add('hidden'); // Ensure overlay is hidden
+    document.getElementById('initialSelectionSection').classList.remove('hidden'); // Show initial choices
 
     displayMessage('existingDictStatus', '', 'info');
     displayMessage('newDictStatus', '', 'info');
@@ -1037,6 +1049,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('saveDictionaryBtn').addEventListener('click', saveDataDictionary);
     document.getElementById('printDictionaryBtn').addEventListener('click', handlePrintDictionary);
 
+    // NEW: Add event listener for a close button on the modal (you'll need to add this button in HTML)
+    const closeModalBtn = document.getElementById('closeModalBtn');
+    if (closeModalBtn) {
+        closeModalBtn.addEventListener('click', closeModal);
+    }
+
     document.getElementById('existingDictionarySelect').addEventListener('change', () => {
         displayMessage('existingDictStatus', '', 'info');
     });
@@ -1045,5 +1063,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         displayMessage('newDictStatus', '', 'info');
     });
 
+    // Ensure the initial selection UI is visible when the page loads
+    // and the overlay is hidden.
     resetBuilderUI();
 });
