@@ -445,7 +445,8 @@ function renderHeadersTable(headers, rulesToPreFill = []) {
     if (headers.length === 0) {
         const row = tbody.insertRow();
         const cell = row.insertCell();
-        cell.colSpan = 20; // Adjusted colspan for all new columns
+        // MODIFIED: colSpan adjusted from 20 to 19 after removing 'Display Name' column
+        cell.colSpan = 19;
         cell.textContent = "No headers available to define rules. Upload a file or load a dictionary with headers.";
         cell.style.textAlign = 'center';
         cell.style.padding = '20px';
@@ -468,13 +469,8 @@ function renderHeadersTable(headers, rulesToPreFill = []) {
 
         // --- Add new comprehensive data dictionary fields ---
 
-        // Display Name
-        const displayNameInput = document.createElement('input');
-        displayNameInput.type = 'text';
-        displayNameInput.classList.add('dd-display-name', 'p-2', 'border', 'border-gray-300', 'rounded-md', 'focus:ring-blue-500', 'focus:border-blue-500', 'text-gray-800', 'w-full');
-        displayNameInput.placeholder = 'e.g., Patient ID';
-        displayNameInput.value = existingRule.display_name || ''; // Pre-fill
-        row.insertCell().appendChild(displayNameInput);
+        // Removed: Display Name input field and its append call
+        // The column for Display Name is also removed from the HTML table header
 
         // Definition/Description
         const descriptionTextarea = document.createElement('textarea');
@@ -500,7 +496,7 @@ function renderHeadersTable(headers, rulesToPreFill = []) {
         const formatInput = document.createElement('input');
         formatInput.type = 'text';
         formatInput.classList.add('dd-format', 'p-2', 'border', 'border-gray-300', 'rounded-md', 'focus:ring-blue-500', 'focus:border-blue-500', 'text-gray-800', 'w-full');
-        formatInput.placeholder = 'e.g., YYYY-MM-DD';
+        formatInput.placeholder = 'e.g.,YYYY-MM-DD';
         formatInput.value = existingRule.format || ''; // Pre-fill
         row.insertCell().appendChild(formatInput);
 
@@ -692,8 +688,9 @@ function collectRules() {
         // Extract original column name
         const columnName = row.cells[0].textContent.trim();
 
+        // Removed: Display Name input field collection
+
         // Extract new data dictionary fields
-        const displayName = row.querySelector('.dd-display-name').value.trim();
         const description = row.querySelector('.dd-description').value.trim();
         const dataType = row.querySelector('.dd-data-type').value;
         const lengthSize = row.querySelector('.dd-length-size').value.trim();
@@ -716,7 +713,7 @@ function collectRules() {
         // Construct the comprehensive rule object
         const rule = {
             "Column Name": columnName, // Original header
-            display_name: displayName,
+            // Removed: display_name: displayName,
             description: description,
             data_type: dataType,
             length_size: lengthSize,
@@ -919,7 +916,7 @@ function handlePrintDictionary() {
                 <thead>
                     <tr>
                         <th>Column Name</th>
-                        <th>Display Name</th>
+                        <!-- REMOVED: Display Name column header from print -->
                         <th>Definition/Description</th>
                         <th>Data Type</th>
                         <th>Length/Size</th>
@@ -958,7 +955,7 @@ function handlePrintDictionary() {
         printContent += `
             <tr>
                 <td>${rule['Column Name'] || ''}</td>
-                <td>${rule.display_name || ''}</td>
+                <!-- REMOVED: display_name from print content -->
                 <td>${rule.description || ''}</td>
                 <td>${rule.data_type || ''}</td>
                 <td>${rule.length_size || ''}</td>
