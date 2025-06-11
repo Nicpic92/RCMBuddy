@@ -24,7 +24,8 @@ section {
     box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
     margin-bottom: 2rem; /* Spacing at the bottom */
     width: 100%;
-    max-width: 900px; /* Max width for content */
+    /* --- MODIFIED: Increased max-width for a larger overall window --- */
+    max-width: 1200px; /* Original: 900px. Adjust as needed (e.g., 1100px, 1400px, or 90vw) */
     box-sizing: border-box;
 }
 
@@ -57,7 +58,7 @@ h2, h3, h4 { color: #2c3e50; }
 }
 
 /* These styles are applied by JS dynamically manipulating inline style,
-   but defining them here provides a fallback/reference */
+    but defining them here provides a fallback/reference */
 #existingDictStatus[style*="color: rgb(220, 53, 69)"], #newDictStatus[style*="color: rgb(220, 53, 69)"], #uploadStatus[style*="color: rgb(220, 53, 69)"], #saveStatus[style*="color: rgb(220, 53, 69)"] {
     background-color: #f8d7da; /* light red */
     border: 1px solid #dc3545; /* darker red */
@@ -114,7 +115,8 @@ input[type="file"] {
 
 /* Specific styling for the data dictionary builder table */
 #headersTableContainer {
-    max-height: 500px; /* Limit height for scrollability */
+    /* --- MODIFIED: Increased max-height for more visible table rows --- */
+    max-height: 700px; /* Original: 500px. Adjust as needed (e.g., 800px, 900px, or 60vh) */
     overflow-y: auto; /* Enable vertical scrolling */
     border: 1px solid #e2e8f0; /* Light border around the table container */
     border-radius: 0.5rem; /* Rounded corners for table container */
