@@ -27,8 +27,8 @@
         </div>
     </header>
 
-    <main class="flex-grow w-full">
-        <section class="bg-white p-6 sm:p-8 rounded-xl shadow-lg mb-8 w-full">
+    <main class="flex-grow container mx-auto p-4 sm:p-6 lg:p-8">
+        <section class="bg-white p-6 sm:p-8 rounded-xl shadow-lg mb-8 max-w-screen-xl mx-auto">
             <h2 class="text-2xl sm:text-3xl font-semibold text-center text-blue-700 mb-4">
                 Build & Manage Custom Data Dictionaries
             </h2>
@@ -104,56 +104,6 @@
                     </div>
                 </div>
             </div>
-            <div id="dictionaryBuilderSection" class="max-w-3xl mx-auto bg-white p-6 rounded-lg shadow-md mt-8 hidden">
-                <h3 class="text-xl font-bold text-green-700 mb-4">Define Data Dictionary Rules</h3>
-                <div class="mb-4">
-                    <label for="dictionaryName" class="block text-sm font-medium text-gray-700">Data Dictionary Name</label>
-                    <input type="text" id="dictionaryName" placeholder="e.g., HR Data Dictionary V1" required
-                                class="mt-1 block w-full p-2 border border-gray-300 rounded-md focus:ring-green-500 focus:border-green-500">
-                </div>
-                <div id="headersTableContainer" class="overflow-x-auto relative shadow-md sm:rounded-lg">
-                    <table class="w-full text-sm text-left text-gray-500" id="headersTable">
-                        <thead class="text-xs text-gray-700 uppercase bg-gray-50">
-                            <tr>
-                                <th scope="col" class="px-6 py-3" title="The technical or unique name of the data field as it exists in the database or system.">Column Name</th>
-                                <th scope="col" class="px-6 py-3" title="A user-friendly or business-oriented name for the data field, often what appears on reports or user interfaces.">Display Name</th>
-                                <th scope="col" class="px-6 py-3" title="A clear and concise explanation of what the data element represents, its meaning, and its purpose within the business context.">Definition/Description</th>
-                                <th scope="col" class="px-6 py-3" title="Specifies the type of data stored in the field (e.g., Text/String, Integer, Decimal, Date, Boolean).">Data Type</th>
-                                <th scope="col" class="px-6 py-3" title="The maximum number of characters or digits allowed for the field, or the precision for numerical types.">Length/Size</th>
-                                <th scope="col" class="px-6 py-3" title="Specific patterns or conventions for how the data should be structured (e.g.,YYYY-MM-DD for dates, (###)###-#### for phone numbers).">Format</th>
-                                <th scope="col" class="px-6 py-3" title="The set of valid or permissible values for the data element. This could be a list of codes, a range of numbers, or a reference to a lookup table.">Allowable Values/Domain</th>
-                                <th scope="col" class="px-6 py-3" title="Indicates whether the field must contain data (required/not nullable) or if it can be left empty (optional/nullable).">Nullability</th>
-                                <th scope="col" class="px-6 py-3" title="The system(s) or application(s) from which the data originates or is primarily entered.">Source System(s)</th>
-                                <th scope="col" class="px-6 py-3" title="The system(s), reports, or processes where the data is used, consumed, or integrated.">Target System(s)/Usage</th>
-                                <th scope="col" class="px-6 py-3" title="Any specific organizational policies, logic, or conditions that govern the data's creation, modification, or interpretation.">Business Rules/Constraints</th>
-                                <th scope="col" class="px-6 py-3" title="How this data element connects to other fields or tables within the data model (e.g., 'Foreign key to Products.ProductID').">Relationship to Other Elements/Tables</th>
-                                <th scope="col" class="px-6 py-3" title="The department, team, or individual responsible for the definition, quality, and governance of this data element.">Ownership/Stewardship</th>
-                                <th scope="col" class="px-6 py-3" title="The level of sensitivity of the data, indicating how it should be protected (e.g., Public, Internal, Confidential, Restricted, PII, PHI).">Security Classification</th>
-                                <th scope="col" class="px-6 py-3" title="Specifies the type of validation rule to apply (e.g., Required, Allowed Values, Numeric Range).">Validation Type</th>
-                                <th scope="col" class="px-6 py-3" title="The value or parameter required for the selected validation type (e.g., a comma-separated list, a min-max range, a regular expression).">Validation Value</th>
-                                <th scope="col" class="px-6 py-3" title="The custom message to display if the validation rule fails for this column.">Failure Message</th>
-                                <th scope="col" class="px-6 py-3" title="The date when this data element's definition or attributes were last modified.">Last Updated Date</th>
-                                <th scope="col" class="px-6 py-3" title="The user or role who last updated this data element's definition.">Updated By</th>
-                                <th scope="col" class="px-6 py-3" title="A version number or identifier to track changes to this data element's definition.">Version</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {/* Table rows will be populated by JavaScript */}
-                        </tbody>
-                    </table>
-                </div>
-                <div class="flex flex-col sm:flex-row gap-4 mt-6">
-                    <button type="button" id="saveDictionaryBtn"
-                                class="flex-1 w-full justify-center py-3 px-4 border border-transparent rounded-lg shadow-lg text-lg font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition duration-300 ease-in-out transform hover:-translate-y-0.5">
-                        Save Data Dictionary
-                    </button>
-                    <button type="button" id="printDictionaryBtn"
-                                class="flex-1 w-full justify-center py-3 px-4 border border-transparent rounded-lg shadow-lg text-lg font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition duration-300 ease-in-out transform hover:-translate-y-0.5">
-                        Print Report
-                    </button>
-                    </div>
-                <div id="saveStatus" class="mt-4 text-center text-sm text-gray-600 hidden"></div>
-            </div>
         </section>
     </main>
 
@@ -162,6 +112,59 @@
             &copy; 2025 RCM Buddy. All rights reserved.
         </div>
     </footer>
+
+    <div id="dataDictionaryOverlay" class="full-screen-overlay hidden">
+        <div id="dictionaryBuilderSection" class="modal-content-area">
+            <h3 class="text-xl font-bold text-green-700 mb-4">Define Data Dictionary Rules</h3>
+            <div class="mb-4">
+                <label for="dictionaryName" class="block text-sm font-medium text-gray-700">Data Dictionary Name</label>
+                <input type="text" id="dictionaryName" placeholder="e.g., HR Data Dictionary V1" required
+                                class="mt-1 block w-full p-2 border border-gray-300 rounded-md focus:ring-green-500 focus:border-green-500">
+            </div>
+            <div id="headersTableContainer" class="overflow-x-auto relative shadow-md sm:rounded-lg">
+                <table class="w-full text-sm text-left text-gray-500" id="headersTable">
+                    <thead class="text-xs text-gray-700 uppercase bg-gray-50">
+                        <tr>
+                            <th scope="col" class="px-6 py-3" title="The technical or unique name of the data field as it exists in the database or system.">Column Name</th>
+                            <th scope="col" class="px-6 py-3" title="A user-friendly or business-oriented name for the data field, often what appears on reports or user interfaces.">Display Name</th>
+                            <th scope="col" class="px-6 py-3" title="A clear and concise explanation of what the data element represents, its meaning, and its purpose within the business context.">Definition/Description</th>
+                            <th scope="col" class="px-6 py-3" title="Specifies the type of data stored in the field (e.g., Text/String, Integer, Decimal, Date, Boolean).">Data Type</th>
+                            <th scope="col" class="px-6 py-3" title="The maximum number of characters or digits allowed for the field, or the precision for numerical types.">Length/Size</th>
+                            <th scope="col" class="px-6 py-3" title="Specific patterns or conventions for how the data should be structured (e.g.,YYYY-MM-DD for dates, (###)###-#### for phone numbers).">Format</th>
+                            <th scope="col" class="px-6 py-3" title="The set of valid or permissible values for the data element. This could be a list of codes, a range of numbers, or a reference to a lookup table.">Allowable Values/Domain</th>
+                            <th scope="col" class="px-6 py-3" title="Indicates whether the field must contain data (required/not nullable) or if it can be left empty (optional/nullable).">Nullability</th>
+                            <th scope="col" class="px-6 py-3" title="The system(s) or application(s) from which the data originates or is primarily entered.">Source System(s)</th>
+                            <th scope="col" class="px-6 py-3" title="The system(s), reports, or processes where the data is used, consumed, or integrated.">Target System(s)/Usage</th>
+                            <th scope="col" class="px-6 py-3" title="Any specific organizational policies, logic, or conditions that govern the data's creation, modification, or interpretation.">Business Rules/Constraints</th>
+                            <th scope="col" class="px-6 py-3" title="How this data element connects to other fields or tables within the data model (e.g., 'Foreign key to Products.ProductID').">Relationship to Other Elements/Tables</th>
+                            <th scope="col" class="px-6 py-3" title="The department, team, or individual responsible for the definition, quality, and governance of this data element.">Ownership/Stewardship</th>
+                            <th scope="col" class="px-6 py-3" title="The level of sensitivity of the data, indicating how it should be protected (e.g., Public, Internal, Confidential, Restricted, PII, PHI).">Security Classification</th>
+                            <th scope="col" class="px-6 py-3" title="Specifies the type of validation rule to apply (e.g., Required, Allowed Values, Numeric Range).">Validation Type</th>
+                            <th scope="col" class="px-6 py-3" title="The value or parameter required for the selected validation type (e.g., a comma-separated list, a min-max range, or a regular expression).">Validation Value</th>
+                            <th scope="col" class="px-6 py-3" title="The custom message to display if the validation rule fails for this column.">Failure Message</th>
+                            <th scope="col" class="px-6 py-3" title="The date when this data element's definition or attributes were last modified.">Last Updated Date</th>
+                            <th scope="col" class="px-6 py-3" title="The user or role who last updated this data element's definition.">Updated By</th>
+                            <th scope="col" class="px-6 py-3" title="A version number or identifier to track changes to this data element's definition.">Version</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {/* Table rows will be populated by JavaScript */}
+                    </tbody>
+                </table>
+            </div>
+            <div class="flex flex-col sm:flex-row gap-4 mt-6">
+                <button type="button" id="saveDictionaryBtn"
+                            class="flex-1 w-full justify-center py-3 px-4 border border-transparent rounded-lg shadow-lg text-lg font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition duration-300 ease-in-out transform hover:-translate-y-0.5">
+                    Save Data Dictionary
+                </button>
+                <button type="button" id="printDictionaryBtn"
+                            class="flex-1 w-full justify-center py-3 px-4 border border-transparent rounded-lg shadow-lg text-lg font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition duration-300 ease-in-out transform hover:-translate-y-0.5">
+                    Print Report
+                </button>
+                </div>
+            <div id="saveStatus" class="mt-4 text-center text-sm text-gray-600 hidden"></div>
+        </div>
+    </div>
 
     <script src="/tools/data-dictionary-builder.js"></script>
 </body>
