@@ -6,6 +6,7 @@ let currentDictionaryId = null; // Stores the ID of the dictionary currently bei
 let uploadedOriginalFileName = null; // Stores the name of the file uploaded to extract headers for a NEW dictionary
 let isEditingExistingDictionary = false; // Flag to differentiate between creating new and editing existing
 let allExistingRulesMap = new Map(); // Stores all rules from all existing dictionaries for pre-population by column name
+let currentWorkbook = null; // NEW: Stores the parsed Excel workbook object for multi-sheet validation
 
 // --- Helper Functions (reused and adapted) ---
 
@@ -250,7 +251,9 @@ async function loadDictionaryForEditing() {
         // MODIFIED: Hide initial section and show the full-screen overlay for the builder
         document.getElementById('initialSelectionSection').classList.add('hidden');
         document.getElementById('dataDictionaryOverlay').classList.remove('hidden'); // Show the overlay
-        document.getElementById('printDictionaryBtn').disabled = false;
+        // The print button will be disabled if no file is currently uploaded (currentWorkbook is null)
+        document.getElementById('printDictionaryBtn').disabled = (currentWorkbook === null);
+
 
         displayMessage('existingDictStatus', `Dictionary "${dictionary.name}" loaded for editing.`, 'success');
 
@@ -281,12 +284,14 @@ async function startNewDictionaryFromUpload() {
     currentDictionaryId = null;
     uploadedOriginalFileName = excelFile.name;
     isEditingExistingDictionary = false;
+    currentWorkbook = null; // Clear previous workbook on new upload
 
     const reader = new FileReader();
     reader.onload = function(e) {
         try {
             const data = new Uint8Array(e.target.result);
             const workbook = XLSX.read(data, { type: 'array' });
+            currentWorkbook = workbook; // Store the workbook globally
 
             if (workbook.SheetNames.length === 0) {
                 throw new Error('No sheets found in the uploaded file.');
@@ -339,7 +344,7 @@ async function startNewDictionaryFromUpload() {
             // MODIFIED: Hide initial section and show the full-screen overlay for the builder
             document.getElementById('initialSelectionSection').classList.add('hidden');
             document.getElementById('dataDictionaryOverlay').classList.remove('hidden'); // Show the overlay
-            document.getElementById('printDictionaryBtn').disabled = false;
+            document.getElementById('printDictionaryBtn').disabled = false; // Enable print since workbook is available
 
             displayMessage('newDictStatus', `Headers extracted from "${excelFile.name}". Existing rules pre-populated.`, 'success');
 
@@ -347,6 +352,7 @@ async function startNewDictionaryFromUpload() {
             console.error('Error processing uploaded file for headers:', error);
             displayMessage('newDictStatus', `Failed to extract headers: ${error.message}`, 'error');
             currentHeaders = [];
+            currentWorkbook = null; // Clear workbook if processing failed
         } finally {
             hideLoader('initialLoader');
             document.getElementById('excelFile').value = '';
@@ -816,20 +822,182 @@ async function saveDataDictionary() {
 }
 
 /**
- * Handles the printing of the current Data Dictionary.
+ * NEW: Validates a single sheet's data against the defined rules.
+ * @param {Array<Array<any>>} sheetData - The raw sheet data (array of arrays).
+ * @param {Array<object>} rules - The data dictionary rules collected from the UI.
+ * @returns {Array<object>} An array of validation error objects.
+ */
+function validateSheetData(sheetData, rules) {
+    const errors = [];
+    if (!sheetData || sheetData.length < 2) { // Need at least header row and one data row
+        return errors;
+    }
+
+    const headers = sheetData[0].map(h => String(h).trim()); // Actual headers from the sheet
+    const dataRows = sheetData.slice(1); // All rows after the header
+
+    // Create a map for quick lookup of rules by column name
+    const rulesMap = new Map();
+    rules.forEach(rule => {
+        rulesMap.set(String(rule['Column Name']).trim(), rule);
+    });
+
+    dataRows.forEach((row, rowIndex) => {
+        headers.forEach((header, colIndex) => {
+            const cellValue = row[colIndex];
+            const rule = rulesMap.get(header);
+
+            if (!rule || !rule.validation_rules || rule.validation_rules.length === 0) {
+                return; // No validation rules defined for this header
+            }
+
+            const validationRule = rule.validation_rules[0]; // Assuming one rule per column for validation
+
+            const actualValue = (cellValue === null || cellValue === undefined) ? '' : String(cellValue).trim();
+            let isValid = true;
+            let errorMessage = validationRule.message || `Validation failed for column "${header}" with value "${actualValue}".`;
+
+            switch (validationRule.type) {
+                case 'REQUIRED':
+                    if (actualValue === '') {
+                        isValid = false;
+                    }
+                    break;
+                case 'ALLOWED_VALUES':
+                    if (actualValue === '' && rule.nullability === 'Optional') { // Allow empty if optional
+                        isValid = true;
+                    } else if (validationRule.value) {
+                        const allowedValues = validationRule.value.split(',').map(v => v.trim().toLowerCase());
+                        if (!allowedValues.includes(actualValue.toLowerCase())) {
+                            isValid = false;
+                            errorMessage = validationRule.message || `Value "${actualValue}" not in allowed values: ${validationRule.value}.`;
+                        }
+                    }
+                    break;
+                case 'NUMERIC_RANGE':
+                    if (actualValue === '' && rule.nullability === 'Optional') {
+                        isValid = true;
+                    } else if (validationRule.value) {
+                        const [minStr, maxStr] = validationRule.value.split('-').map(s => s.trim());
+                        const min = parseFloat(minStr);
+                        const max = parseFloat(maxStr);
+                        const numValue = parseFloat(actualValue);
+
+                        if (isNaN(numValue) || numValue < min || numValue > max) {
+                            isValid = false;
+                            errorMessage = validationRule.message || `Value "${actualValue}" is not a number or outside range ${min}-${max}.`;
+                        }
+                    } else if (isNaN(parseFloat(actualValue))) { // If no range, just check if it's a number
+                        isValid = false;
+                        errorMessage = validationRule.message || `Value "${actualValue}" is not a valid number.`;
+                    }
+                    break;
+                case 'REGEX':
+                    if (actualValue === '' && rule.nullability === 'Optional') {
+                        isValid = true;
+                    } else if (validationRule.value) {
+                        try {
+                            const regex = new RegExp(validationRule.value);
+                            if (!regex.test(actualValue)) {
+                                isValid = false;
+                                errorMessage = validationRule.message || `Value "${actualValue}" does not match pattern: ${validationRule.value}.`;
+                            }
+                        } catch (e) {
+                            isValid = false; // Invalid regex pattern itself is an error
+                            errorMessage = `Invalid regex pattern for column "${header}": ${validationRule.value}.`;
+                            console.error(errorMessage, e);
+                        }
+                    }
+                    break;
+                case 'DATE_PAST':
+                    if (actualValue === '' && rule.nullability === 'Optional') {
+                        isValid = true;
+                    } else {
+                        const date = new Date(actualValue);
+                        const today = new Date();
+                        today.setHours(0,0,0,0); // Compare dates, not times
+
+                        if (isNaN(date.getTime()) || date >= today) {
+                            isValid = false;
+                            errorMessage = validationRule.message || `Date "${actualValue}" is not a valid date or is not in the past.`;
+                        }
+                    }
+                    break;
+                case 'UNIQUE':
+                    // This validation type typically requires checking across the *entire column* for the sheet.
+                    // For simplicity here, we'll flag it, but actual implementation might need a separate pass
+                    // after collecting all column values for the sheet.
+                    // For current purpose, it means "This column should have unique values".
+                    // Full unique check is outside the scope of cell-by-cell.
+                    break;
+                case 'None':
+                    // No specific validation, always valid based on this rule
+                    break;
+            }
+
+            if (!isValid) {
+                errors.push({
+                    sheet: sheetData[0], // header row
+                    header: header,
+                    rowIndex: rowIndex + 1, // +1 for 0-indexed dataRows, +1 for header row
+                    colIndex: colIndex,
+                    value: actualValue,
+                    message: errorMessage
+                });
+            }
+        });
+    });
+
+    // Special handling for 'UNIQUE' rule: needs to check entire column
+    rules.forEach(rule => {
+        const colName = String(rule['Column Name']).trim();
+        if (rule.validation_rules && rule.validation_rules.length > 0 && rule.validation_rules[0].type === 'UNIQUE') {
+            const headerIndex = headers.indexOf(colName);
+            if (headerIndex !== -1) {
+                const columnValues = dataRows.map(row => (row[headerIndex] === null || row[headerIndex] === undefined) ? '' : String(row[headerIndex]).trim());
+                const seenValues = new Set();
+                columnValues.forEach((value, dataRowIdx) => {
+                    if (value !== '' && seenValues.has(value)) { // Only check non-empty duplicates
+                        errors.push({
+                            sheet: sheetData[0],
+                            header: colName,
+                            rowIndex: dataRowIdx + 1, // Adjust to actual row number
+                            colIndex: headerIndex,
+                            value: value,
+                            message: rule.validation_rules[0].message || `Value "${value}" in column "${colName}" is not unique.`
+                        });
+                    } else if (value !== '') {
+                        seenValues.add(value);
+                    }
+                });
+            }
+        }
+    });
+
+    return errors;
+}
+
+
+/**
+ * Handles the printing of the current Data Dictionary and a validation report for all sheets
+ * in the currently uploaded workbook.
  */
 function handlePrintDictionary() {
     const dictionaryName = document.getElementById('dictionaryName').value.trim();
-    const rules = collectRules(); // Now collects comprehensive rules
+    const rules = collectRules(); // Now collects comprehensive rules from the UI
 
     if (!dictionaryName || rules.length === 0) {
         displayMessage('saveStatus', 'Please load or create a data dictionary with rules to print.', 'error');
         return;
     }
 
-    const printWindow = window.open('', '', 'height=600,width=800');
+    if (!currentWorkbook) {
+        displayMessage('saveStatus', 'No file uploaded for validation report. Please upload a file first.', 'error');
+        return;
+    }
+
+    const printWindow = window.open('', '', 'height=800,width=1200'); // Larger print window
     if (!printWindow) {
-        // Changed from alert() to a more user-friendly message or modal
         displayMessage('saveStatus', 'Please allow pop-ups for printing this report.', 'error');
         return;
     }
@@ -840,7 +1008,7 @@ function handlePrintDictionary() {
         <head>
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>Data Dictionary Report - ${dictionaryName}</title>
+            <title>Data Dictionary & Validation Report - ${dictionaryName}</title>
             <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
             <style>
                 body {
@@ -855,15 +1023,21 @@ function handlePrintDictionary() {
                     color: #2D62B3;
                     text-align: center;
                     margin-bottom: 20px;
-                    font-size: 2em;
+                    font-size: 2.2em;
                 }
                 h2 {
                     color: #495057;
-                    margin-top: 25px;
+                    margin-top: 30px;
                     margin-bottom: 15px;
-                    font-size: 1.5em;
-                    border-bottom: 2px solid #eee;
+                    font-size: 1.8em;
+                    border-bottom: 2px solid #ccc;
                     padding-bottom: 5px;
+                }
+                h3 {
+                    color: #5a6268;
+                    margin-top: 20px;
+                    margin-bottom: 10px;
+                    font-size: 1.4em;
                 }
                 .meta-info p {
                     margin: 5px 0;
@@ -876,13 +1050,13 @@ function handlePrintDictionary() {
                     width: 100%;
                     border-collapse: collapse;
                     margin-bottom: 20px;
-                    font-size: 0.8em; /* Slightly smaller font for more columns */
+                    font-size: 0.8em;
                 }
                 th, td {
                     border: 1px solid #ddd;
-                    padding: 8px; /* Slightly less padding for more columns */
+                    padding: 8px;
                     text-align: left;
-                    vertical-align: top; /* Align content to top for textareas */
+                    vertical-align: top;
                 }
                 th {
                     background-color: #f2f2f2;
@@ -891,6 +1065,30 @@ function handlePrintDictionary() {
                 }
                 tr:nth-child(even) {
                     background-color: #f9f9f9;
+                }
+                .validation-summary {
+                    margin-top: 15px;
+                    padding: 10px;
+                    border: 1px solid #e0e0e0;
+                    border-radius: 5px;
+                    background-color: #fdfdfd;
+                }
+                .validation-error {
+                    color: #dc3545; /* Red for errors */
+                    font-weight: 500;
+                }
+                .validation-success {
+                    color: #28a745; /* Green for success */
+                    font-weight: 500;
+                }
+                .error-list {
+                    list-style-type: disc;
+                    margin-left: 20px;
+                    padding-left: 0;
+                }
+                .error-item {
+                    margin-bottom: 5px;
+                    color: #dc3545;
                 }
                 @media print {
                     body, h1, h2, h3, p, strong, table, th, td {
@@ -902,21 +1100,27 @@ function handlePrintDictionary() {
                     th {
                         background-color: #e0e0e0 !important;
                     }
+                    .validation-error {
+                        color: #dc3545 !important;
+                    }
+                    .validation-success {
+                        color: #28a745 !important;
+                    }
                 }
             </style>
         </head>
         <body>
-            <h1>Data Dictionary Report</h1>
+            <h1>Data Dictionary & Validation Report</h1>
             <div class="meta-info">
                 <p><strong>Dictionary Name:</strong> ${dictionaryName}</p>
                 <p><strong>Generated On:</strong> ${new Date().toLocaleString()}</p>
+                <p><strong>Source File:</strong> ${uploadedOriginalFileName || 'N/A'}</p>
             </div>
-            <h2>Column Definitions & Validation Rules</h2>
+            <h2>Defined Column Rules</h2>
             <table>
                 <thead>
                     <tr>
                         <th>Column Name</th>
-                        <!-- REMOVED: Display Name column header from print -->
                         <th>Definition/Description</th>
                         <th>Data Type</th>
                         <th>Length/Size</th>
@@ -941,12 +1145,11 @@ function handlePrintDictionary() {
     `;
 
     rules.forEach(rule => {
-        // Prepare validation details if present
         let validationType = 'None';
         let validationValue = '';
         let failureMessage = '';
         if (rule.validation_rules && rule.validation_rules.length > 0) {
-            const valRule = rule.validation_rules[0]; // Assuming one main validation rule per column for simplicity
+            const valRule = rule.validation_rules[0];
             validationType = validationTypes.find(vt => vt.value === valRule.type)?.text || valRule.type;
             validationValue = valRule.value || '';
             failureMessage = valRule.message || '';
@@ -955,7 +1158,6 @@ function handlePrintDictionary() {
         printContent += `
             <tr>
                 <td>${rule['Column Name'] || ''}</td>
-                <!-- REMOVED: display_name from print content -->
                 <td>${rule.description || ''}</td>
                 <td>${rule.data_type || ''}</td>
                 <td>${rule.length_size || ''}</td>
@@ -981,17 +1183,40 @@ function handlePrintDictionary() {
     printContent += `
                 </tbody>
             </table>
-            <h2>Source Headers</h2>
-            <p>This dictionary was built from the following original headers:</p>
-            <ul>
+            <h2>Validation Results per Sheet</h2>
     `;
 
-    currentHeaders.forEach(header => {
-        printContent += `<li>${header}</li>`;
+    // Perform validation for each sheet in the workbook
+    currentWorkbook.SheetNames.forEach(sheetName => {
+        const worksheet = currentWorkbook.Sheets[sheetName];
+        const sheetData = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: null });
+        const validationErrors = validateSheetData(sheetData, rules);
+
+        printContent += `
+            <h3>Sheet: "${sheetName}"</h3>
+            <div class="validation-summary">
+        `;
+
+        if (validationErrors.length === 0) {
+            printContent += `<p class="validation-success">All validations passed for this sheet. No errors found.</p>`;
+        } else {
+            printContent += `<p class="validation-error">Found ${validationErrors.length} validation errors in this sheet:</p>`;
+            printContent += `<ul class="error-list">`;
+            validationErrors.forEach(error => {
+                printContent += `
+                    <li class="error-item">
+                        <strong>Column:</strong> ${error.header} (Row: ${error.rowIndex}, Col: ${error.colIndex + 1})<br>
+                        <strong>Value:</strong> "${error.value}"<br>
+                        <strong>Error:</strong> ${error.message}
+                    </li>
+                `;
+            });
+            printContent += `</ul>`;
+        }
+        printContent += `</div>`;
     });
 
     printContent += `
-            </ul>
         </body>
         </html>
     `;
@@ -1018,11 +1243,12 @@ function resetBuilderUI() {
     currentDictionaryId = null;
     uploadedOriginalFileName = null;
     isEditingExistingDictionary = false;
+    currentWorkbook = null; // NEW: Clear the workbook on UI reset
 
     document.getElementById('dictionaryName').value = '';
     document.querySelector('#headersTable tbody').innerHTML = '';
     document.getElementById('saveDictionaryBtn').disabled = true;
-    document.getElementById('printDictionaryBtn').disabled = true;
+    document.getElementById('printDictionaryBtn').disabled = true; // Disable print button on reset
 
     // MODIFIED: Hide the overlay and show the initial selection section
     document.getElementById('dataDictionaryOverlay').classList.add('hidden'); // Ensure overlay is hidden
