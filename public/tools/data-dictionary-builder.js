@@ -257,11 +257,12 @@ async function loadDictionaryForEditing() {
         sheetHeadersMap.set(currentSheetName, loadedSourceHeaders);
         sheetRulesMap.set(currentSheetName, loadedRules);
 
-        // Simulate a workbook with just this sheet for validation purposes if needed
-        if (!currentWorkbook) {
-            currentWorkbook = { SheetNames: [currentSheetName], Sheets: {} };
-            currentWorkbook.Sheets[currentSheetName] = XLSX.utils.aoa_to_sheet([loadedSourceHeaders]);
-        }
+        // Simulate a workbook with just this sheet for validation purposes
+        // *** FIX for Printing issue with loaded dictionaries: ensure currentWorkbook is reset ***
+        currentWorkbook = null; // Clear any previous workbook state
+        currentWorkbook = { SheetNames: [currentSheetName], Sheets: {} };
+        currentWorkbook.Sheets[currentSheetName] = XLSX.utils.aoa_to_sheet([loadedSourceHeaders]);
+        // *** END FIX ***
         
         // Populate sheet selector dropdown and select the loaded sheet
         populateSheetSelectionDropdown(currentWorkbook.SheetNames);
@@ -567,7 +568,7 @@ function renderHeadersTable(headers, rulesToPreFill = []) {
     ];
 
     if (headers.length === 0) {
-        const row = tbody.insertRow();
+        const row = tbody.insertCell();
         const cell = row.insertCell();
         cell.colSpan = 19; // Adjusted colspan for all new columns
         cell.textContent = "No headers available to define rules. Upload a file or load a dictionary with headers.";
@@ -821,7 +822,7 @@ function collectRules() {
         const allowableValues = row.querySelector('.dd-allowable-values').value.trim();
         const nullability = row.querySelector('.dd-nullability').value;
         const sourceSystems = row.querySelector('.dd-source-systems').value.trim();
-        const targetSystems = row.querySelector('.dd-target-systems').value.trim();
+        const targetSystems = row.querySelector('.dd-target-systems').value.trim(); // Corrected variable name declaration
         const businessRules = row.querySelector('.dd-business-rules').value.trim();
         const relationship = row.querySelector('.dd-relationship').value.trim();
         const ownership = row.querySelector('.dd-ownership').value.trim();
@@ -843,7 +844,7 @@ function collectRules() {
             allowable_values: allowableValues,
             nullability: nullability,
             source_systems: sourceSystems,
-            target_systems: target_systems,
+            target_systems: targetSystems, // FIX: Use the correctly declared variable 'targetSystems'
             business_rules: businessRules,
             relationships: relationship,
             ownership: ownership,
@@ -871,7 +872,7 @@ function collectRules() {
  * Handles saving a new data dictionary or updating an existing one.
  */
 async function saveDataDictionary() {
-    console.log("saveDataDictionary: Starting."); // DEBUG
+    console.log("DEBUG: saveDataDictionary function started."); // ADDED DEBUG LOG
     const dictionaryNameInput = document.getElementById('dictionaryName');
     let dictionaryName = dictionaryNameInput.value.trim();
 
@@ -880,16 +881,16 @@ async function saveDataDictionary() {
     if (currentSheetName) {
         const currentSheetRulesFromUI = collectRules();
         sheetRulesMap.set(currentSheetName, currentSheetRulesFromUI);
-        console.log(`saveDataDictionary: Saved current UI rules to sheetRulesMap for "${currentSheetName}":`, currentSheetRulesFromUI); // DEBUG
+        console.log(`DEBUG: Saved current UI rules to sheetRulesMap for "${currentSheetName}":`, currentSheetRulesFromUI); // ADDED DEBUG LOG
     } else {
-        console.warn("saveDataDictionary: currentSheetName is null. Cannot save rules to sheetRulesMap."); // DEBUG
+        console.warn("DEBUG: currentSheetName is null. Cannot save rules to sheetRulesMap."); // ADDED DEBUG LOG
     }
 
     // Now, get the rules for saving from the map
     const rulesToSave = sheetRulesMap.get(currentSheetName);
     if (!rulesToSave || rulesToSave.length === 0) {
         displayMessage('saveStatus', 'No rules defined for the current sheet to save.', 'error');
-        console.error("saveDataDictionary: No rules to save for current sheet."); // DEBUG
+        console.error("DEBUG: No rules to save for current sheet. Aborting save."); // ADDED DEBUG LOG
         return;
     }
 
@@ -897,7 +898,7 @@ async function saveDataDictionary() {
     const sourceHeadersToSave = sheetHeadersMap.get(currentSheetName);
     if (!sourceHeadersToSave || sourceHeadersToSave.length === 0) {
         displayMessage('saveStatus', 'Cannot save: No headers found for the current sheet.', 'error');
-        console.error("saveDataDictionary: No headers to save for current sheet."); // DEBUG
+        console.error("DEBUG: No headers to save for current sheet. Aborting save."); // ADDED DEBUG LOG
         return;
     }
 
@@ -905,6 +906,7 @@ async function saveDataDictionary() {
     if (!dictionaryName) {
         displayMessage('saveStatus', 'Please enter a name for your data dictionary.', 'error');
         dictionaryNameInput.focus();
+        console.error("DEBUG: Dictionary name is empty. Aborting save."); // ADDED DEBUG LOG
         return;
     }
     
@@ -929,6 +931,7 @@ async function saveDataDictionary() {
     const token = localStorage.getItem('jwtToken');
     if (!token) {
         displayMessage('saveStatus', 'Authentication required. Please log in again.', 'error');
+        console.error("DEBUG: No JWT token found. Aborting save."); // ADDED DEBUG LOG
         document.getElementById('saveDictionaryBtn').disabled = false;
         document.getElementById('printDictionaryBtn').disabled = false;
         return;
@@ -936,13 +939,14 @@ async function saveDataDictionary() {
 
     const payload = {
         dictionaryName,
-        rules_json: rulesToSave, // Send the comprehensive rules array
-        source_headers_json: sourceHeadersToSave, // The original headers used to build it
+        rules: rulesToSave, // Changed to 'rules' to match backend's expected 'rules' field
+        sourceHeaders: sourceHeadersToSave, // Changed to 'sourceHeaders'
         ...(isEditingExistingDictionary && currentDictionaryId && { id: currentDictionaryId })
     };
-    console.log("saveDataDictionary: Payload being sent:", payload); // DEBUG
+    console.log("DEBUG: Payload being sent:", payload); // ADDED DEBUG LOG
 
     try {
+        console.log("DEBUG: Initiating fetch request to /api/save-data-dictionary"); // ADDED DEBUG LOG
         const response = await fetch('/api/save-data-dictionary', {
             method: 'POST',
             headers: {
