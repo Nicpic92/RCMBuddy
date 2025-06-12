@@ -1,208 +1,206 @@
-// public/tools/data-dictionary-builder.js
+// netlify/functions/save-data-dictionary.js
+const jwt = require('jsonwebtoken'); // For JWT authentication
+const { Pool } = require('pg');      // PostgreSQL client
 
-// --- Global Variables ---
-let currentHeaders = []; // Stores the headers of the currently processed file/dictionary (for active sheet)
-let currentDictionaryId = null; // DEPRECATED: This global is less relevant now, dictionaryId is managed per sheet in sheetRulesMap
-let uploadedOriginalFileName = null; // Stores the name of the file uploaded to extract headers for a NEW dictionary
-let isEditingExistingDictionary = false; // DEPRECATED: This global is less relevant now, inferred per sheet
-let allExistingRulesMap = new Map(); // Stores all rules from all existing dictionaries for pre-population by column name
+// Initialize PostgreSQL pool
+const pool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: { rejectUnauthorized: false } // Required for Neon's SSL
+});
 
-let currentWorkbook = null; // Stores the parsed Excel workbook object for multi-sheet validation
-let currentSheetName = null; // Stores the name of the currently active sheet for rule definition
+exports.handler = async (event, context) => {
+    // --- Start of detailed logging ---
+    console.log("save-data-dictionary.js: Function started.");
 
-let sheetHeadersMap = new Map(); // Stores headers for each sheet: Map<sheetName, Array<headerStrings>>
-// MODIFIED: sheetRulesMap now stores an object { rules: Array<ruleObjects>, dictionaryId: string | null }
-let sheetRulesMap = new Map(); // Stores rules and dictionaryId for each sheet: Map<sheetName, { rules: Array<ruleObjects>, dictionaryId: string | null }>
-
-
-// --- Helper Functions (reused and adapted) ---
-
-/**
- * Displays the loading spinner and disables relevant buttons/sections.
- * @param {string} targetLoaderId - The ID of the loader element to show.
- */
-function showLoader(targetLoaderId = 'initialLoader') {
-    document.getElementById(targetLoaderId).style.display = 'block';
-    // Disable primary action buttons while loading
-    document.getElementById('loadExistingDictionaryBtn').disabled = true;
-    document.getElementById('createNewDictionaryBtn').disabled = true;
-    document.getElementById('saveDictionaryBtn').disabled = true;
-    document.getElementById('printDictionaryBtn').disabled = true; // Disable print button
-}
-
-/**
- * Hides the loading spinner and enables relevant buttons/sections.
- * @param {string} targetLoaderId - The ID of the loader element to hide.
- */
-function hideLoader(targetLoaderId = 'initialLoader') {
-    document.getElementById(targetLoaderId).style.display = 'none';
-    // Re-enable primary action buttons, save/print will be managed by table content
-    document.getElementById('loadExistingDictionaryBtn').disabled = false;
-    document.getElementById('createNewDictionaryBtn').disabled = false;
-    // Save/print buttons re-enabled based on whether headers are loaded or existing dict is loaded
-    // Managed by renderHeadersTable and loadDictionaryForEditing
-}
-
-/**
- * Displays a message on the UI.
- * @param {string} elementId - The ID of the HTML element to display the message in.
- * @param {string} message - The message text.
- * @param {'info' | 'success' | 'error'} type - The type of message (influences styling via classes).
- */
-function displayMessage(elementId, message, type = 'info') {
-    const element = document.getElementById(elementId);
-    if (element) {
-        element.textContent = message;
-        // Remove existing color classes to prevent conflicts
-        element.classList.remove('text-red-600', 'text-green-600', 'text-gray-600');
-        // Add new color class based on message type
-        if (type === 'error') {
-            element.classList.add('text-red-600');
-        } else if (type === 'success') {
-            element.classList.add('text-green-600');
-        } else {
-            element.classList.add('text-gray-600'); // Default for info
-        }
-        element.style.display = 'block'; // Ensure message is visible
-    }
-}
-
-// --- Authentication and Navigation (reused) ---
-
-/**
- * Verifies the JWT token stored in localStorage with the backend.
- * Redirects to login if token is missing or invalid.
- * @returns {Promise<object | null>} User data if token is valid, otherwise null.
- */
-async function verifyToken() {
-    const token = localStorage.getItem('jwtToken');
-    if (!token) {
-        window.location.href = '/'; // Redirect to login if no token
-        return null;
+    if (event.httpMethod !== 'POST') {
+        console.warn("save-data-dictionary.js: Method not allowed - received", event.httpMethod);
+        return { statusCode: 405, body: 'Method Not Allowed' };
     }
 
+    // 1. Authenticate user and get company_id
+    const authHeader = event.headers.authorization;
+    if (!authHeader) {
+        console.error("save-data-dictionary.js: Authentication required - No Authorization header.");
+        return { statusCode: 401, body: JSON.stringify({ message: 'Authentication required.' }) };
+    }
+    const token = authHeader.split(' ')[1];
+    let decoded;
     try {
-        const response = await fetch('/api/protected', {
-            method: 'GET',
-            headers: {
-                'Authorization': `Bearer ${token}`
+        decoded = jwt.verify(token, process.env.JWT_SECRET);
+        console.log("save-data-dictionary.js: JWT decoded successfully for user ID:", decoded.id, "Company ID:", decoded.company_id);
+    } catch (error) {
+        console.error("save-data-dictionary.js: JWT verification failed:", error.message);
+        return { statusCode: 403, body: JSON.stringify({ message: 'Invalid or expired token.' }) };
+    }
+    const user_id = decoded.id;
+    const company_id = decoded.company_id; // CRUCIAL for data isolation
+
+    // 2. Parse request body
+    let requestBody;
+    try {
+        requestBody = JSON.parse(event.body);
+        console.log("save-data-dictionary.js: Request body parsed successfully.");
+        console.log("save-data-dictionary.js: Request body content:", JSON.stringify(requestBody, null, 2)); // Detailed log of request body
+    } catch (error) {
+        console.error("save-data-dictionary.js: Invalid JSON body received:", error.message);
+        return { statusCode: 400, body: JSON.stringify({ message: 'Invalid JSON body.' }) };
+    }
+
+    const { id, dictionaryName, rules, sourceHeaders } = requestBody; // 'id' will be present for updates
+
+    // 3. Validate input data
+    if (!dictionaryName || dictionaryName.trim() === '') {
+        console.error("save-data-dictionary.js: Validation failed - dictionaryName is empty or missing.");
+        return { statusCode: 400, body: JSON.stringify({ message: 'Data dictionary name is required.' }) };
+    }
+    if (!rules || !Array.isArray(rules)) {
+        console.error("save-data-dictionary.js: Validation failed - rules is not an array or missing.");
+        return { statusCode: 400, body: JSON.stringify({ message: 'Rules data must be an array.' }) };
+    }
+    // sourceHeaders can be null or an empty array from the frontend, but if present, must be an array
+    if (sourceHeaders !== null && sourceHeaders !== undefined && !Array.isArray(sourceHeaders)) {
+        console.error("save-data-dictionary.js: Validation failed - sourceHeaders provided but not an array.");
+        return { statusCode: 400, body: JSON.stringify({ message: 'Source headers must be an array or null.' }) };
+    }
+    console.log("save-data-dictionary.js: Input validation passed.");
+
+    // --- Prepare data for database storage ---
+    // Critical: Explicitly stringify JSONB fields and use ::jsonb casts in query.
+    // This ensures PostgreSQL receives valid JSON strings for JSONB columns.
+    const rulesToSave = JSON.stringify(rules);
+    const sourceHeadersToSave = sourceHeaders ? JSON.stringify(sourceHeaders) : null;
+
+    let client;
+    try {
+        console.log("save-data-dictionary.js: Attempting to connect to DB pool.");
+        client = await pool.connect();
+        console.log("save-data-dictionary.js: Successfully connected to DB pool. Starting transaction.");
+        await client.query('BEGIN'); // Start transaction
+
+        let queryText;
+        let queryValues;
+        let actionMessage;
+        let savedDictionaryId;
+
+        // NEW LOGIC: Explicitly check for existence and then UPDATE or INSERT
+        if (id) {
+            // Case 1: 'id' is provided, attempt to update an existing dictionary
+            console.log(`save-data-dictionary.js: Attempting to UPDATE dictionary with ID: ${id}`);
+            queryText = `
+                UPDATE data_dictionaries
+                SET name = $1, rules_json = $2::jsonb, source_headers_json = $3::jsonb, updated_at = CURRENT_TIMESTAMP
+                WHERE id = $4 AND company_id = $5 RETURNING id;
+            `;
+            queryValues = [dictionaryName, rulesToSave, sourceHeadersToSave, id, company_id];
+            actionMessage = 'updated';
+
+            console.log("save-data-dictionary.js: UPDATE Query text:", queryText.replace(/\s+/g, ' ').trim());
+            console.log("save-data-dictionary.js: UPDATE Query values:", queryValues);
+
+            const updateResult = await client.query(queryText, queryValues);
+            if (updateResult.rowCount === 0) {
+                console.warn("save-data-dictionary.js: Update failed: Data dictionary not found or not authorized for ID:", id);
+                await client.query('ROLLBACK');
+                return {
+                    statusCode: 404,
+                    body: JSON.stringify({ message: 'Data dictionary not found or not authorized to update.' })
+                };
             }
-        });
+            savedDictionaryId = id;
+            console.log("save-data-dictionary.js: Dictionary updated successfully. Affected rows:", updateResult.rowCount);
 
-        if (!response.ok) {
-            console.error('Token verification failed:', response.statusText);
-            localStorage.removeItem('jwtToken');
-            window.location.href = '/';
-            return null;
-        }
-
-        const data = await response.json();
-        console.log('User data:', data); // Log user data for debugging
-        return data; // Contains user and company info
-    } catch (error) {
-        console.error('Error verifying token:', error);
-        localStorage.removeItem('jwtToken');
-        window.location.href = '/';
-        return null;
-    }
-}
-
-/**
- * Sets up navigation elements based on user data.
- * @param {object} userData - The user data obtained from token verification.
- */
-function setupNavigation(userData) {
-    const profileLink = document.getElementById('profileLink');
-    if (profileLink && userData && userData.user) {
-        profileLink.textContent = `Hello, ${userData.user.username}`;
-        profileLink.href = '#'; // Placeholder, replace with actual profile page link if exists
-    }
-
-    const logoutBtn = document.getElementById('logoutBtn');
-    if (logoutBtn) {
-        logoutBtn.addEventListener('click', (e) => {
-            e.preventDefault();
-            localStorage.removeItem('jwtToken');
-            window.location.href = '/'; // Redirect to login page
-        });
-    }
-}
-
-// --- Initial Setup: Populate Existing Dictionaries Dropdown & Load Existing Rules ---
-
-/**
- * Fetches the list of uploaded data dictionaries from the backend and populates the select dropdown.
- * Also populates allExistingRulesMap for pre-population feature.
- */
-async function populateExistingDictionariesDropdown() {
-    console.log("populateExistingDictionariesDropdown: Starting fetch."); // DEBUG
-    const token = localStorage.getItem('jwtToken');
-    if (!token) {
-        console.warn('populateExistingDictionariesDropdown: No token found. Cannot fetch dictionaries.');
-        return;
-    }
-
-    displayMessage('existingDictStatus', 'Loading existing dictionaries...', 'info');
-    const dropdown = document.getElementById('existingDictionarySelect');
-    dropdown.innerHTML = '<option value="">-- Loading --</option>'; // Temporary loading message
-
-    allExistingRulesMap = new Map(); // Clear previous map content
-
-    try {
-        const response = await fetch('/api/list-data-dictionaries', {
-            method: 'GET',
-            headers: { 'Authorization': `Bearer ${token}` }
-        });
-
-        if (!response.ok) {
-            const errorData = await response.json().catch(() => ({ message: response.statusText }));
-            console.error('populateExistingDictionariesDropdown: Failed to fetch dictionaries:', response.status, errorData.message);
-            displayMessage('existingDictStatus', `Failed to load dictionaries: ${errorData.message || 'Server error.'}`, 'error');
-            dropdown.innerHTML = '<option value="">-- Error Loading --</option>';
-            dropdown.disabled = true;
-            document.getElementById('loadExistingDictionaryBtn').disabled = true;
-            return;
-        }
-
-        const result = await response.json();
-        const dataDictionaries = result.dictionaries || [];
-        console.log("populateExistingDictionariesDropdown: Fetched dataDictionaries:", dataDictionaries); // DEBUG
-
-        dropdown.innerHTML = '<option value="">-- Select an Existing Dictionary --</option>';
-
-        let hasDataDictionaries = false;
-        if (dataDictionaries.length > 0) {
-            dataDictionaries.forEach(dict => {
-                const option = document.createElement('option');
-                option.value = dict.id;
-                option.textContent = dict.name;
-                dropdown.appendChild(option);
-
-                // Populate allExistingRulesMap for pre-population
-                if (dict.rules_json && Array.isArray(dict.rules_json)) {
-                    dict.rules_json.forEach(rule => {
-                        const colName = String(rule['Column Name'] || rule.column_name || '').trim(); // Adapt to potential old/new naming
-                        if (colName && !allExistingRulesMap.has(colName)) {
-                            allExistingRulesMap.set(colName, rule);
-                        }
-                    });
-                }
-            });
-            hasDataDictionaries = true;
-            displayMessage('existingDictStatus', `${dataDictionaries.length} dictionaries loaded.`, 'success');
         } else {
-            displayMessage('existingDictStatus', 'No data dictionaries found for your company.', 'info');
-            dropdown.innerHTML = '<option value="">No data dictionaries available.</option>';
+            // Case 2: No 'id' provided, check if a dictionary with this name already exists for the company
+            console.log("save-data-dictionary.js: No ID provided. Checking for existing dictionary by name/company...");
+            const checkExistingQuery = `
+                SELECT id FROM data_dictionaries
+                WHERE name = $1 AND company_id = $2;
+            `;
+            const checkResult = await client.query(checkExistingQuery, [dictionaryName, company_id]);
+
+            if (checkResult.rows.length > 0) {
+                // Case 2a: Dictionary with this name already exists for this company, perform an UPDATE
+                savedDictionaryId = checkResult.rows[0].id;
+                console.log(`save-data-dictionary.js: Dictionary with name "${dictionaryName}" already exists (ID: ${savedDictionaryId}). Performing UPDATE.`);
+                queryText = `
+                    UPDATE data_dictionaries
+                    SET user_id = $1, rules_json = $2::jsonb, source_headers_json = $3::jsonb, updated_at = CURRENT_TIMESTAMP
+                    WHERE id = $4 AND company_id = $5 RETURNING id;
+                `;
+                queryValues = [user_id, rulesToSave, sourceHeadersToSave, savedDictionaryId, company_id];
+                actionMessage = 'updated';
+
+                console.log("save-data-dictionary.js: UPDATE (found by name) Query text:", queryText.replace(/\s+/g, ' ').trim());
+                console.log("save-data-dictionary.js: UPDATE (found by name) Query values:", queryValues);
+
+                const updateResult = await client.query(queryText, queryValues);
+                // No need to check rowCount, as we just confirmed existence
+                console.log("save-data-dictionary.js: Dictionary updated successfully by name. Affected rows:", updateResult.rowCount);
+
+            } else {
+                // Case 2b: Dictionary does not exist, perform an INSERT
+                console.log(`save-data-dictionary.js: Dictionary with name "${dictionaryName}" does not exist. Performing INSERT.`);
+                queryText = `
+                    INSERT INTO data_dictionaries (company_id, user_id, name, rules_json, source_headers_json)
+                    VALUES ($1, $2, $3, $4::jsonb, $5::jsonb) RETURNING id;
+                `;
+                queryValues = [company_id, user_id, dictionaryName, rulesToSave, sourceHeadersToSave];
+                actionMessage = 'saved';
+
+                console.log("save-data-dictionary.js: INSERT Query text:", queryText.replace(/\s+/g, ' ').trim());
+                console.log("save-data-dictionary.js: INSERT Query values:", queryValues);
+
+                const insertResult = await client.query(queryText, queryValues);
+                savedDictionaryId = insertResult.rows[0].id;
+                console.log("save-data-dictionary.js: New dictionary inserted successfully. New ID:", savedDictionaryId);
+            }
         }
 
-        dropdown.disabled = !hasDataDictionaries;
-        document.getElementById('loadExistingDictionaryBtn').disabled = !hasDataDictionaries;
+        await client.query('COMMIT'); // Commit the transaction
+        console.log("save-data-dictionary.js: Database transaction committed successfully.");
 
-        console.log("populateExistingDictionariesDropdown: allExistingRulesMap populated with (size):", allExistingRulesMap.size); // DEBUG
-        console.log("populateExistingDictionariesDropdown: allExistingRulesMap contents (first 5):", Array.from(allExistingRulesMap.entries()).slice(0, 5)); // DEBUG
+        console.log(`save-data-dictionary.js: Data dictionary ${actionMessage} successfully. Final ID:`, savedDictionaryId);
 
-    } catch (error) {
-        console.error('populateExistingDictionariesDropdown: Network or parsing error:', error);
-        displayMessage('existingDictStatus', `An unexpected error occurred: ${error.message}`, 'error');
-        dropdown.innerHTML = '<option value="">-- Error --</option>';
-        dropdown.disab
+        return {
+            statusCode: 200,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                // Modified message to be more explicit
+                message: `Data dictionary "${dictionaryName}" ${actionMessage} successfully!`,
+                dictionaryId: savedDictionaryId,
+                dictionaryName: dictionaryName
+            })
+        };
+
+    } catch (dbError) {
+        console.error("save-data-dictionary.js: An error occurred during database operation or connection.");
+        console.error('save-data-dictionary.js: Full dbError object (including internal fields):', JSON.stringify(dbError, Object.getOwnPropertyNames(dbError)));
+
+        if (client) {
+            console.warn("save-data-dictionary.js: Attempting to rollback database transaction.");
+            await client.query('ROLLBACK');
+        } else {
+            console.warn("save-data-dictionary.js: No active database client to rollback (likely connection error occurred before transaction).");
+        }
+
+        console.error('save-data-dictionary.js: Specific error message from DB:', dbError.message);
+        console.error('save-data-dictionary.js: DB Error Code:', dbError.code); // Log error code
+
+        // This specific error handling for 23505 (unique violation) is now less likely with the new logic,
+        // but kept as a fallback for potential edge cases or other unique constraints.
+        if (dbError.code === '23505') {
+            console.warn("save-data-dictionary.js: Unique constraint violation detected (Error Code: 23505).");
+            return { statusCode: 409, body: JSON.stringify({ message: 'A data dictionary with this name already exists for your company. Please choose a different name, or load and update the existing one.', error: dbError.message }) };
+        }
+
+        // Generic 500 error for all other database-related issues
+        return { statusCode: 500, body: JSON.stringify({ message: 'Failed to save data dictionary to database.', error: dbError.message }) };
+    } finally {
+        if (client) {
+            console.log("save-data-dictionary.js: Releasing DB client back to pool.");
+            client.release();
+        } else {
+            console.log("save-data-dictionary.js: No DB client to release (was not connected or already released).");
+        }
+    }
+};
