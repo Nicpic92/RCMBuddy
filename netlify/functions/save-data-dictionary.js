@@ -1,76 +1,41 @@
-async function saveDataDictionary() {
-    console.log("DEBUG: saveDataDictionary function started."); // ADD THIS
-    const dictionaryNameInput = document.getElementById('dictionaryName');
-    let dictionaryName = dictionaryNameInput.value.trim();
+// netlify/functions/save-data-dictionary.js
+// --- ADD THESE LOGS AT THE VERY TOP ---
+console.log("FUNCTION START: save-data-dictionary.js is starting to load.");
+console.log("ENV VAR DEBUG: DATABASE_URL is set:", !!process.env.DATABASE_URL); // Check if value exists
+console.log("ENV VAR DEBUG: JWT_SECRET is set:", !!process.env.JWT_SECRET); // Check if value exists
 
-    // IMPORTANT: Collect rules for the CURRENTLY ACTIVE SHEET before saving
-    if (currentSheetName) {
-        const currentSheetRulesFromUI = collectRules();
-        sheetRulesMap.set(currentSheetName, currentSheetRulesFromUI);
-        console.log(`DEBUG: Saved current UI rules to sheetRulesMap for "${currentSheetName}":`, currentSheetRulesFromUI);
-    } else {
-        console.warn("DEBUG: currentSheetName is null. Cannot save rules to sheetRulesMap.");
-    }
+// --- ADD A TRY/CATCH AROUND GLOBAL INITIALIZATION ---
+let pool;
+try {
+    const jwt = require('jsonwebtoken'); // For JWT authentication
+    const { Pool } = require('pg');     // PostgreSQL client
+    console.log("DEPENDENCIES LOADED: jsonwebtoken and pg are required.");
 
-    const rulesToSave = sheetRulesMap.get(currentSheetName);
-    if (!rulesToSave || rulesToSave.length === 0) {
-        displayMessage('saveStatus', 'No rules defined for the current sheet to save.', 'error');
-        console.error("DEBUG: No rules to save for current sheet. Aborting save."); // ADD THIS
-        return; // THIS IS A CRITICAL RETURN POINT
-    }
+    // Initialize PostgreSQL pool
+    pool = new Pool({
+        connectionString: process.env.DATABASE_URL,
+        ssl: { rejectUnauthorized: false } // Required for Neon's SSL
+    });
+    console.log("POSTGRES POOL INITIALIZED.");
 
-    const sourceHeadersToSave = sheetHeadersMap.get(currentSheetName);
-    if (!sourceHeadersToSave || sourceHeadersToSave.length === 0) {
-        displayMessage('saveStatus', 'Cannot save: No headers found for the current sheet.', 'error');
-        console.error("DEBUG: No headers to save for current sheet. Aborting save."); // ADD THIS
-        return; // THIS IS ANOTHER CRITICAL RETURN POINT
-    }
+    // This is the export - it should be assigned after successful initialization
+    exports.handler = async (event, context) => {
+        console.log("HANDLER INVOKED: save-data-dictionary.handler is running."); // This should now appear in logs
 
-    if (!dictionaryName) {
-        displayMessage('saveStatus', 'Please enter a name for your data dictionary.', 'error');
-        dictionaryNameInput.focus();
-        console.error("DEBUG: Dictionary name is empty. Aborting save."); // ADD THIS
-        return; // AND ANOTHER CRITICAL RETURN POINT
-    }
-
-    // ... (rest of your existing dictionary name adjustment logic) ...
-
-    displayMessage('saveStatus', 'Saving data dictionary...', 'info');
-    document.getElementById('saveDictionaryBtn').disabled = true;
-    document.getElementById('printDictionaryBtn').disabled = true;
-
-    const token = localStorage.getItem('jwtToken');
-    if (!token) {
-        displayMessage('saveStatus', 'Authentication required. Please log in again.', 'error');
-        console.error("DEBUG: No JWT token found. Aborting save."); // ADD THIS
-        document.getElementById('saveDictionaryBtn').disabled = false;
-        document.getElementById('printDictionaryBtn').disabled = false;
-        return; // FINAL CRITICAL RETURN POINT BEFORE FETCH
-    }
-
-    const payload = {
-        dictionaryName,
-        rules_json: rulesToSave,
-        source_headers_json: sourceHeadersToSave,
-        ...(isEditingExistingDictionary && currentDictionaryId && { id: currentDictionaryId })
+        // --- Your existing function logic starts here ---
+        // ... (rest of your save-data-dictionary.js code) ...
+        // --- End of your existing function logic ---
     };
-    console.log("DEBUG: Payload being sent:", payload); // ADD THIS
+    console.log("HANDLER EXPORTED: exports.handler has been assigned.");
 
-    try {
-        console.log("DEBUG: Initiating fetch request to /api/save-data-dictionary"); // ADD THIS RIGHT HERE
-        const response = await fetch('/api/save-data-dictionary', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`
-            },
-            body: JSON.stringify(payload)
-        });
-        // ... (rest of your fetch logic) ...
-    } catch (error) {
-        console.error('DEBUG: Frontend save error during fetch:', error); // ADD THIS
-        // ...
-    } finally {
-        // ...
-    }
+} catch (initError) {
+    console.error("INITIALIZATION ERROR: An error occurred during function initialization.", initError);
+    // If initialization fails, we might not be able to export the handler.
+    // We'll set a dummy handler to log the error if invoked, though Netlify's Runtime.HandlerNotFound will likely fire first.
+    exports.handler = async (event, context) => {
+        return {
+            statusCode: 500,
+            body: JSON.stringify({ message: "Function initialization failed. Check Netlify logs for details.", error: initError.message }),
+        };
+    };
 }
