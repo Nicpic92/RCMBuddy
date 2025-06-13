@@ -1,28 +1,17 @@
-# =======================================================
-#        TEMPORARY DEBUGGING netlify.toml
-# =======================================================
+# --- FINAL PRODUCTION netlify.toml ---
 [build]
   publish = "public"
   functions = "netlify/functions"
 
-# --- ONLY THIS REDIRECT RULE IS ACTIVE ---
-# This is a direct, non-wildcard test of the routing.
-# It maps a unique URL directly to our new test function.
 [[redirects]]
-  from = "/test-admin-route"
-  to = "/.netlify/functions/admin/hello"
+  from = "/api/admin/*"
+  to = "/.netlify/functions/admin/:splat"
   status = 200
 
-# --- All other rules are temporarily disabled ---
-# [[redirects]]
-#   from = "/api/admin/*"
-#   to = "/.netlify/functions/admin/:splat"
-#   status = 200
-
-# [[redirects]]
-#   from = "/api/*"
-#   to = "/.netlify/functions/:splat"
-#   status = 200
+[[redirects]]
+  from = "/api/*"
+  to = "/.netlify/functions/:splat"
+  status = 200
 
 [[plugins]]
-package = "@netlify/plugin-functions-install-core"
+  package = "@netlify/plugin-functions-install-core"
