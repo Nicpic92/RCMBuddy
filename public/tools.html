@@ -283,6 +283,7 @@
         async function setupNavigation() {
             hidePageMessage(); // Clear any previous messages
 
+            // FIX: Changed 'jwtToken' to 'rcm_buddy_token' for consistency
             const token = localStorage.getItem('rcm_buddy_token');
             console.log('setupNavigation: Checking for token...');
 
@@ -312,12 +313,14 @@
                     } else {
                         console.error('setupNavigation: User data is missing or malformed in the response. Redirecting.'); // IMPROVED LOG
                         displayPageMessage('Failed to load user data. Please log in again.', 'error');
+                        // FIX: Changed 'jwtToken' to 'rcm_buddy_token' for consistency
                         localStorage.removeItem('rcm_buddy_token');
                         setTimeout(() => { window.location.href = '/'; }, 1500);
                     }
                 } else if (response.status === 401) {
                     console.warn('setupNavigation: Token expired or invalid (401 Unauthorized). Removing token and redirecting.');
                     displayPageMessage('Session expired. Please log in again.', 'error');
+                    // FIX: Changed 'jwtToken' to 'rcm_buddy_token' for consistency
                     localStorage.removeItem('rcm_buddy_token');
                     setTimeout(() => { window.location.href = '/'; }, 1500);
                 } else {
@@ -333,6 +336,7 @@
 
         // Logout functionality
         document.getElementById('logoutButton').addEventListener('click', () => {
+            // FIX: Changed 'jwtToken' to 'rcm_buddy_token' for consistency
             localStorage.removeItem('rcm_buddy_token');
             console.log('Logout: Token removed. Redirecting to login.');
             window.location.href = '/';
