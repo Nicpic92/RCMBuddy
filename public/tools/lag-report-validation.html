@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RCM Buddy - Lag Report Validation</title>
+    <title>RCM Buddy - Lag Report Dashboard</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.17.0/xlsx.full.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -63,23 +63,33 @@
         input[type="file"]:hover {
             border-color: #9ca3af;
         }
-        input[type="text"] {
-            border: 1px solid #d1d5db;
-            padding: 0.5rem;
-            border-radius: 0.25rem;
+        /* Table styles for dashboard display */
+        .dashboard-table-container {
+            max-height: 500px; /* Limit height for scrollability */
+            overflow-y: auto;
+            border: 1px solid #e2e8f0;
+            border-radius: 0.5rem;
+        }
+        .dashboard-table {
             width: 100%;
+            border-collapse: collapse;
+            font-size: 0.9rem;
         }
-        /* Custom spinner styles */
-        .spinner {
-            border: 4px solid rgba(0, 0, 0, 0.1);
-            border-left-color: #4f46e5;
-            border-radius: 50%;
-            width: 24px;
-            height: 24px;
-            animation: spin 1s linear infinite;
+        .dashboard-table th, .dashboard-table td {
+            padding: 0.75rem 1rem;
+            text-align: left;
+            border-bottom: 1px solid #e2e8f0;
         }
-        @keyframes spin {
-            to { transform: rotate(360deg); }
+        .dashboard-table th {
+            background-color: #f8fafc;
+            font-weight: 600;
+            color: #475569;
+            position: sticky;
+            top: 0; /* Makes header sticky during scroll */
+            z-index: 1;
+        }
+        .dashboard-table tbody tr:hover {
+            background-color: #f0f4f8;
         }
     </style>
 </head>
@@ -96,49 +106,37 @@
     </nav>
 
     <main class="flex-grow container mx-auto p-6">
-        <h1 class="text-4xl font-extrabold text-center text-gray-800 mb-8">Lag Report Validation Tool</h1>
+        <h1 class="text-4xl font-extrabold text-center text-gray-800 mb-8">Lag Report Dashboard</h1>
 
-        <div class="max-w-4xl mx-auto card">
-            <p class="text-gray-700 mb-6">Upload your "Claims & Check Numbers Report" and your "Lag Report." This tool will add check numbers to the Lag Report based on matching claim numbers.</p>
-
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-                <div>
-                    <label for="claimsFile" class="block text-lg font-semibold text-gray-800 mb-2">Claims & Check Numbers Report (Excel/CSV)</label>
-                    <input type="file" id="claimsFile" accept=".xlsx,.xls,.csv" class="w-full">
-                    <p class="text-sm text-gray-500 mt-1">This report should contain claim numbers and check numbers.</p>
-                </div>
-                <div>
-                    <label for="lagFile" class="block text-lg font-semibold text-gray-800 mb-2">Lag Report (Excel/CSV)</label>
-                    <input type="file" id="lagFile" accept=".xlsx,.xls,.csv" class="w-full">
-                    <p class="text-sm text-gray-500 mt-1">This report will be updated with the check numbers.</p>
-                </div>
-            </div>
+        <div class="max-w-6xl mx-auto card">
+            <p class="text-gray-700 mb-6">Upload your "Lag Detail Report" (Excel/CSV) to view its data in a dashboard format.</p>
 
             <div class="mb-6">
-                <label for="claimNumberHeader" class="block text-lg font-semibold text-gray-800 mb-2">Common Claim Number Header</label>
-                <input type="text" id="claimNumberHeader" placeholder="e.g., Claim ID" value="Claim ID" class="w-full">
-                <p class="text-sm text-gray-500 mt-1">The exact header name for the claim number column in both reports.</p>
+                <label for="lagReportFile" class="block text-lg font-semibold text-gray-800 mb-2">Select Lag Detail Report (Excel/CSV)</label>
+                <input type="file" id="lagReportFile" accept=".xlsx,.xls,.csv" class="w-full">
             </div>
 
-            <div class="mb-6">
-                <label for="checkNumberHeader" class="block text-lg font-semibold text-gray-800 mb-2">Check Number Header in Claims Report</label>
-                <input type="text" id="checkNumberHeader" placeholder="e.g., ChequeNumber" value="ChequeNumber" class="w-full">
-                <p class="text-sm text-gray-500 mt-1">The exact header name for the check number column in the Claims & Check Numbers Report.</p>
-            </div>
-
-            <button id="validateButton" class="btn-primary w-full flex items-center justify-center space-x-2">
-                <span id="buttonText">Validate Lag Report</span>
+            <button id="displayDashboardButton" class="btn-primary w-full flex items-center justify-center space-x-2">
+                <span id="buttonText">Display Dashboard</span>
                 <div id="loadingSpinner" class="spinner hidden"></div>
             </button>
 
             <div id="messageBox" class="message-box hidden"></div>
+        </div>
 
-            <div id="downloadArea" class="mt-6 hidden">
-                <p class="text-lg font-semibold text-gray-800 mb-2">Validated Lag Report Ready!</p>
-                <a id="downloadLink" href="#" download="validated_lag_report.xlsx" class="btn-primary inline-flex items-center">
-                    Download Validated Lag Report
-                </a>
+        <div id="dashboardDisplayArea" class="max-w-6xl mx-auto card mt-6 hidden">
+            <h2 class="text-2xl font-bold text-gray-800 mb-4">Lag Report Data</h2>
+            <div class="dashboard-table-container">
+                <table id="lagReportTable" class="dashboard-table">
+                    <thead>
+                        <tr></tr> <!-- Headers will go here -->
+                    </thead>
+                    <tbody>
+                        <!-- Data rows will go here -->
+                    </tbody>
+                </table>
             </div>
+            <p id="rowCount" class="text-gray-600 mt-4"></p>
         </div>
     </main>
 
@@ -161,19 +159,19 @@
             const buttonText = document.getElementById('buttonText');
             const loadingSpinner = document.getElementById('loadingSpinner');
             if (isLoading) {
-                buttonText.textContent = 'Validating...';
+                buttonText.textContent = 'Processing...';
                 loadingSpinner.classList.remove('hidden');
-                document.getElementById('validateButton').disabled = true;
+                document.getElementById('displayDashboardButton').disabled = true;
             } else {
-                buttonText.textContent = 'Validate Lag Report';
+                buttonText.textContent = 'Display Dashboard';
                 loadingSpinner.classList.add('hidden');
-                document.getElementById('validateButton').disabled = false;
+                document.getElementById('displayDashboardButton').disabled = false;
             }
         }
 
         // Function to set up navigation with user details
         async function setupNavigation() {
-            // FIX: Use 'jwtToken' for consistency with index.html
+            // Use 'jwtToken' for consistency with index.html
             const token = localStorage.getItem('jwtToken');
             if (!token) {
                 window.location.href = '/';
@@ -195,13 +193,11 @@
                     } else {
                         console.error('User data missing from protected endpoint response');
                         displayMessage('Failed to load user data. Please log in again.', 'error');
-                        // FIX: Use 'jwtToken' for consistency with index.html
                         localStorage.removeItem('jwtToken');
                         setTimeout(() => { window.location.href = '/'; }, 1500);
                     }
                 } else if (response.status === 401) {
                     displayMessage('Session expired. Please log in again.', 'error');
-                    // FIX: Use 'jwtToken' for consistency with index.html
                     localStorage.removeItem('jwtToken');
                     setTimeout(() => { window.location.href = '/'; }, 1500);
                 } else {
@@ -219,25 +215,62 @@
 
         // Logout functionality
         document.getElementById('logoutButton').addEventListener('click', () => {
-            // FIX: Use 'jwtToken' for consistency with index.html
             localStorage.removeItem('jwtToken');
             window.location.href = '/';
         });
 
-        // Function to read an Excel/CSV file into an array of objects
-        function readFile(file) {
+        // Function to read an Excel/CSV file and display its contents
+        function readFileAndDisplay(file) {
             return new Promise((resolve, reject) => {
                 const reader = new FileReader();
                 reader.onload = (e) => {
                     try {
                         const data = new Uint8Array(e.target.result);
                         const workbook = XLSX.read(data, { type: 'array' });
-                        // Assuming the first sheet for simplicity
                         const firstSheetName = workbook.SheetNames[0];
                         const worksheet = workbook.Sheets[firstSheetName];
-                        // Convert to array of objects (JSON)
+                        
+                        // Convert to array of arrays (raw data for table)
                         const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
-                        resolve(jsonData);
+
+                        if (jsonData.length === 0) {
+                            reject('File is empty or contains no readable data.');
+                            return;
+                        }
+
+                        // Assume first row is headers
+                        const headers = jsonData[0];
+                        const rows = jsonData.slice(1);
+
+                        const tableHead = document.getElementById('lagReportTable').querySelector('thead tr');
+                        const tableBody = document.getElementById('lagReportTable').querySelector('tbody');
+                        const rowCountElement = document.getElementById('rowCount');
+
+                        tableHead.innerHTML = ''; // Clear old headers
+                        tableBody.innerHTML = ''; // Clear old data
+
+                        // Populate headers
+                        headers.forEach(header => {
+                            const th = document.createElement('th');
+                            th.textContent = header;
+                            tableHead.appendChild(th);
+                        });
+
+                        // Populate data rows
+                        rows.forEach(rowData => {
+                            const tr = document.createElement('tr');
+                            rowData.forEach(cellData => {
+                                const td = document.createElement('td');
+                                td.textContent = cellData;
+                                tr.appendChild(td);
+                            });
+                            tableBody.appendChild(tr);
+                        });
+
+                        document.getElementById('dashboardDisplayArea').classList.remove('hidden');
+                        rowCountElement.textContent = `Displaying ${rows.length} rows.`;
+                        resolve();
+
                     } catch (error) {
                         reject('Error parsing file: ' + error.message);
                     }
@@ -249,100 +282,25 @@
             });
         }
 
-        document.getElementById('validateButton').addEventListener('click', async () => {
+        document.getElementById('displayDashboardButton').addEventListener('click', async () => {
             hideMessage(); // Clear previous messages
             setLoading(true); // Show loading spinner
+            document.getElementById('dashboardDisplayArea').classList.add('hidden'); // Hide previous dashboard
 
-            const claimsFile = document.getElementById('claimsFile').files[0];
-            const lagFile = document.getElementById('lagFile').files[0];
-            const claimNumberHeader = document.getElementById('claimNumberHeader').value.trim();
-            const checkNumberHeader = document.getElementById('checkNumberHeader').value.trim();
+            const lagReportFile = document.getElementById('lagReportFile').files[0];
 
-            if (!claimsFile || !lagFile) {
-                displayMessage('Please select both the Claims & Check Numbers Report and the Lag Report.', 'error');
-                setLoading(false);
-                return;
-            }
-
-            if (!claimNumberHeader) {
-                displayMessage('Please enter the common Claim Number Header.', 'error');
-                setLoading(false);
-                return;
-            }
-
-            if (!checkNumberHeader) {
-                displayMessage('Please enter the Check Number Header from the Claims Report.', 'error');
+            if (!lagReportFile) {
+                displayMessage('Please select a Lag Detail Report to display.', 'error');
                 setLoading(false);
                 return;
             }
 
             try {
-                // Read both files
-                const claimsData = await readFile(claimsFile);
-                const lagData = await readFile(lagFile);
-
-                // Prepare data for backend
-                const payload = {
-                    claimsReport: claimsData,
-                    lagReport: lagData,
-                    claimNumberHeader: claimNumberHeader,
-                    checkNumberHeader: checkNumberHeader
-                };
-
-                // FIX: Use 'jwtToken' for consistency
-                const token = localStorage.getItem('jwtToken');
-                if (!token) {
-                    displayMessage('Authentication token missing. Please log in again.', 'error');
-                    setLoading(false);
-                    return;
-                }
-
-                // Send data to backend Netlify Function
-                const response = await fetch('/api/lag-report-validation', { // FIX: Changed endpoint name
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${token}`
-                    },
-                    body: JSON.stringify(payload)
-                });
-
-                if (response.ok) {
-                    const result = await response.json();
-                    if (result.success && result.fileData) {
-                        displayMessage('Lag Report Validated successfully!', 'success'); // FIX: Changed success message
-
-                        // Create a Blob from the base64 encoded file data
-                        const byteCharacters = atob(result.fileData);
-                        const byteNumbers = new Array(byteCharacters.length);
-                        for (let i = 0; i < byteCharacters.length; i++) {
-                            byteNumbers[i] = byteCharacters.charCodeAt(i);
-                        }
-                        const byteArray = new Uint8Array(byteNumbers);
-                        const blob = new Blob([byteArray], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }); // .xlsx MIME type
-
-                        // Create a download URL and trigger download
-                        const downloadLink = document.getElementById('downloadLink');
-                        const url = URL.createObjectURL(blob);
-                        downloadLink.href = url;
-                        downloadLink.download = result.filename || 'validated_lag_report.xlsx'; // FIX: Changed download filename
-                        document.getElementById('downloadArea').classList.remove('hidden');
-
-                    } else {
-                        displayMessage(`Error validating Lag Report: ${result.message || 'Unknown error.'}`, 'error'); // FIX: Changed error message
-                    }
-                } else if (response.status === 401) {
-                    displayMessage('Authentication failed. Please log in again.', 'error');
-                    // FIX: Use 'jwtToken' for consistency
-                    localStorage.removeItem('jwtToken');
-                    setTimeout(() => { window.location.href = '/'; }, 1500);
-                } else {
-                    const errorData = await response.json();
-                    displayMessage(`Server error: ${errorData.message || response.statusText}`, 'error');
-                }
+                await readFileAndDisplay(lagReportFile);
+                displayMessage('Lag Report loaded and displayed successfully!', 'success');
             } catch (error) {
-                console.error('Error during Lag Report validation:', error); // FIX: Changed error message
-                displayMessage('An unexpected error occurred during validation. Please check console for details.', 'error');
+                console.error('Error displaying dashboard:', error);
+                displayMessage(`Error displaying dashboard: ${error}`, 'error');
             } finally {
                 setLoading(false); // Hide loading spinner
             }
