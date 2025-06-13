@@ -1,15 +1,23 @@
-# FINAL, SIMPLIFIED netlify.toml
-# The functions directory is now set in the Netlify UI.
+# --- FINAL TEST: netlify.toml with a REWRITE ---
 
 [build]
   publish = "public"
-  # The 'functions' line is REMOVED from here.
+  # functions line is correctly removed
 
+# This rule tells the server: "When you receive a request for this URL,
+# run the get-data.js function instead of the get-company-admin-data.js function."
+[[redirects]]
+  from = "/api/admin/get-company-admin-data"
+  to = "/.netlify/functions/admin/get-data"
+  status = 200
+
+# This rule handles the other admin functions
 [[redirects]]
   from = "/api/admin/*"
   to = "/.netlify/functions/admin/:splat"
   status = 200
 
+# This rule handles all other non-admin functions
 [[redirects]]
   from = "/api/*"
   to = "/.netlify/functions/:splat"
