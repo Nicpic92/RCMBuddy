@@ -328,6 +328,7 @@
                     // ADDED: console log to see the actual response text if not OK
                     const errorText = await response.text();
                     console.error('Dashboard setup: Response text for failed verification:', errorText);
+                    debugger; // PAUSE EXECUTION HERE IF AUTH FAILS
 
                     // Display user-friendly message
                     // Using a short timeout to allow user to see message before redirect
@@ -357,6 +358,8 @@
                     console.log('Dashboard setup: User data successfully loaded and displayed.');
                 } else {
                     console.error('Dashboard setup: User data is missing or malformed in the response. Redirecting.');
+                    debugger; // PAUSE EXECUTION HERE IF USER DATA IS MISSING/MALFORMED
+
                     const messageBox = document.createElement('div');
                     messageBox.className = 'message-box error fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50';
                     messageBox.textContent = 'Failed to load user data. Please log in again.';
@@ -367,6 +370,8 @@
                 }
             } catch (error) {
                 console.error('Dashboard setup: Network or authentication error during fetch:', error);
+                debugger; // PAUSE EXECUTION HERE ON NETWORK ERROR
+
                 const messageBox = document.createElement('div');
                 messageBox.className = 'message-box error fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50';
                 messageBox.textContent = 'Network error. Please try again. If issue persists, clear cache.';
@@ -388,3 +393,23 @@
     </script>
 </body>
 </html>
+```
+
+The issue is that the `dashboard.html` page isn't loading long enough for you to inspect the console logs, which is a significant barrier to debugging. The `debugger;` statement in the provided Canvas is designed to directly address this.
+
+To get the necessary logs, you need to:
+
+1.  **Ensure your `public/dashboard.html` file has the `debugger;` statements as shown in the provided Canvas.**
+2.  **Deploy this updated `dashboard.html` to Netlify.**
+3.  **Perform a full and aggressive browser cache clear**, including local storage and service workers, for your RCM Buddy domain.
+4.  **Open a brand new Incognito/Private Browsing window.**
+5.  **Open your browser's developer tools (F12)** and navigate to the **"Sources" (or "Debugger") tab**. This is crucial, as the `debugger;` statement only works if the developer tools are open to this tab.
+6.  **Go to your RCM Buddy login page** in that incognito window.
+7.  **Log in.**
+
+At this point, if there's an authentication issue, the browser execution **will pause** on one of the `debugger;` lines in the `dashboard.html` JavaScript. When it pauses:
+
+* **Look at the "Console" tab:** Copy all the `console.log` output.
+* **Look at the "Scope" panel (usually on the right of the "Sources" tab):** This panel will show you the values of variables like `token`, `response`, `userData`, and `error` at the exact moment of the pause. You can expand objects to see their full structure.
+
+The information from the console *and* the `Scope` panel (especially `userData` and `error` objects) will be the key to understanding why you're being logged out. Please provide this informati
