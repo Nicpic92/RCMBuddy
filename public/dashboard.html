@@ -138,6 +138,15 @@
         .tool-card.user-profile a { background-color: #ec4899; } /* pink-500 */
         .tool-card.user-profile a:hover { background-color: #db2777; } /* pink-600 */
 
+        /* NEW: Tool Card for Lag Report Validation (using a distinct theme, e.g., teal/cyan) */
+        .tool-card.lag-report-validation {
+            border-color: #a7f3d0; /* teal-200 */
+            background-color: #f0fdfa; /* teal-50 */
+        }
+        .tool-card.lag-report-validation h3 { color: #0d9488; } /* teal-600 */
+        .tool-card.lag-report-validation a { background-color: #14b8a6; } /* teal-500 */
+        .tool-card.lag-report-validation a:hover { background-color: #0d9488; } /* teal-600 */
+
         /* Styles for tools marked as 'development' (Coming Soon) */
         .development-tool {
             /* display: none; /* Hides development tools completely */
@@ -175,32 +184,6 @@
         }
         /* You can uncomment this if you want to completely hide development tools */
         .tool-card[data-status="development"] { display: none; }
-
-        /* Message box styles (reverted to original hidden style for consistency) */
-        .message-box {
-            padding: 1rem;
-            border-radius: 0.5rem;
-            margin-top: 1rem;
-            font-weight: 500;
-            text-align: center;
-            /* Removed fixed positioning and transform for general use */
-            display: none; /* Hidden by default */
-        }
-        .message-box.success {
-            background-color: #d1fae5;
-            color: #065f46;
-            border: 1px solid #10b981;
-        }
-        .message-box.error {
-            background-color: #fee2e2;
-            color: #991b1b;
-            border: 1px solid #ef4444;
-        }
-        .message-box.info {
-            background-color: #e0f2fe;
-            color: #0369a1;
-            border: 1px solid #38bdf8;
-        }
     </style>
 </head>
 <body class="flex flex-col min-h-screen">
@@ -273,6 +256,15 @@
                     </a>
                 </div>
 
+                <!-- NEW: Tool Card: Lag Report Validation -->
+                <div class="tool-card lag-report-validation" data-status="ready">
+                    <h3 class="text-xl font-bold text-teal-600 mb-3">Lag Report Validation</h3>
+                    <p class="text-gray-600 mb-4">Add check numbers to your lag report by cross-referencing with a claims report.</p>
+                    <a href="/tools/lag-report-validation.html" class="inline-block bg-teal-500 hover:bg-teal-600 text-white font-bold py-2 px-4 rounded-full transition duration-300">
+                        Launch Tool
+                    </a>
+                </div>
+
                 <!-- NEW: Tool Card: Universal Ticket Tracker (already present) -->
                 <div class="tool-card ticket-tracker" data-status="ready">
                     <h3 class="text-xl font-bold text-orange-600 mb-3">Universal Ticket Tracker</h3>
@@ -327,7 +319,7 @@
     <script>
         // Common authentication and navigation setup
         async function verifyAndSetupUser() {
-            // FIX: Reverted to 'jwtToken' for consistency with index.html
+            // FIX: Using 'jwtToken' for consistency with index.html
             const token = localStorage.getItem('jwtToken');
             console.log('Dashboard setup: Checking for token...');
             console.log('Dashboard setup: Token found:', token ? token.substring(0, 10) + '...' : 'None');
@@ -365,9 +357,9 @@
                         messageBox.className = 'message-box error'; // Show it
                     }
 
-                    // FIX: Reverted to 'jwtToken' for consistency with index.html
+                    // FIX: Using 'jwtToken' for consistency with index.html
                     localStorage.removeItem('jwtToken');
-                    setTimeout(() => { window.location.href = '/'; }, 3000); // Increased delay to 3 seconds for debugging
+                    setTimeout(() => { window.location.href = '/'; }, 3000); // Increased delay for message visibility
                     return;
                 }
 
@@ -393,25 +385,25 @@
                         messageBox.className = 'message-box error'; // Show it
                     }
 
-                    // FIX: Reverted to 'jwtToken' for consistency with index.html
+                    // FIX: Using 'jwtToken' for consistency with index.html
                     localStorage.removeItem('jwtToken');
                     setTimeout(() => { window.location.href = '/'; }, 3000); // Increased delay
                 }
             } catch (error) {
                 console.error('Dashboard setup: Network or authentication error during fetch:', error);
+
                 const messageBox = document.getElementById('pageMessageBox');
                 if (messageBox) {
                     messageBox.textContent = 'Network error. Please try again. If issue persists, clear cache.';
                     messageBox.className = 'message-box error'; // Show it
                 }
-                // No automatic redirect for network errors, as it might be temporary connection issue
             }
         }
 
         // Logout functionality
         document.getElementById('logoutButton').addEventListener('click', (e) => {
             e.preventDefault();
-            // FIX: Reverted to 'jwtToken' for consistency with index.html
+            // FIX: Using 'jwtToken' for consistency with index.html
             localStorage.removeItem('jwtToken'); // Remove the JWT
             console.log('Logout: Token removed. Redirecting to login.');
             window.location.href = '/'; // Redirect to login page
