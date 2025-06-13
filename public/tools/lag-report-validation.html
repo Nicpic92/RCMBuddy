@@ -84,6 +84,7 @@
     </style>
 </head>
 <body class="min-h-screen flex flex-col">
+    <!-- Navigation Bar -->
     <nav class="bg-indigo-600 text-white p-4 shadow-md flex justify-between items-center">
         <div class="text-xl font-bold">RCM Buddy</div>
         <div class="flex items-center space-x-4">
@@ -115,13 +116,13 @@
 
             <div class="mb-6">
                 <label for="claimNumberHeader" class="block text-lg font-semibold text-gray-800 mb-2">Common Claim Number Header</label>
-                <input type="text" id="claimNumberHeader" placeholder="e.g., Claim Number" value="Claim Number" class="w-full">
+                <input type="text" id="claimNumberHeader" placeholder="e.g., Claim ID" value="Claim ID" class="w-full">
                 <p class="text-sm text-gray-500 mt-1">The exact header name for the claim number column in both reports.</p>
             </div>
 
             <div class="mb-6">
                 <label for="checkNumberHeader" class="block text-lg font-semibold text-gray-800 mb-2">Check Number Header in Claims Report</label>
-                <input type="text" id="checkNumberHeader" placeholder="e.g., Check Number" value="Check Number" class="w-full">
+                <input type="text" id="checkNumberHeader" placeholder="e.g., ChequeNumber" value="ChequeNumber" class="w-full">
                 <p class="text-sm text-gray-500 mt-1">The exact header name for the check number column in the Claims & Check Numbers Report.</p>
             </div>
 
@@ -172,10 +173,9 @@
 
         // Function to set up navigation with user details
         async function setupNavigation() {
-            // FIX: Use 'jwtToken' for consistency
+            // FIX: Use 'jwtToken' for consistency with index.html
             const token = localStorage.getItem('jwtToken');
             if (!token) {
-                // If no token, redirect to login page
                 window.location.href = '/';
                 return;
             }
@@ -195,18 +195,16 @@
                     } else {
                         console.error('User data missing from protected endpoint response');
                         displayMessage('Failed to load user data. Please log in again.', 'error');
-                        // FIX: Use 'jwtToken' for consistency
+                        // FIX: Use 'jwtToken' for consistency with index.html
                         localStorage.removeItem('jwtToken');
                         setTimeout(() => { window.location.href = '/'; }, 1500);
                     }
                 } else if (response.status === 401) {
-                    // Token expired or invalid
                     displayMessage('Session expired. Please log in again.', 'error');
-                    // FIX: Use 'jwtToken' for consistency
+                    // FIX: Use 'jwtToken' for consistency with index.html
                     localStorage.removeItem('jwtToken');
                     setTimeout(() => { window.location.href = '/'; }, 1500);
                 } else {
-                    // Other errors
                     const errorData = await response.json();
                     console.error('Error fetching user data:', errorData.message || response.statusText);
                     displayMessage(`Error: ${errorData.message || 'Failed to load user data.'}`, 'error');
@@ -221,7 +219,7 @@
 
         // Logout functionality
         document.getElementById('logoutButton').addEventListener('click', () => {
-            // FIX: Use 'jwtToken' for consistency
+            // FIX: Use 'jwtToken' for consistency with index.html
             localStorage.removeItem('jwtToken');
             window.location.href = '/';
         });
