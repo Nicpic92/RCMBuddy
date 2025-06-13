@@ -361,12 +361,10 @@
 
                 // Correctly access company_name based on user's architecture description and recent fixes
                 // Check if company_name is directly in userData or nested under userData.user
-                if (userData.company_name) { // Prefer top-level if it exists
-                    document.getElementById('actualCompanyName').textContent = userData.company_name;
-                } else if (userData.user && userData.user.company_name) { // Fallback to nested
+                if (userData.user && userData.user.company_name) { // Use nested access as per project overview
                     document.getElementById('actualCompanyName').textContent = userData.user.company_name;
                 } else {
-                    document.getElementById('actualCompanyName').textContent = 'N/A'; // Indicate if not found
+                    document.getElementById('actualCompanyName').textContent = 'N/A (Company name not found)'; // Indicate if not found
                 }
 
                 // Set profile link text (if profile page exists and link is desired there)
