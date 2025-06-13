@@ -3,249 +3,168 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Tools - RCM Buddy</title> <!-- FIX: Changed title to RCM Buddy -->
+    <title>RCM Buddy - Tools</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        /* General body and font styling */
         body {
             font-family: 'Inter', sans-serif;
-            background-color: #f0f4f8; /* Light background */
-            color: #212529; /* Default text color */
+            background-color: #f3f4f6;
+            color: #333;
         }
-        /* Header styling (consistent with other pages) */
-        header {
-            @apply bg-gradient-to-r from-blue-600 to-indigo-700 p-4 shadow-lg;
-        }
-        /* Main content area styling */
-        main {
-            @apply flex-grow container mx-auto p-4 sm:p-6 lg:p-8;
-        }
-        /* Section styling for the main content block */
-        section {
-            @apply bg-white p-6 sm:p-8 rounded-xl shadow-lg mb-8; /* FIX: Added section styling for consistency with dashboard */
-        }
-        /* Styles for individual tool cards on the dashboard (now applied to tools.html) */
         .tool-card {
-            @apply p-6 rounded-lg shadow-md border transform hover:scale-105 transition-transform duration-300;
-            display: flex; /* FIX: Use flexbox for better alignment of content */
-            flex-direction: column; /* FIX: Stack content vertically */
-            justify-content: space-between; /* FIX: Push launch button to bottom */
+            background-color: #ffffff;
+            border-radius: 0.75rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            padding: 1.5rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+        }
+        .tool-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 15px rgba(0, 0, 0, 0.15);
+        }
+        .tool-card-icon {
+            font-size: 3rem; /* Adjust icon size */
+            color: #4f46e5;
+            margin-bottom: 1rem;
         }
         .tool-card h2 {
-            @apply text-xl font-bold mb-3; /* FIX: Changed to h2 as per dashboard.html card structure */
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+            color: #1f2937;
         }
         .tool-card p {
-            @apply text-gray-600 mb-4 flex-grow; /* FIX: flex-grow to push button down */
+            color: #4b5563;
+            font-size: 0.95rem;
+            flex-grow: 1; /* Allow description to grow */
+            margin-bottom: 1rem;
         }
-        .tool-card a {
-            @apply inline-block font-bold py-2 px-4 rounded-full transition duration-300 text-center;
-            color: white; /* Default button text color will be white */
+        .tool-card .btn {
+            background-color: #4f46e5;
+            color: white;
+            padding: 0.6rem 1.2rem;
+            border-radius: 0.5rem;
+            font-weight: 600;
+            transition: background-color 0.3s ease;
+            text-decoration: none;
+            display: inline-block; /* Ensure button styling applies correctly */
         }
-
-        /* Specific color themes for each tool card (copied from dashboard.html) */
-        .tool-card.file-manager {
-            border-color: theme('colors.blue.200');
-            background-color: theme('colors.blue.50');
-        }
-        .tool-card.file-manager h2 { color: theme('colors.blue.600'); }
-        .tool-card.file-manager a { background-color: theme('colors.blue.500'); }
-        .tool-card.file-manager a:hover { background-color: theme('colors.blue.600'); }
-
-        .tool-card.data-cleaner {
-            border-color: theme('colors.indigo.200');
-            background-color: theme('colors.indigo.50');
-        }
-        .tool-card.data-cleaner h2 { color: theme('colors.indigo.600'); }
-        .tool-card.data-cleaner a { background-color: theme('colors.indigo.500'); }
-        .tool-card.data-cleaner a:hover { background-color: theme('colors.indigo.600'); }
-
-        .tool-card.validation-engine {
-            border-color: theme('colors.green.200');
-            background-color: theme('colors.green.50');
-        }
-        .tool-card.validation-engine h2 { color: theme('colors.green.600'); }
-        .tool-card.validation-engine a { background-color: theme('colors.green.500'); }
-        .tool-card.validation-engine a:hover { background-color: theme('colors.green.600'); }
-
-        .tool-card.data-dictionary-builder {
-            border-color: theme('colors.purple.200');
-            background-color: theme('colors.purple.50');
-        }
-        .tool-card.data-dictionary-builder h2 { color: theme('colors.purple.600'); }
-        .tool-card.data-dictionary-builder a { background-color: theme('colors.purple.500'); }
-        .tool-card.data-dictionary-builder a:hover { background-color: theme('colors.purple.600'); }
-
-        /* NEW: Tool Card for Universal Ticket Tracker */
-        .tool-card.ticket-tracker {
-            border-color: theme('colors.orange.200'); /* Using orange for contrast */
-            background-color: theme('colors.orange.50');
-        }
-        .tool-card.ticket-tracker h2 { color: theme('colors.orange.600'); }
-        .tool-card.ticket-tracker a { background-color: theme('colors.orange.500'); }
-        .tool-card.ticket-tracker a:hover { background-color: theme('colors.orange.600'); }
-
-
-        /* Styles for tools marked as 'development' (Coming Soon) */
-        .development-tool {
-            display: none; /* Hides development tools completely */
-            opacity: 0.7; /* Make it slightly faded */
-            filter: grayscale(20%); /* Slight grayscale effect */
-            position: relative;
-            background-color: theme('colors.gray.100'); /* FIX: Lighter background for development tools */
-            border-color: theme('colors.gray.300'); /* FIX: Grey border for development tools */
-            pointer-events: none; /* FIX: Disable clicks on the entire card */
-        }
-        .development-tool h2, .development-tool p { /* FIX: Target h2 instead of h3 */
-            color: theme('colors.gray.500'); /* FIX: Grey out text */
-        }
-        .development-tool a {
-            display: none; /* FIX: Hide the "Launch Tool" button */
-        }
-        .development-tool span { /* FIX: Target span for "Coming Soon" text */
-            @apply inline-block text-sm text-gray-500 italic; /* FIX: Style the "Coming Soon" text */
-            margin-top: auto; /* FIX: Push to bottom if flex-grow on p doesn't work */
-        }
-        .development-tool::after {
-            content: "Coming Soon";
-            position: absolute;
-            top: 10px;
-            right: 10px;
-            background-color: #ffc107; /* Amber/Yellow badge */
-            color: #333;
-            padding: 4px 8px;
-            border-radius: 4px;
-            font-size: 0.75rem;
-            font-weight: bold;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1); /* FIX: Added shadow for consistency */
+        .tool-card .btn:hover {
+            background-color: #4338ca;
         }
     </style>
 </head>
-<body class="flex flex-col min-h-screen">
-    <!-- Header Section -->
-    <header class="bg-gradient-to-r from-blue-600 to-indigo-700 p-4 shadow-lg">
-        <div class="container mx-auto flex flex-col sm:flex-row items-center justify-between">
-            <h1 class="text-white text-3xl font-bold mb-2 sm:mb-0">Tools</h1>
-            <nav>
-                <ul class="flex space-x-4">
-                    <li><a href="/dashboard.html" class="text-white hover:text-blue-200 transition duration-300">Dashboard</a></li>
-                    <li><a href="/tools.html" class="text-white hover:text-blue-200 transition duration-300 active">Tools List</a></li>
-                    <li><a href="#" id="profileLink" class="text-white hover:text-blue-200 transition duration-300">Profile</a></li>
-                    <li><a href="#" id="logoutBtn" class="text-white hover:text-blue-200 transition duration-300 cursor-pointer">Logout</a></li>
-                </ul>
-            </nav>
+<body class="min-h-screen flex flex-col">
+    <!-- Navigation Bar -->
+    <nav class="bg-indigo-600 text-white p-4 shadow-md flex justify-between items-center">
+        <div class="text-xl font-bold">RCM Buddy</div>
+        <div class="flex items-center space-x-4">
+            <span id="navUsername" class="font-medium"></span>
+            <a href="/dashboard.html" class="hover:text-indigo-200 transition-colors">Dashboard</a>
+            <a href="/tools.html" class="hover:text-indigo-200 transition-colors">Tools</a>
+            <button id="logoutButton" class="bg-indigo-700 hover:bg-indigo-800 text-white py-2 px-4 rounded-md transition-colors">Logout</button>
         </div>
-    </header>
+    </nav>
 
-    <main class="flex-grow container mx-auto p-4 sm:p-6 lg:p-8">
-        <section class="bg-white p-6 sm:p-8 rounded-xl shadow-lg mb-8">
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+    <main class="flex-grow container mx-auto p-6">
+        <h1 class="text-4xl font-extrabold text-center text-gray-800 mb-8">Our Powerful Tools</h1>
 
-                <!-- Tool Card: File Manager -->
-                <div class="tool-card file-manager" data-status="ready">
-                    <h2>File Manager</h2>
-                    <p>Securely upload, list, download, and delete your company files.</p>
-                    <a href="/file-manager.html">Go to File Manager &rarr;</a>
-                </div>
-
-                <!-- Tool Card: Data Cleaner -->
-                <div class="tool-card data-cleaner" data-status="ready">
-                    <h2>Data Cleaner</h2>
-                    <p>Client-side tool for basic Excel data cleaning (duplicates, trimming, case standardization).</p>
-                    <a href="/tools/data-cleaner.html">Go to Data Cleaner &rarr;</a>
-                </div>
-
-                <!-- Tool Card: Excel Validate -->
-                <div class="tool-card validation-engine" data-status="ready">
-                    <h2>Excel Validate</h2>
-                    <p>Analyze Excel/CSV files for data quality issues using custom validation rules.</p>
-                    <a href="/tools/validation-engine.html">Go to Excel Validate &rarr;</a>
-                </div>
-
-                <!-- Tool Card: Data Dictionary Builder -->
-                <div class="tool-card data-dictionary-builder" data-status="ready">
-                    <h2>Data Dictionary Builder</h2>
-                    <p>Create and manage custom data dictionaries to define validation rules for your columns.</p>
-                    <a href="/tools/data-dictionary-builder.html">Build Dictionary &rarr;</a>
-                </div>
-
-                <!-- NEW: Tool Card: Universal Ticket Tracker -->
-                <div class="tool-card ticket-tracker" data-status="ready">
-                    <h2>Universal Ticket Tracker</h2>
-                    <p>Upload and visualize your ticket data from any Excel report with dynamic filtering and printing.</p>
-                    <a href="/tools/ticket-tracker/ticket-tracker.html">Launch Tracker &rarr;</a>
-                </div>
-
-                <!-- Placeholder for future development tools (these are now hidden by CSS) -->
-                <!-- Removed: Report Automator -->
-                <div class="tool-card development-tool" data-status="development">
-                    <h2>Merger & Splitter</h2>
-                    <p>Efficiently combine multiple Excel files or split large spreadsheets into manageable parts.</p>
-                    <span>Coming Soon!</span>
-                </div>
-                <!-- Removed: Macro Recorder & Editor -->
-                <!-- Removed: Custom Formula Builder -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <!-- File Manager Card -->
+            <div class="tool-card">
+                <div class="tool-card-icon">📁</div>
+                <h2>File Manager</h2>
+                <p>Securely upload, list, download, and delete your company's general files.</p>
+                <a href="/file-manager.html" class="btn">Access Tool</a>
             </div>
-        </section>
+
+            <!-- Data Dictionary Builder Card -->
+            <div class="tool-card">
+                <div class="tool-card-icon">📚</div>
+                <h2>Data Dictionary Builder</h2>
+                <p>Define custom validation rules for your Excel/CSV report headers, sheet by sheet.</p>
+                <a href="/tools/data-dictionary-builder.html" class="btn">Access Tool</a>
+            </div>
+
+            <!-- Data Validation Engine Card -->
+            <div class="tool-card">
+                <div class="tool-card-icon">✅</div>
+                <h2>Data Validation Engine</h2>
+                <p>Analyze Excel/CSV files for data quality issues using your custom data dictionaries.</p>
+                <a href="/tools/validation-engine.html" class="btn">Access Tool</a>
+            </div>
+
+            <!-- Data Cleaner Card -->
+            <div class="tool-card">
+                <div class="tool-card-icon">🧹</div>
+                <h2>Data Cleaner</h2>
+                <p>Perform basic cleaning on your Excel data: remove duplicates, trim spaces, standardize case.</p>
+                <a href="/tools/data-cleaner.html" class="btn">Access Tool</a>
+            </div>
+
+            <!-- NEW: Report Merger Card -->
+            <div class="tool-card">
+                <div class="tool-card-icon">🔄</div>
+                <h2>Report Merger</h2>
+                <p>Merge check numbers from a claims report into a lag report based on common claim numbers.</p>
+                <a href="/tools/report-merger.html" class="btn">Access Tool</a>
+            </div>
+
+        </div>
     </main>
 
-    <footer class="bg-gray-800 text-white p-4 mt-8">
-        <div class="container mx-auto text-center text-sm">
-            &copy; 2025 RCM Buddy. All rights reserved.
-        </div>
-    </footer>
-
     <script>
-        // Authentication and Navigation setup (reused from dashboard/other protected pages)
-        async function verifyToken() {
-            const token = localStorage.getItem('jwtToken');
+        // Function to set up navigation with user details
+        async function setupNavigation() {
+            const token = localStorage.getItem('rcm_buddy_token');
             if (!token) {
                 window.location.href = '/'; // Redirect to login if no token
-                return null;
+                return;
             }
+
             try {
                 const response = await fetch('/api/protected', {
                     method: 'GET',
-                    headers: { 'Authorization': `Bearer ${token}` }
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
                 });
-                if (!response.ok) {
-                    localStorage.removeItem('jwtToken');
+
+                if (response.ok) {
+                    const userData = await response.json();
+                    if (userData && userData.user) {
+                        document.getElementById('navUsername').textContent = `Hello, ${userData.user.username}`;
+                    } else {
+                        console.error('User data missing from protected endpoint response');
+                        // Optionally, display an error message or redirect
+                    }
+                } else if (response.status === 401) {
+                    // Token expired or invalid
+                    localStorage.removeItem('rcm_buddy_token');
                     window.location.href = '/';
-                    return null;
+                } else {
+                    console.error('Error fetching user data:', response.statusText);
+                    // Optionally, display an error message
                 }
-                const data = await response.json();
-                return data;
             } catch (error) {
-                console.error('Error verifying token:', error);
-                localStorage.removeItem('jwtToken');
-                window.location.href = '/';
-                return null;
+                console.error('Network or authentication error:', error);
+                // Optionally, display a network error message
             }
         }
 
-        function setupNavigation(userData) {
-            const profileLink = document.getElementById('profileLink');
-            if (profileLink && userData && userData.user) { // FIX: Check for nested 'user' object
-                profileLink.textContent = `Hello, ${userData.user.username}`; // FIX: Access nested username
-                // You might want a dedicated profile page, for now it's just a text change
-                profileLink.href = '#';
-            }
-            const logoutBtn = document.getElementById('logoutBtn');
-            if (logoutBtn) {
-                logoutBtn.addEventListener('click', (e) => {
-                    e.preventDefault();
-                    localStorage.removeItem('jwtToken');
-                    window.location.href = '/'; // Redirect to login page
-                });
-            }
-        }
-
-        document.addEventListener('DOMContentLoaded', async () => {
-            const userData = await verifyToken();
-            if (userData) {
-                setupNavigation(userData);
-            }
+        // Logout functionality
+        document.getElementById('logoutButton').addEventListener('click', () => {
+            localStorage.removeItem('rcm_buddy_token');
+            window.location.href = '/';
         });
+
+        // Initialize navigation on page load
+        document.addEventListener('DOMContentLoaded', setupNavigation);
     </script>
 </body>
 </html>
