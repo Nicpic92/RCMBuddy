@@ -17,105 +17,157 @@
         }
         /* Header styling (consistent with other pages) */
         header {
-            @apply bg-gradient-to-r from-blue-600 to-indigo-700 p-4 shadow-lg;
+            background-image: linear-gradient(to right, #2563eb, #4f46e5); /* bg-gradient-to-r from-blue-600 to-indigo-700 */
+            padding: 1rem; /* p-4 */
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); /* shadow-lg */
         }
         /* Main content area styling */
         main {
-            @apply flex-grow container mx-auto p-4 sm:p-6 lg:p-8;
+            flex-grow: 1; /* flex-grow */
+            max-width: 1280px; /* container */
+            margin-left: auto;
+            margin-right: auto;
+            padding: 1rem; /* p-4 */
+            padding-left: 1.5rem; /* sm:p-6 */
+            padding-right: 1.5rem; /* sm:p-6 */
+            padding-left: 2rem; /* lg:p-8 */
+            padding-right: 2rem; /* lg:p-8 */
         }
         /* Section styling for the main content block */
         section {
-            @apply bg-white p-6 sm:p-8 rounded-xl shadow-lg mb-8;
+            background-color: #ffffff; /* bg-white */
+            padding: 1.5rem; /* p-6 */
+            padding-left: 2rem; /* sm:p-8 */
+            padding-right: 2rem; /* sm:p-8 */
+            border-radius: 0.75rem; /* rounded-xl */
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); /* shadow-lg */
+            margin-bottom: 2rem; /* mb-8 */
         }
         /* Styles for individual tool cards on the dashboard */
         .tool-card {
-            @apply p-6 rounded-lg shadow-md border transform hover:scale-105 transition-transform duration-300;
+            padding: 1.5rem; /* p-6 */
+            border-radius: 0.5rem; /* rounded-lg */
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); /* shadow-md */
+            border-width: 1px; /* border */
+            transform: scale(1); /* transform */
+            transition-property: transform, box-shadow; /* transition-transform duration-300 */
+            transition-duration: 300ms;
+            transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
             display: flex; /* Use flexbox for better alignment of content */
             flex-direction: column; /* Stack content vertically */
             justify-content: space-between; /* Push launch button to bottom */
         }
+        .tool-card:hover {
+            transform: scale(1.05);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05); /* hover:scale-105 */
+        }
         .tool-card h3 {
-            @apply text-xl font-bold mb-3;
+            font-size: 1.25rem; /* text-xl */
+            font-weight: 700; /* font-bold */
+            margin-bottom: 0.75rem; /* mb-3 */
         }
         .tool-card p {
-            @apply text-gray-600 mb-4 flex-grow; /* flex-grow to push button down */
+            color: #4b5563; /* text-gray-600 */
+            margin-bottom: 1rem; /* mb-4 */
+            flex-grow: 1; /* flex-grow to push button down */
         }
         .tool-card a {
-            @apply inline-block font-bold py-2 px-4 rounded-full transition duration-300 text-center;
+            display: inline-block; /* inline-block */
+            font-weight: 700; /* font-bold */
+            padding-top: 0.5rem; /* py-2 */
+            padding-bottom: 0.5rem; /* py-2 */
+            padding-left: 1rem; /* px-4 */
+            padding-right: 1rem; /* px-4 */
+            border-radius: 9999px; /* rounded-full */
+            transition-duration: 300ms; /* transition duration-300 */
+            text-align: center;
             /* Default button text color will be white */
             color: white;
+            text-decoration: none;
         }
 
         /* Specific color themes for each tool card */
         .tool-card.file-manager {
-            border-color: theme('colors.blue.200');
-            background-color: theme('colors.blue.50');
+            border-color: #bfdbfe; /* theme('colors.blue.200') */
+            background-color: #eff6ff; /* theme('colors.blue.50') */
         }
-        .tool-card.file-manager h3 { color: theme('colors.blue.600'); }
-        .tool-card.file-manager a { background-color: theme('colors.blue.500'); }
-        .tool-card.file-manager a:hover { background-color: theme('colors.blue.600'); }
+        .tool-card.file-manager h3 { color: #2563eb; } /* theme('colors.blue.600') */
+        .tool-card.file-manager a { background-color: #3b82f6; } /* theme('colors.blue.500') */
+        .tool-card.file-manager a:hover { background-color: #2563eb; } /* theme('colors.blue.600') */
 
         .tool-card.data-cleaner {
-            border-color: theme('colors.indigo.200');
-            background-color: theme('colors.indigo.50');
+            border-color: #c7d2fe; /* theme('colors.indigo.200') */
+            background-color: #eef2ff; /* theme('colors.indigo.50') */
         }
-        .tool-card.data-cleaner h3 { color: theme('colors.indigo.600'); }
-        .tool-card.data-cleaner a { background-color: theme('colors.indigo.500'); }
-        .tool-card.data-cleaner a:hover { background-color: theme('colors.indigo.600'); }
+        .tool-card.data-cleaner h3 { color: #4f46e5; } /* theme('colors.indigo.600') */
+        .tool-card.data-cleaner a { background-color: #6366f1; } /* theme('colors.indigo.500') */
+        .tool-card.data-cleaner a:hover { background-color: #4f46e5; } /* theme('colors.indigo.600') */
 
         .tool-card.validation-engine {
-            border-color: theme('colors.green.200');
-            background-color: theme('colors.green.50');
+            border-color: #dcfce7; /* theme('colors.green.200') */
+            background-color: #f0fdf4; /* theme('colors.green.50') */
         }
-        .tool-card.validation-engine h3 { color: theme('colors.green.600'); }
-        .tool-card.validation-engine a { background-color: theme('colors.green.500'); }
-        .tool-card.validation-engine a:hover { background-color: theme('colors.green.600'); }
+        .tool-card.validation-engine h3 { color: #16a34a; } /* theme('colors.green.600') */
+        .tool-card.validation-engine a { background-color: #22c55e; } /* theme('colors.green.500') */
+        .tool-card.validation-engine a:hover { background-color: #16a34a; } /* theme('colors.green.600') */
 
         .tool-card.data-dictionary-builder {
-            border-color: theme('colors.purple.200');
-            background-color: theme('colors.purple.50');
+            border-color: #ede9fe; /* theme('colors.purple.200') */
+            background-color: #faf5ff; /* theme('colors.purple.50') */
         }
-        .tool-card.data-dictionary-builder h3 { color: theme('colors.purple.600'); }
-        .tool-card.data-dictionary-builder a { background-color: theme('colors.purple.500'); }
-        .tool-card.data-dictionary-builder a:hover { background-color: theme('colors.purple.600'); }
+        .tool-card.data-dictionary-builder h3 { color: #9333ea; } /* theme('colors.purple.600') */
+        .tool-card.data-dictionary-builder a { background-color: #a855f7; } /* theme('colors.purple.500') */
+        .tool-card.data-dictionary-builder a:hover { background-color: #9333ea; } /* theme('colors.purple.600') */
 
         /* NEW: Tool Card for Universal Ticket Tracker */
         .tool-card.ticket-tracker {
-            border-color: theme('colors.orange.200'); /* Using orange for contrast */
-            background-color: theme('colors.orange.50');
+            border-color: #fed7aa; /* Using orange for contrast */
+            background-color: #fff7ed;
         }
-        .tool-card.ticket-tracker h3 { color: theme('colors.orange.600'); }
-        .tool-card.ticket-tracker a { background-color: theme('colors.orange.500'); }
-        .tool-card.ticket-tracker a:hover { background-color: theme('colors.orange.600'); }
+        .tool-card.ticket-tracker h3 { color: #ea580c; } /* orange-600 */
+        .tool-card.ticket-tracker a { background-color: #f97316; } /* orange-500 */
+        .tool-card.ticket-tracker a:hover { background-color: #ea580c; } /* orange-600 */
+
 
         /* NEW: Tool Card for User Profile */
         .tool-card.user-profile {
-            border-color: theme('colors.pink.200');
-            background-color: theme('colors.pink.50');
+            border-color: #fbcfe8; /* pink-200 */
+            background-color: #fdf2f8; /* pink-50 */
         }
-        .tool-card.user-profile h3 { color: theme('colors.pink.600'); }
-        .tool-card.user-profile a { background-color: theme('colors.pink.500'); }
-        .tool-card.user-profile a:hover { background-color: theme('colors.pink.600'); }
+        .tool-card.user-profile h3 { color: #db2777; } /* pink-600 */
+        .tool-card.user-profile a { background-color: #ec4899; } /* pink-500 */
+        .tool-card.user-profile a:hover { background-color: #db2777; } /* pink-600 */
+
+        /* NEW: Tool Card for Report Merger (using a distinct theme, e.g., teal/cyan) */
+        .tool-card.report-merger {
+            border-color: #a7f3d0; /* teal-200 */
+            background-color: #f0fdfa; /* teal-50 */
+        }
+        .tool-card.report-merger h3 { color: #0d9488; } /* teal-600 */
+        .tool-card.report-merger a { background-color: #14b8a6; } /* teal-500 */
+        .tool-card.report-merger a:hover { background-color: #0d9488; } /* teal-600 */
 
 
         /* Styles for tools marked as 'development' (Coming Soon) */
         .development-tool {
-            display: none; /* Hides development tools completely */
+            /* display: none; /* Hides development tools completely */
             opacity: 0.7; /* Make it slightly faded */
             filter: grayscale(20%); /* Slight grayscale effect */
             position: relative;
-            background-color: theme('colors.gray.100'); /* Lighter background for development tools */
-            border-color: theme('colors.gray.300');
+            background-color: #f9fafb; /* Lighter background for development tools */
+            border-color: #d1d5db;
             pointer-events: none; /* Disable clicks on the entire card */
         }
         .development-tool h3, .development-tool p {
-            color: theme('colors.gray.500'); /* Grey out text */
+            color: #6b7280; /* Grey out text */
         }
         .development-tool a {
             display: none; /* Hide the "Launch Tool" button */
         }
         .development-tool span.inline-block {
-            @apply text-sm text-gray-500 italic; /* Style the "Coming Soon" text */
+            font-size: 0.875rem; /* text-sm */
+            color: #6b7280; /* text-gray-500 */
+            font-style: italic; /* italic */
             margin-top: auto; /* Push to bottom if flex-grow on p doesn't work */
         }
         .development-tool::after {
@@ -132,7 +184,7 @@
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
         /* You can uncomment this if you want to completely hide development tools */
-        /* .tool-card[data-status="development"] { display: none; } */
+        .tool-card[data-status="development"] { display: none; }
     </style>
 </head>
 <body class="flex flex-col min-h-screen">
@@ -142,10 +194,12 @@
             <h1 class="text-white text-3xl font-bold mb-2 sm:mb-0">RCM Buddy Dashboard</h1>
             <nav>
                 <ul class="flex space-x-4">
+                    <!-- Added navUsername span for consistent display across pages -->
+                    <li><span id="navUsername" class="text-white font-medium mr-2"></span></li>
                     <li><a href="/dashboard.html" class="text-white hover:text-blue-200 transition duration-300 active">Dashboard</a></li>
                     <li><a href="/tools.html" class="text-white hover:text-blue-200 transition duration-300">All Tools</a></li>
                     <li><a href="/profile.html" id="profileLink" class="text-white hover:text-blue-200 transition duration-300">Profile</a></li>
-                    <li><a href="#" id="logoutBtn" class="text-white hover:text-blue-200 transition duration-300 cursor-pointer">Logout</a></li>
+                    <li><a href="#" id="logoutButton" class="text-white hover:text-blue-200 transition duration-300 cursor-pointer">Logout</a></li>
                 </ul>
             </nav>
         </div>
@@ -203,7 +257,16 @@
                     </a>
                 </div>
 
-                <!-- NEW: Tool Card: Universal Ticket Tracker -->
+                <!-- NEW: Tool Card: Report Merger -->
+                <div class="tool-card report-merger" data-status="ready">
+                    <h3 class="text-xl font-bold text-teal-600 mb-3">Report Merger</h3>
+                    <p class="text-gray-600 mb-4">Merge check numbers from a claims report into a lag report based on common claim numbers.</p>
+                    <a href="/tools/report-merger.html" class="inline-block bg-teal-500 hover:bg-teal-600 text-white font-bold py-2 px-4 rounded-full transition duration-300">
+                        Launch Tool
+                    </a>
+                </div>
+
+                <!-- NEW: Tool Card: Universal Ticket Tracker (already present) -->
                 <div class="tool-card ticket-tracker" data-status="ready">
                     <h3 class="text-xl font-bold text-orange-600 mb-3">Universal Ticket Tracker</h3>
                     <p class="text-gray-600 mb-4">Upload and visualize your ticket data from any Excel report with dynamic filtering and printing.</p>
@@ -212,7 +275,7 @@
                     </a>
                 </div>
 
-                <!-- NEW: Tool Card: User Profile -->
+                <!-- NEW: Tool Card: User Profile (already present) -->
                 <div class="tool-card user-profile" data-status="ready">
                     <h3 class="text-xl font-bold text-pink-600 mb-3">User Profile</h3>
                     <p class="text-gray-600 mb-4">View and manage your personal account details and settings.</p>
@@ -220,6 +283,7 @@
                         View Profile
                     </a>
                 </div>
+
 
                 <!-- Placeholder for future development tools (these are now hidden by CSS) -->
                 <div class="tool-card development-tool" data-status="development">
@@ -256,8 +320,13 @@
     <script>
         // Common authentication and navigation setup
         async function verifyAndSetupUser() {
-            const token = localStorage.getItem('jwtToken');
+            // FIX: Changed 'jwtToken' to 'rcm_buddy_token' for consistency across RCM Buddy
+            const token = localStorage.getItem('rcm_buddy_token');
+            console.log('Dashboard setup: Checking for token...');
+
             if (!token) {
+                console.warn('Dashboard setup: No authentication token found. Redirecting to login.');
+                // In a real app, you might show a temporary message here
                 window.location.href = '/'; // Redirect to login if no token
                 return;
             }
@@ -272,17 +341,21 @@
 
                 if (!response.ok) {
                     // Token invalid or expired, clear and redirect to login
-                    console.error('Token verification failed:', response.statusText, response.status);
-                    localStorage.removeItem('jwtToken');
+                    console.error('Dashboard setup: Token verification failed:', response.statusText, response.status);
+                    // FIX: Changed 'jwtToken' to 'rcm_buddy_token' for consistency
+                    localStorage.removeItem('rcm_buddy_token');
                     window.location.href = '/';
                     return;
                 }
 
                 const userData = await response.json();
-                console.log("User Data from /api/protected:", userData); // Log userData for inspection
+                console.log("Dashboard setup: User Data from /api/protected:", userData); // Log userData for inspection
 
                 // Display user and company name
+                // FIX: Use navUsername for display in header and usernameDisplay for main welcome
+                document.getElementById('navUsername').textContent = `Hello, ${userData.user.username}`;
                 document.getElementById('usernameDisplay').textContent = userData.user.username;
+
                 // Correctly access company_name based on user's architecture description and recent fixes
                 // Check if company_name is directly in userData or nested under userData.user
                 if (userData.company_name) { // Prefer top-level if it exists
@@ -293,26 +366,32 @@
                     document.getElementById('actualCompanyName').textContent = 'N/A'; // Indicate if not found
                 }
 
-
-                // Set profile link text
+                // Set profile link text (if profile page exists and link is desired there)
                 const profileLink = document.getElementById('profileLink');
                 if (profileLink) {
-                    profileLink.textContent = `Hello, ${userData.user.username}`;
+                    // This was set to "Hello, [username]" in the original dashboard,
+                    // but the main nav bar now handles it with navUsername.
+                    // The profile link itself can just be "Profile" as per the nav structure.
+                    // If you intend for the profile link to also show username, uncomment below.
+                    // profileLink.textContent = `Hello, ${userData.user.username}`;
                     profileLink.href = '/profile.html'; // Direct link to the new profile page
                 }
 
             } catch (error) {
                 // Network error, assume token issue or server unreachable
-                console.error('Error verifying token or fetching user data:', error);
-                localStorage.removeItem('jwtToken');
+                console.error('Dashboard setup: Error verifying token or fetching user data:', error);
+                // FIX: Changed 'jwtToken' to 'rcm_buddy_token' for consistency
+                localStorage.removeItem('rcm_buddy_token');
                 window.location.href = '/';
             }
         }
 
         // Logout functionality
-        document.getElementById('logoutBtn').addEventListener('click', (e) => {
+        document.getElementById('logoutButton').addEventListener('click', (e) => {
             e.preventDefault();
-            localStorage.removeItem('jwtToken'); // Remove the JWT
+            // FIX: Changed 'jwtToken' to 'rcm_buddy_token' for consistency
+            localStorage.removeItem('rcm_buddy_token'); // Remove the JWT
+            console.log('Logout: Token removed. Redirecting to login.');
             window.location.href = '/'; // Redirect to login page
         });
 
