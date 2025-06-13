@@ -186,11 +186,12 @@
 
                 if (response.ok) {
                     const userData = await response.json();
+                    console.log('setupNavigation: Raw user data from /api/protected:', userData); // NEW LOG
                     if (userData && userData.user) {
                         document.getElementById('navUsername').textContent = `Hello, ${userData.user.username}`;
-                        console.log('setupNavigation: User data successfully loaded.');
+                        console.log('setupNavigation: User data successfully loaded and displayed.');
                     } else {
-                        console.error('setupNavigation: User data missing or malformed from protected endpoint response. Redirecting.');
+                        console.error('setupNavigation: User data is missing or malformed in the response. Redirecting.'); // IMPROVED LOG
                         displayPageMessage('Failed to load user data. Please log in again.', 'error');
                         localStorage.removeItem('rcm_buddy_token');
                         setTimeout(() => { window.location.href = '/'; }, 1500);
@@ -202,14 +203,12 @@
                     setTimeout(() => { window.location.href = '/'; }, 1500);
                 } else {
                     const errorData = await response.json().catch(() => ({})); // Try to parse, fallback to empty object
-                    console.error('setupNavigation: Error fetching user data:', response.status, errorData.message || response.statusText);
+                    console.error(`setupNavigation: Error fetching user data. Status: ${response.status}, Message: ${errorData.message || response.statusText}`); // IMPROVED LOG
                     displayPageMessage(`Error: ${errorData.message || 'Failed to load user data.'}`, 'error');
-                    // Do not redirect for non-401 errors immediately, might be temporary
                 }
             } catch (error) {
                 console.error('setupNavigation: Network or authentication error during fetch:', error);
                 displayPageMessage('Network error. Please try again. If issue persists, clear cache.', 'error');
-                // Do not redirect for network errors immediately, might be temporary
             }
         }
 
