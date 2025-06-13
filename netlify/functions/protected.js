@@ -1,4 +1,4 @@
-// netlify/functions/protected.js
+// The correct version of: netlify/functions/protected.js
 const jwt = require('jsonwebtoken');
 const { Pool } = require('pg');
 
@@ -24,9 +24,10 @@ exports.handler = async (event, context) => {
 
     try {
         const decodedToken = jwt.verify(token, process.env.JWT_SECRET);
-        const userId = decodedToken.id; // Use ID from token for lookup
+        const userId = decodedToken.id; // Use ID from token for the database lookup
 
-        // --- REPLACEMENT LOGIC: Query the DB for the most up-to-date user info and permissions ---
+        // --- THIS IS THE CRITICAL LOGIC ---
+        // It connects to the database to get the LATEST user data, including the role.
         const client = await pool.connect();
         try {
             const query = `
@@ -36,16 +37,7 @@ exports.handler = async (event, context) => {
                     u.email,
                     u.role,
                     u.company_id,
-                    c.name as company_name,
-                    COALESCE(
-                        (
-                            SELECT json_agg(t.identifier)
-                            FROM user_tools ut
-                            JOIN tools t ON ut.tool_id = t.id
-                            WHERE ut.user_id = u.id
-                        ),
-                        '[]'::json
-                    ) AS accessible_tools
+                    c.name as company_name
                 FROM users u
                 JOIN companies c ON u.company_id = c.id
                 WHERE u.id = $1;
@@ -53,27 +45,31 @@ exports.handler = async (event, context) => {
             const { rows } = await client.query(query, [userId]);
             
             if (rows.length === 0) {
+                // This means the user ID in the token doesn't exist in the DB anymore
                 return { statusCode: 404, body: JSON.stringify({ message: 'User not found.' }) };
             }
 
             const userData = rows[0];
 
+            // Now we build the response using the FRESH data from the database
             return {
                 statusCode: 200,
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     message: 'Access granted.',
-                    // Keep the nested 'user' object for frontend consistency
                     user: {
                         id: userData.id,
                         username: userData.username,
                         email: userData.email,
                         company_id: userData.company_id,
                         company_name: userData.company_name,
-                        role: userData.role // <-- IMPORTANT: Add role
+                        role: userData.role // <-- The role is now guaranteed to be included
                     },
-                    // Add the new list of tools the user can access
-                    accessible_tools: userData.accessible_tools
+                    // This is for the dashboard, we can reuse the same endpoint
+                    accessible_tools: (await client.query(
+                        `SELECT t.identifier FROM user_tools ut JOIN tools t ON ut.tool_id = t.id WHERE ut.user_id = $1`, 
+                        [userId]
+                    )).rows.map(r => r.identifier)
                 })
             };
 
