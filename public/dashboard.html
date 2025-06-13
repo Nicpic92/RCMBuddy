@@ -323,6 +323,9 @@
             // FIX: Changed 'jwtToken' to 'rcm_buddy_token' for consistency across RCM Buddy
             const token = localStorage.getItem('rcm_buddy_token');
             console.log('Dashboard setup: Checking for token...');
+            // Log the token value, redacted for security.
+            console.log('Dashboard setup: Token found:', token ? token.substring(0, 10) + '...' : 'None');
+
 
             if (!token) {
                 console.warn('Dashboard setup: No authentication token found. Redirecting to login.');
