@@ -1,4 +1,4 @@
-This document provides a complete overview of the "RCM Buddy" web application's current state, architecture, file structure, key code components, database setup, and deployment steps using Netlify, GitHub, and Neon (PostgreSQL). It also includes a summary of issues encountered and their resolutions during recent development.
+This document provides a complete and updated overview of the "RCM Buddy" web application's current state, architecture, file structure, key code components, database setup, and deployment steps using Netlify, GitHub, and Neon (PostgreSQL). It also includes a summary of issues encountered and their resolutions during recent development.
 
 Project Goal
 To provide a web application named "RCM Buddy" focused on Excel file manipulation, data validation, and process automation. Key features include:
@@ -9,20 +9,22 @@ Multi-Company Support: Allows multiple companies to use the application, with st
 
 File Management: Users can securely upload, store, list, download, and delete general Excel files and other documents directly within the company_files table in the Neon (PostgreSQL) database.
 
-Data Dictionary Builder: A new tool allowing users to upload Excel/CSV files, extract headers and define custom validation rules for headers from each individual sheet within the uploaded file. Users can navigate between sheets using a dropdown, define rules for each, and save these structured data dictionaries (named for the file and specific sheet, e.g., "My Report - Sheet1") to a separate dedicated database table (data_dictionaries). The original uploaded file is not stored on the server for this process. It also filters out already defined headers when building new dictionaries, and allows for editing and printing existing data dictionaries.
+Data Dictionary Builder: A tool allowing users to upload Excel/CSV files, extract headers, and define custom validation rules for headers from each individual sheet within the uploaded file. Users can navigate between sheets using a dropdown, define rules for each, and save these structured data dictionaries (named for the file and specific sheet, e.g., "My Report - Sheet1") to a separate dedicated database table (data_dictionaries). The original uploaded file is not stored on the server for this process. It also filters out already defined headers when building new dictionaries and allows for editing and printing existing data dictionaries.
 
 Data Validation Tool: An interactive client-side tool to analyze Excel/CSV files for data quality issues. This tool now exclusively applies custom validation rules from saved data dictionaries (from the data_dictionaries table) and checks for duplicate rows. Standard checks for blank cells, "NULL" strings, and future dates are no longer performed by this tool's primary logic.
 
 Clean Data Tool: A client-side tool for basic Excel data cleaning (duplicates, trimming, case standardization).
 
-Deployment: Automated deployment via Netlify, leveraging Netlify Functions for backend logic.
+Lag Report Dashboard: A new client-side tool designed to upload a "Lag Detail Report" (Excel/CSV) and display its data in a dashboard format directly within the application. This tool does not use a backend function for processing.
+
+Deployment: Automated deployment via Netlify, leveraging Netlify Functions for backend logic where applicable.
 
 Version Control: GitHub.
 
 Core Technologies Used
 Frontend: HTML, CSS (Tailwind CSS for elements, custom CSS for others), JavaScript
 
-Backend: Node.js (running as Netlify Functions)
+Backend: Node.js (running as Netlify Functions, used for authentication, general file management, and data dictionary persistence; not for Lag Report Dashboard processing)
 
 Database: Neon (PostgreSQL)
 
@@ -34,9 +36,9 @@ Authentication: JSON Web Tokens (JWT) for secure, stateless user sessions.
 
 Password Hashing: bcryptjs.
 
-File Upload Parsing: busboy (Node.js library for multipart/form-data).
+File Upload Parsing: busboy (Node.js library for multipart/form-data, backend).
 
-Excel Processing (Client-side): xlsx.full.min.js (for Validation Engine analysis, Data Dictionary Builder header extraction and report generation, and multi-sheet parsing).
+Excel Processing (Client-side): xlsx.full.min.js (for Validation Engine analysis, Data Dictionary Builder header extraction and report generation, multi-sheet parsing, and Lag Report Dashboard display).
 
 Excel Processing (Backend): exceljs (for Data Cleaner processing).
 
@@ -52,7 +54,8 @@ rcm-buddy-app/
 │       ├── validation-engine.html          <-- REVISED: Validation Engine UI (now self-contained HTML with embedded CSS & JS)
 │       ├── data-dictionary-builder.html    <-- Data Dictionary Builder UI
 │       ├── data-dictionary-builder.css     <-- Data Dictionary Builder custom CSS
-│       └── data-dictionary-builder.js      <-- Data Dictionary Builder client-side logic
+│       ├── data-dictionary-builder.js      <-- Data Dictionary Builder client-side logic
+│       └── lag-report-validation.html      <-- NEW: Lag Report Dashboard UI (client-side)
 ├── netlify/                                <-- Netlify Functions directory
 │   └── functions/
 │       ├── package.json                    <-- Function dependencies
@@ -82,13 +85,11 @@ CREATE TABLE companies (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 ```users` table: Stores user credentials and links to their company.
-
 ```sql
 -- Assuming existing users table, alter to add company_id
 ALTER TABLE users
 ADD COLUMN company_id INTEGER REFERENCES companies(id) ON DELETE RESTRICT;
 ```company_files` table: Stores metadata and the binary data of general uploaded files (e.g., Excel, CSV documents, not data dictionaries generated by the builder's primary output), with strict company and user ownership.
-
 ```sql
 CREATE TABLE company_files (
     id SERIAL PRIMARY KEY,
@@ -101,7 +102,6 @@ CREATE TABLE company_files (
     uploaded_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 ```data_dictionaries` table: Stores structured data dictionary definitions (validation rules) created by the Data Dictionary Builder. This table is separate from `company_files` and does not store the original source Excel files that were used to extract headers.
-
 ```sql
 CREATE TABLE data_dictionaries (
     id SERIAL PRIMARY KEY,
@@ -129,19 +129,27 @@ The primary configuration for Netlify deployment. It defines build directories, 
   to = "/.netlify/functions/:splat"
   status = 200
 
+# Removed specific redirect for /api/lag-report-validation as it is now a client-side tool.
+# [[redirects]]
+#   from = "/api/lag-report-validation"
+#   to = "/.netlify/functions/lag-report-validation"
+#   status = 200
+
 [[plugins]]
 package = "@netlify/plugin-functions-install-core"
 
 5.2. Frontend Pages (public/ and public/tools/)
-index.html: Login/Registration page. Handles user authentication. Site name changed from "Excel Buddy" to "RCM Buddy."
+All frontend pages now consistently retrieve and remove the JWT token from localStorage using the key jwtToken.
 
-dashboard.html: The primary user dashboard. Authenticates via JWT, displays user and company information, and provides quick access (tool cards) to the main application features. Site name changed from "Excel Buddy" to "RCM Buddy" in the main title and main dashboard heading. Resolved "Hello, undefined" issue in navigation and now correctly displays "Your Company: [Company Name]" by accessing nested userData.user.company_name.
+index.html: Login/Registration page. Handles user authentication and stores the JWT token as jwtToken in localStorage. Site name changed from "Excel Buddy" to "RCM Buddy."
 
-tools.html: A secondary page listing all available tools. It provides a more comprehensive overview of tools, now styled as responsive cards for visual consistency with the dashboard. Site name changed from "Excel Buddy" to "RCM Buddy" in the <title>. Resolved "Hello, undefined" issue in navigation, updated card styling, and removed extraneous "Coming Soon" placeholder tools (Report Automator, Macro Recorder & Editor, Custom Formula Builder).
+dashboard.html: The primary user dashboard. Authenticates via JWT, displays user and company information, and provides quick access (tool cards) to the main application features, including the new "Lag Report Validation" tool. Site name changed from "Excel Buddy" to "RCM Buddy" in the main title and main dashboard heading. Correctly displays "Your Company: [Company Name]" by accessing userData.user.company_name.
 
-file-manager.html: Handles uploading, listing, downloading, and deleting general files from the company_files table. Now includes a visual tag for files marked as "Data Dictionary." Site name changed from "Excel Buddy" to "RCM Buddy" in the <title>. Resolved "Hello, undefined" issue in navigation.
+tools.html: A secondary page listing all available tools. It provides a more comprehensive overview of tools, now styled as responsive cards for visual consistency with the dashboard, including the new "Lag Report Validation" tool. Site name changed from "Excel Buddy" to "RCM Buddy" in the <title>. Updated card styling, and removed extraneous "Coming Soon" placeholder tools (Report Automator, Macro Recorder & Editor, Custom Formula Builder).
 
-tools/data-cleaner.html: Provides the UI for client-side Excel data cleaning. Site name changed from "Excel Buddy" to "RCM Buddy" in the <title>. Resolved "Hello, undefined" issue" in navigation.
+file-manager.html: Handles uploading, listing, downloading, and deleting general files from the company_files table. Now includes a visual tag for files marked as "Data Dictionary." Site name changed from "Excel Buddy" to "RCM Buddy" in the <title>.
+
+tools/data-cleaner.html: Provides the UI for client-side Excel data cleaning. Site name changed from "Excel Buddy" to "RCM Buddy" in the <title>.
 
 tools/validation-engine.html: REVISED. This file is now self-contained, embedding its CSS and JavaScript directly. Site name changed from "Excel Buddy" to "RCM Buddy" in the <title> and main heading.
 
@@ -155,9 +163,9 @@ Core Validation Logic: Now performs only custom validation rules (from loaded di
 
 File Size Limit: Now limits processing to the first 5000 data rows of an XLSX file, with a warning message if the file exceeds this limit.
 
-Applies rules and generates downloadable reports, including override functionality. Resolved "Hello, undefined" issue in navigation. Resolved "Export Excel with Summary" button not working by correcting iteration variable and filename.
+Applies rules and generates downloadable reports, including override functionality. Resolved "Export Excel with Summary" button not working by correcting iteration variable and filename.
 
-tools/data-dictionary-builder.html: Provides UI for uploading Excel/CSV files, displaying extracted headers, and defining rules.
+tools/data-dictionary-builder.html: Provides UI for uploading Excel/CSV files, displaying extracted headers, and defining rules. Site name changed from "Excel Buddy" to "RCM Buddy" in the <title>.
 
 UPDATED: Now presents the data dictionary builder as a full-screen overlay/modal (#dataDictionaryOverlay) for a more focused experience.
 
@@ -168,8 +176,6 @@ UPDATED: Features a sheet selection dropdown (#sheetSelector) to define rules fo
 Supports selecting and editing existing dictionaries, and includes a "Print Report" button.
 
 The "Delete This Data Dictionary" button has been explicitly removed from the UI.
-
-Site name changed from "Excel Buddy" to "RCM Buddy" in the <title>. Resolved "Hello, undefined" issue in navigation.
 
 tools/data-dictionary-builder.css: Custom CSS for the Data Dictionary Builder.
 
@@ -185,31 +191,11 @@ UPDATED: Configured the table container (#headersTableContainer) to flex-grow ve
 
 tools/data-dictionary-builder.js: Handles client-side Excel/CSV parsing to extract headers, dynamically builds the rule definition table, collects rules, sends data to save-data-dictionary.js, and allows editing/updating existing dictionaries and printing reports via handlePrintDictionary.
 
-MAJOR UPDATE - Multi-Sheet Support:
+MAJOR UPDATE - Multi-Sheet Support: Now parses all sheets from an uploaded Excel file and stores the currentWorkbook. Introduces currentSheetName, sheetHeadersMap (stores headers per sheet), and sheetRulesMap (stores defined rules per sheet in memory). The startNewDictionaryFromUpload function now extracts headers for all sheets and populates a new sheet selection dropdown. New functions populateSheetSelectionDropdown and handleSheetSelectionChange manage the display of headers and rules based on the selected sheet. The saveDataDictionary function automatically appends the currentSheetName to the dictionary name (e.g., "FileName - SheetName") to create unique dictionaries per sheet. handlePrintDictionary has been enhanced to not only print the defined rules but also to validate data against these rules across all sheets in the uploaded Excel file, generating a comprehensive validation report.
 
-Now parses all sheets from an uploaded Excel file and stores the currentWorkbook.
+UI/Functionality Updates: The JavaScript now manages the showing/hiding of the full-screen #dataDictionaryOverlay instead of just #dictionaryBuilderSection. Removed the logic for creating and collecting the "Display Name" field to match the updated HTML. The colSpan for the "No headers available" message in the table generation is adjusted (19). Fixed dropdown population, implemented print functionality, and added pre-population of rules for new dictionaries based on existing rules from other saved dictionaries. The deleteDataDictionary function and its calls have been completely removed from this file.
 
-Introduces currentSheetName, sheetHeadersMap (stores headers per sheet), and sheetRulesMap (stores defined rules per sheet in memory).
-
-The startNewDictionaryFromUpload function now extracts headers for all sheets and populates a new sheet selection dropdown.
-
-New functions populateSheetSelectionDropdown and handleSheetSelectionChange manage the display of headers and rules based on the selected sheet.
-
-The saveDataDictionary function automatically appends the currentSheetName to the dictionary name (e.g., "FileName - SheetName") to create unique dictionaries per sheet.
-
-handlePrintDictionary has been enhanced to not only print the defined rules but also to validate data against these rules across all sheets in the uploaded Excel file, generating a comprehensive validation report.
-
-UI/Functionality Updates:
-
-The JavaScript now manages the showing/hiding of the full-screen #dataDictionaryOverlay instead of just #dictionaryBuilderSection.
-
-Removed the logic for creating and collecting the "Display Name" field to match the updated HTML.
-
-The colSpan for the "No headers available" message in the table generation is adjusted (19).
-
-Resolved "Hello, undefined" issue in navigation, fixed dropdown population, implemented print functionality, and added pre-population of rules for new dictionaries based on existing rules from other saved dictionaries.
-
-The deleteDataDictionary function and its calls have been completely removed from this file.
+tools/lag-report-validation.html: NEW Client-Side Tool. Provides UI for uploading a "Lag Detail Report" (Excel/CSV) and displaying its contents in an interactive dashboard table directly on the page. It leverages xlsx.full.min.js for client-side parsing.
 
 5.3. Backend Functions (netlify/functions/)
 package.json: Lists Node.js dependencies (e.g., bcryptjs, jsonwebtoken, pg, busboy, exceljs).
@@ -238,6 +224,8 @@ get-data-dictionary.js: Authenticated function to retrieve the full rules_json a
 
 delete-data-dictionary.js: Deletes data dictionary from the data_dictionaries table. This function remains in the backend, but its corresponding frontend UI button has been removed.
 
+lag-report-validation.js: Removed from this directory as the "Lag Report Dashboard" tool is now entirely client-side.
+
 5.4. Data Isolation Strategy (CRUCIAL)
 Company ID in JWT: company_id is embedded in the JWT upon successful login.
 
@@ -262,7 +250,19 @@ Continuous Deployment: Netlify automatically deploys changes pushed to the confi
 Function Bundling: The @netlify/plugin-functions-install-core plugin handles Node.js dependency installation for functions.
 
 Common Issues & Troubleshooting
-"Network or authentication error: Unexpected token '<', "<!DOCTYPE "... is not valid JSON": Frontend expecting JSON but received HTML. Usually means backend function was not found or failed to execute. Verify netlify.toml redirects, function paths, and check Netlify deploy logs for function errors.
+"Session expired. Please log in again." / jwtToken mismatch: Frontend redirecting to login immediately after attempting to access a protected page (e.g., dashboard, tools).
+
+Resolution: This was caused by an inconsistency in the localStorage key used to store the JWT token. The index.html (login page) was storing the token as jwtToken, while other pages were attempting to retrieve it as rcm_buddy_token. The fix involved updating dashboard.html, tools.html, file-manager.html, data-cleaner.html, data-dictionary-builder.html, and validation-engine.html to consistently use localStorage.getItem('jwtToken') and localStorage.removeItem('jwtToken') for all authentication-related localStorage operations.
+
+"Network or authentication error: Unexpected token '<', "<!DOCTYPE "... is not valid JSON": Frontend expecting JSON but received HTML. Usually means backend function was not found or failed to execute.
+
+Resolution: For the "Lag Report Validation" tool, this initially occurred when it was configured as a backend function. The resolution involved ensuring the netlify.toml had the correct redirect rule (/api/lag-report-validation to /.netlify/functions/lag-report-validation) and verifying the lag-report-validation.js file was correctly present in netlify/functions/ and successfully bundled by Netlify.
+
+"POST https://rcmbuddy.com/api/lag-report-validation 500 (Internal Server Error)" with no function logs: The backend function was hit but crashed immediately.
+
+Resolution: This indicated the lag-report-validation.js backend function was failing very early in its execution, potentially due to a missing JWT_SECRET environment variable or a critical import issue.
+
+Final Resolution for Lag Report Tool: The "Lag Report Validation" tool was re-architected to be entirely client-side. This eliminated the need for the lag-report-validation.js backend function and its associated netlify.toml redirect, simplifying deployment and removing the server-side error point for this specific tool.
 
 Functions not showing in Netlify deploy logs: Incorrect folder paths in netlify.toml or missing plugin.
 
@@ -300,13 +300,7 @@ Resolution - Validation Tool counting every single row: The analyzeFile function
 
 Resolution - Validation Tool "Export Excel with Summary" button not working: Fixed array iteration and filename usage in exportExcelWithSummary in validation-engine.html.
 
-Resolution - "Define Data Dictionary Rules" window not expanding and removing Display Name:
-
-The Data Dictionary Builder section was refactored into a full-screen modal overlay.
-
-New CSS classes (.full-screen-overlay, .modal-content-area) were added to data-dictionary-builder.css to handle its positioning and sizing (98% width/height, max 1700px width).
-
-The "Display Name" column was removed from the HTML table (<th> and <td> generation in JS) and from the collectRules and handlePrintDictionary functions.
+Resolution - "Define Data Dictionary Rules" window not expanding and removing Display Name: The Data Dictionary Builder section was refactored into a full-screen modal overlay. New CSS classes (.full-screen-overlay, .modal-content-area) were added to data-dictionary-builder.css to handle its positioning and sizing (98% width/height, max 1700px width). The "Display Name" column was removed from the HTML table (<th> and <td> generation in JS) and from the collectRules and handlePrintDictionary functions.
 
 Upcoming Changes
 The following enhancements are planned for the "RCM Buddy" application:
@@ -315,7 +309,7 @@ Data Dictionary Builder Enhancements:
 
 It will gain the capability to identify if headers are located on row 2 or row 3 of the sheet.
 
-Company Name Display: The "Your Company" display will be dynamically populated with the actual company name provided during registration.
+Company Name Display: The "Your Company" display will be dynamically populated with the actual company name provided during registration. (Partially addressed on dashboard, but future work might be needed for other pages/profile).
 
 User Profile Page: A dedicated profile page will be built for users.
 
