@@ -1,7 +1,9 @@
-# --- FINAL PRODUCTION netlify.toml ---
+# FINAL, SIMPLIFIED netlify.toml
+# The functions directory is now set in the Netlify UI.
+
 [build]
   publish = "public"
-  functions = "netlify/functions"
+  # The 'functions' line is REMOVED from here.
 
 [[redirects]]
   from = "/api/admin/*"
