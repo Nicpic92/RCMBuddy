@@ -22,47 +22,69 @@ exports.handler = async (event, context) => {
         return { statusCode: 400, body: JSON.stringify({ message: 'Invalid JSON body.' }) };
     }
 
-    const { username, email, password, company_name } = body; // Now expecting company_name from frontend
+    const { username, email, password, company_name } = body;
 
     if (!username || !email || !password || !company_name) {
-        return { statusCode: 400, body: JSON.stringify({ message: 'All fields (username, email, password, company name) are required.' }) };
+        return { statusCode: 400, body: JSON.stringify({ message: 'All fields are required.' }) };
     }
 
-    let client; // Declare client outside try block for finally block access
+    let client;
     try {
-        client = await pool.connect(); // Get a client from the pool to use for a transaction
-        await client.query('BEGIN'); // Start a transaction for atomicity
+        client = await pool.connect();
+        await client.query('BEGIN');
 
-        // 1. Check if the company already exists
-        let companyId;
+        // Check if company exists to determine if this is the first user
         const companyResult = await client.query('SELECT id FROM companies WHERE name = $1', [company_name]);
 
+        let companyId;
+        let isFirstUserForCompany = false;
+
         if (companyResult.rows.length > 0) {
-            // Company found, use its existing ID
             companyId = companyResult.rows[0].id;
         } else {
-            // Company not found, create a new one
             const newCompanyResult = await client.query(
                 'INSERT INTO companies (name) VALUES ($1) RETURNING id',
                 [company_name]
             );
-            companyId = newCompanyResult.rows[0].id; // Get the ID of the newly created company
+            companyId = newCompanyResult.rows[0].id;
+            isFirstUserForCompany = true; // This is the first user for a new company
         }
 
-        // 2. Hash the user's password
+        // --- NEW LOGIC: Determine the user's role ---
+        const userRole = isFirstUserForCompany ? 'admin' : 'user';
+
         const salt = await bcrypt.genSalt(10);
         const passwordHash = await bcrypt.hash(password, salt);
 
-        // 3. Store the user in the database, linking them to the company
+        // --- MODIFIED: Insert user with their new role ---
         const userResult = await client.query(
-            'INSERT INTO users (username, email, password_hash, company_id) VALUES ($1, $2, $3, $4) RETURNING id, username, email',
-            [username, email, passwordHash, companyId]
+            'INSERT INTO users (username, email, password_hash, company_id, role) VALUES ($1, $2, $3, $4, $5) RETURNING id, username, email',
+            [username, email, passwordHash, companyId, userRole]
         );
+        const newUserId = userResult.rows[0].id;
 
-        await client.query('COMMIT'); // Commit the transaction if all operations succeed
+        // --- NEW LOGIC: Assign tools based on role or company defaults ---
+        if (isFirstUserForCompany) {
+            // If they are the first user (admin), give them all tools
+            await client.query(`
+                INSERT INTO user_tools (user_id, tool_id)
+                SELECT $1, id FROM tools
+            `, [newUserId]);
+        } else {
+            // For subsequent users, assign tools based on the company's default settings
+            await client.query(`
+                INSERT INTO user_tools (user_id, tool_id)
+                SELECT $1, t.id
+                FROM tools t
+                JOIN companies c ON t.identifier = ANY(SELECT jsonb_array_elements_text(c.default_tools))
+                WHERE c.id = $2
+            `, [newUserId, companyId]);
+        }
+
+        await client.query('COMMIT');
 
         return {
-            statusCode: 201, // 201 Created status for successful resource creation
+            statusCode: 201,
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
                 message: 'User registered successfully!',
@@ -73,13 +95,13 @@ exports.handler = async (event, context) => {
         };
 
     } catch (error) {
-        if (client) await client.query('ROLLBACK'); // Rollback the transaction on any error
-        if (error.code === '23505') { // PostgreSQL unique violation error code
+        if (client) await client.query('ROLLBACK');
+        if (error.code === '23505') {
             return { statusCode: 409, body: JSON.stringify({ message: 'Username or email already exists.' }) };
         }
         console.error('Registration error:', error);
         return { statusCode: 500, body: JSON.stringify({ message: 'Server error during registration.' }) };
     } finally {
-        if (client) client.release(); // Always release the client back to the pool
+        if (client) client.release();
     }
 };
