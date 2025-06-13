@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Console - RCM Buddy</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        /* Simple loader animation */
+        .loader { 
+            border: 5px solid #f3f3f3; /* Light grey */
+            border-top: 5px solid #3b82f6; /* Blue */
+            border-radius: 50%; 
+            width: 50px; 
+            height: 50px; 
+            animation: spin 1s linear infinite; 
+        }
+        @keyframes spin { 
+            0% { transform: rotate(0deg); } 
+            100% { transform: rotate(360deg); } 
+        }
+
+        /* Toast notification for feedback */
+        .toast { 
+            position: fixed; 
+            bottom: 20px; 
+            left: 50%; 
+            transform: translateX(-50%); 
+            padding: 12px 24px; 
+            border-radius: 8px; 
+            color: white; 
+            z-index: 1000; 
+            opacity: 0; 
+            transition: opacity 0.5s, transform 0.5s;
+            transform: translate(-50%, 20px);
+        }
+        .toast.show { 
+            opacity: 1; 
+            transform: translateX(-50%);
+        }
+        .toast.success { background-color: #22c55e; } /* Green */
+        .toast.error { background-color: #ef4444; } /* Red */
+    </style>
+</head>
+<body class="bg-gray-100 font-sans">
+
+    <!-- Navigation Bar (Consistent with other pages) -->
+    <nav class="bg-white shadow-md sticky top-0 z-50">
+        <div class="container mx-auto px-6 py-4 flex justify-between items-center">
+            <a href="/dashboard.html" class="text-2xl font-bold text-gray-800">RCM Buddy</a>
+            <ul id="nav-list" class="flex items-center space-x-4">
+                <li><a href="/dashboard.html" class="text-gray-600 hover:text-blue-500 font-medium">Dashboard</a></li>
+                <li><a href="/tools.html" class="text-gray-600 hover:text-blue-500 font-medium">All Tools</a></li>
+                <!-- Admin Console link will be dynamically inserted here -->
+                <li><span id="nav-username" class="text-gray-700 font-semibold"></span></li>
+                <li><button id="logout-btn" class="bg-red-500 text-white px-4 py-2 rounded-md hover:bg-red-600 transition-colors">Logout</button></li>
+            </ul>
+        </div>
+    </nav>
+
+    <!-- Main Admin Content (hidden by default) -->
+    <main id="admin-content" class="container mx-auto p-4 md:p-8" style="display: none;">
+        <div class="mb-8">
+            <h1 class="text-4xl font-extrabold text-gray-800">Admin Console</h1>
+            <p id="company-name-display" class="text-lg text-gray-600 mt-1"></p>
+        </div>
+
+        <!-- Section for Company Default Settings -->
+        <section class="bg-white p-6 rounded-lg shadow-md mb-8">
+            <h2 class="text-2xl font-semibold text-gray-700 mb-4 flex items-center"><i class="fas fa-cogs text-blue-500 mr-3"></i>Default Tools for New Users</h2>
+            <p class="text-gray-600 mb-4">Select the tools that new users in your company will have access to by default when they register.</p>
+            <div id="defaultToolsChecklist" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                <!-- Checkboxes for default tools will be dynamically inserted here -->
+            </div>
+            <button id="saveDefaultsBtn" class="mt-6 bg-blue-600 text-white px-5 py-2 rounded-md font-semibold hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">Save Defaults</button>
+        </section>
+
+        <!-- Section for Individual User Management -->
+        <section class="bg-white p-6 rounded-lg shadow-md">
+            <h2 class="text-2xl font-semibold text-gray-700 mb-4 flex items-center"><i class="fas fa-users-cog text-green-500 mr-3"></i>Manage Individual User Access</h2>
+            <div class="mb-4">
+                <label for="userSelector" class="block text-sm font-medium text-gray-700">Select a User to Manage:</label>
+                <select id="userSelector" class="mt-1 block w-full md:w-1/2 p-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
+                    <!-- User options will be dynamically inserted here -->
+                </select>
+            </div>
+            <div id="individualToolsChecklist" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 min-h-[50px]">
+                <p class="text-gray-500 col-span-full">Select a user to see their permissions.</p>
+            </div>
+            <button id="saveUserToolsBtn" class="mt-6 bg-green-600 text-white px-5 py-2 rounded-md font-semibold hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">Save User Permissions</button>
+        </section>
+    </main>
+
+    <!-- Loading Spinner (shown by default) -->
+    <div id="loader-container" class="flex justify-center items-center h-[calc(100vh-80px)]">
+        <div class="loader"></div>
+    </div>
+    
+    <!-- Access Denied Message (hidden by default) -->
+    <div id="auth-error" class="text-center p-8 hidden">
+        <i class="fas fa-exclamation-triangle text-5xl text-red-500 mb-4"></i>
+        <h2 class="text-2xl font-bold text-red-600">Access Denied</h2>
+        <p class="text-gray-700 mt-2">You must be an administrator to view this page.</p>
+        <a href="/dashboard.html" class="mt-4 inline-block bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">Go to Dashboard</a>
+    </div>
+
+    <!-- Toast Notification Container -->
+    <div id="toast-notification" class="toast"></div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', async () => {
+            const token = localStorage.getItem('jwtToken');
+            const adminContent = document.getElementById('admin-content');
+            const loader = document.getElementById('loader-container');
+            const authError = document.getElementById('auth-error');
+
+            if (!token) {
+                window.location.href = '/index.html';
+                return;
+            }
+
+            // Global state variables to hold data fetched from the API
+            let ALL_TOOLS = [];
+            let USER_TOOL_MAP = {};
+            let USERS = [];
+
+            // --- Primary Authentication and Data Fetching ---
+            try {
+                // First, validate the token and get user role
+                const protectedRes = await fetch('/api/protected', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (!protectedRes.ok) throw new Error('Session expired. Please log in again.');
+                
+                const protectedData = await protectedRes.json();
+                const user = protectedData.user;
+
+                // Setup common navigation elements
+                setupNavigation(user);
+
+                // --- THE ADMIN GATEKEEPER ---
+                // If user is not an admin, show error and stop execution.
+                if (user.role !== 'admin') {
+                    loader.style.display = 'none';
+                    authError.classList.remove('hidden');
+                    return;
+                }
+                
+                // If user is an admin, fetch the detailed data needed for this page
+                const adminRes = await fetch('/api/admin/get-company-admin-data', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (!adminRes.ok) throw new Error('Failed to load administrative data.');
+                const adminData = await adminRes.json();
+                
+                // Store fetched data in our global state
+                ALL_TOOLS = adminData.all_available_tools;
+                USER_TOOL_MAP = adminData.user_tool_map;
+                USERS = adminData.users;
+
+                // Populate the UI with the fetched data
+                document.getElementById('company-name-display').textContent = `Managing settings for: ${user.company_name}`;
+                populateDefaultToolsChecklist(adminData.company_defaults);
+                populateUserSelector();
+                
+                // Hide loader and show the main content
+                loader.style.display = 'none';
+                adminContent.style.display = 'block';
+
+            } catch (error) {
+                console.error('Initialization Error:', error);
+                localStorage.removeItem('jwtToken');
+                window.location.href = '/index.html';
+            }
+            
+            // --- UI Population and Helper Functions ---
+            
+            function setupNavigation(user) {
+                document.getElementById('nav-username').textContent = `Hello, ${user.username}`;
+                const logoutBtn = document.getElementById('logout-btn');
+                logoutBtn.addEventListener('click', () => {
+                    localStorage.removeItem('jwtToken');
+                    window.location.href = '/index.html';
+                });
+                // Add the admin link to the nav if it's an admin
+                if (user.role === 'admin') {
+                    const navList = document.getElementById('nav-list');
+                    const adminLinkLi = document.createElement('li');
+                    adminLinkLi.innerHTML = `<a href="/admin.html" class="text-blue-600 font-bold hover:underline">Admin Console</a>`;
+                    const usernameElement = document.getElementById('nav-username').parentElement;
+                    navList.insertBefore(adminLinkLi, usernameElement);
+                }
+            }
+            
+            const createCheckboxHTML = (tool, isChecked) => `
+                <label class="flex items-center space-x-3 p-2 rounded-md hover:bg-gray-50 cursor-pointer transition-colors">
+                    <input type="checkbox" data-tool-identifier="${tool.identifier}" ${isChecked ? 'checked' : ''}
+                           class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                    <span class="text-gray-800 select-none">${tool.display_name}</span>
+                </label>`;
+            
+            function populateDefaultToolsChecklist(companyDefaults) {
+                const container = document.getElementById('defaultToolsChecklist');
+                container.innerHTML = ALL_TOOLS.map(tool => 
+                    createCheckboxHTML(tool, companyDefaults.includes(tool.identifier))
+                ).join('');
+            }
+
+            function populateUserSelector() {
+                const selector = document.getElementById('userSelector');
+                selector.innerHTML = '<option value="">-- Select a User --</option>';
+                selector.innerHTML += USERS.map(u => 
+                    `<option value="${u.id}">${u.username} (${u.email})</option>`
+                ).join('');
+            }
+
+            function populateIndividualToolsChecklist(userId) {
+                const container = document.getElementById('individualToolsChecklist');
+                if (!userId) {
+                    container.innerHTML = '<p class="text-gray-500 col-span-full">Select a user to see their permissions.</p>';
+                    return;
+                }
+                const userTools = USER_TOOL_MAP[userId] || [];
+                container.innerHTML = ALL_TOOLS.map(tool => 
+                    createCheckboxHTML(tool, userTools.includes(tool.identifier))
+                ).join('');
+            }
+
+            // --- Event Listeners for User Actions ---
+            
+            document.getElementById('userSelector').addEventListener('change', (e) => {
+                const selectedUserId = e.target.value;
+                document.getElementById('saveUserToolsBtn').disabled = !selectedUserId;
+                populateIndividualToolsChecklist(selectedUserId);
+            });
+            
+            document.getElementById('saveDefaultsBtn').addEventListener('click', async (e) => {
+                const btn = e.target;
+                btn.disabled = true;
+                btn.textContent = 'Saving...';
+
+                const checkedBoxes = document.querySelectorAll('#defaultToolsChecklist input:checked');
+                const defaultToolIdentifiers = Array.from(checkedBoxes).map(cb => cb.dataset.toolIdentifier);
+                
+                try {
+                    const res = await fetch('/api/admin/update-company-defaults', {
+                        method: 'POST',
+                        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ defaultToolIdentifiers })
+                    });
+                    const result = await res.json();
+                    if (!res.ok) throw new Error(result.message);
+                    showToast(result.message, 'success');
+                } catch (error) {
+                    showToast(error.message || 'An error occurred.', 'error');
+                } finally {
+                    btn.disabled = false;
+                    btn.textContent = 'Save Defaults';
+                }
+            });
+
+            document.getElementById('saveUserToolsBtn').addEventListener('click', async (e) => {
+                const btn = e.target;
+                const userIdToUpdate = document.getElementById('userSelector').value;
+
+                if (!userIdToUpdate) {
+                    showToast('Please select a user first.', 'error');
+                    return;
+                }
+                
+                btn.disabled = true;
+                btn.textContent = 'Saving...';
+                
+                const checkedBoxes = document.querySelectorAll('#individualToolsChecklist input:checked');
+                const toolIdentifiers = Array.from(checkedBoxes).map(cb => cb.dataset.toolIdentifier);
+
+                try {
+                    const res = await fetch('/api/admin/update-user-tools', {
+                        method: 'POST',
+                        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ userIdToUpdate: parseInt(userIdToUpdate), toolIdentifiers })
+                    });
+                    const result = await res.json();
+                    if (!res.ok) throw new Error(result.message);
+                    showToast(result.message, 'success');
+                    
+                    // IMPORTANT: Update local state to reflect changes without a full page reload
+                    USER_TOOL_MAP[userIdToUpdate] = toolIdentifiers;
+
+                } catch (error) {
+                    showToast(error.message || 'An error occurred.', 'error');
+                } finally {
+                    btn.disabled = false;
+                    btn.textContent = 'Save User Permissions';
+                }
+            });
+
+            // --- Toast Notification Helper ---
+            function showToast(message, type = 'success') {
+                const toast = document.getElementById('toast-notification');
+                toast.textContent = message;
+                toast.className = `toast ${type}`; // Reset classes
+                toast.classList.add('show');
+                setTimeout(() => {
+                    toast.classList.remove('show');
+                }, 3000);
+            }
+
+        });
+    </script>
+</body>
+</html>
