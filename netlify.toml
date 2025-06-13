@@ -1,17 +1,24 @@
+# In your netlify.toml file
+
 [build]
   publish = "public"
   functions = "netlify/functions"
 
+# --- ADD THIS NEW, MORE SPECIFIC RULE FIRST ---
+# This rule explicitly handles all requests to the /api/admin/ path.
+# Because it's more specific, Netlify will use this for admin calls.
+[[redirects]]
+  from = "/api/admin/*"
+  to = "/.netlify/functions/admin/:splat"
+  status = 200
+
+# --- YOUR EXISTING RULE STAYS, BUT COMES SECOND ---
+# This rule will now handle all other /api/ calls like /api/login, /api/protected, etc.
 [[redirects]]
   from = "/api/*"
   to = "/.netlify/functions/:splat"
   status = 200
 
-# Removed: Redirect for the Lag Report Validation tool (as it's now client-side only)
-# [[redirects]]
-#   from = "/api/lag-report-validation"
-#   to = "/.netlify/functions/lag-report-validation"
-#   status = 200
-
+# --- The rest of your file stays the same ---
 [[plugins]]
 package = "@netlify/plugin-functions-install-core"
