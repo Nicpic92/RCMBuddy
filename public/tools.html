@@ -135,6 +135,14 @@
         .tool-card.user-profile a { background-color: #ec4899; } /* pink-500 */
         .tool-card.user-profile a:hover { background-color: #db2777; } /* pink-600 */
 
+        /* NEW: Tool Card for Lag Report Validation (using a distinct theme, e.g., teal/cyan) */
+        .tool-card.lag-report-validation {
+            border-color: #a7f3d0; /* teal-200 */
+            background-color: #f0fdfa; /* teal-50 */
+        }
+        .tool-card.lag-report-validation h2 { color: #0d9488; } /* teal-600 */
+        .tool-card.lag-report-validation a { background-color: #14b8a6; } /* teal-500 */
+        .tool-card.lag-report-validation a:hover { background-color: #0d9488; } /* teal-600 */
 
         /* Styles for tools marked as 'development' (Coming Soon) */
         .development-tool {
@@ -253,6 +261,13 @@
                     <a href="/tools/data-dictionary-builder.html">Build Dictionary &rarr;</a>
                 </div>
 
+                <!-- NEW: Tool Card: Lag Report Validation -->
+                <div class="tool-card lag-report-validation" data-status="ready">
+                    <h2>Lag Report Validation</h2>
+                    <p>Add check numbers to your lag report by cross-referencing with a claims report.</p>
+                    <a href="/tools/lag-report-validation.html">Launch Tool &rarr;</a>
+                </div>
+
                 <!-- NEW: Tool Card: Universal Ticket Tracker (already present) -->
                 <div class="tool-card ticket-tracker" data-status="ready">
                     <h2>Universal Ticket Tracker</h2>
@@ -282,7 +297,7 @@
                     <h2>Macro Recorder & Editor</h2>
                     <p>Record your repetitive Excel actions and easily edit or share the generated VBA macros.</p>
                     <span class="inline-block text-sm text-gray-500 italic">Coming Soon!</span>
-                </small>
+                </div>
                 <div class="tool-card development-tool" data-status="development">
                     <h2>Custom Formula Builder</h2>
                     <p>Create, save, and manage your own complex Excel formulas for re-use and efficiency.</p>
@@ -317,7 +332,7 @@
         async function setupNavigation() {
             hidePageMessage(); // Clear any previous messages
 
-            // FIX: Reverted to 'jwtToken' for consistency with index.html
+            // FIX: Using 'jwtToken' for consistency with index.html
             const token = localStorage.getItem('jwtToken');
             console.log('setupNavigation: Checking for token...');
             console.log('setupNavigation: Token found:', token ? token.substring(0, 10) + '...' : 'None');
@@ -344,7 +359,7 @@
 
                     displayPageMessage(`Session expired. Please log in again. (Error: ${response.status})`, 'error');
 
-                    // FIX: Reverted to 'jwtToken' for consistency with index.html
+                    // FIX: Using 'jwtToken' for consistency with index.html
                     localStorage.removeItem('jwtToken');
                     setTimeout(() => { window.location.href = '/'; }, 3000); // Increased delay for message visibility
                     return;
@@ -361,7 +376,7 @@
 
                     displayPageMessage('Failed to load user data. Please log in again.', 'error');
 
-                    // FIX: Reverted to 'jwtToken' for consistency with index.html
+                    // FIX: Using 'jwtToken' for consistency with index.html
                     localStorage.removeItem('jwtToken');
                     setTimeout(() => { window.location.href = '/'; }, 3000); // Increased delay
                 }
@@ -374,7 +389,7 @@
 
         // Logout functionality
         document.getElementById('logoutButton').addEventListener('click', () => {
-            // FIX: Reverted to 'jwtToken' for consistency with index.html
+            // FIX: Using 'jwtToken' for consistency with index.html
             localStorage.removeItem('jwtToken');
             console.log('Logout: Token removed. Redirecting to login.');
             window.location.href = '/';
