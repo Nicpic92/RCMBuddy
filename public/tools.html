@@ -173,6 +173,31 @@
         }
         /* You can uncomment this if you want to completely hide development tools */
         .tool-card[data-status="development"] { display: none; }
+
+        /* Message box styles (reverted to original hidden style for consistency) */
+        .message-box {
+            padding: 1rem;
+            border-radius: 0.5rem;
+            margin-top: 1rem;
+            font-weight: 500;
+            text-align: center;
+            display: none; /* Hidden by default */
+        }
+        .message-box.success {
+            background-color: #d1fae5;
+            color: #065f46;
+            border: 1px solid #10b981;
+        }
+        .message-box.error {
+            background-color: #fee2e2;
+            color: #991b1b;
+            border: 1px solid #ef4444;
+        }
+        .message-box.info {
+            background-color: #e0f2fe;
+            color: #0369a1;
+            border: 1px solid #38bdf8;
+        }
     </style>
 </head>
 <body class="flex flex-col min-h-screen">
@@ -257,7 +282,7 @@
                     <h2>Macro Recorder & Editor</h2>
                     <p>Record your repetitive Excel actions and easily edit or share the generated VBA macros.</p>
                     <span class="inline-block text-sm text-gray-500 italic">Coming Soon!</span>
-                </div>
+                </small>
                 <div class="tool-card development-tool" data-status="development">
                     <h2>Custom Formula Builder</h2>
                     <p>Create, save, and manage your own complex Excel formulas for re-use and efficiency.</p>
@@ -292,7 +317,8 @@
         async function setupNavigation() {
             hidePageMessage(); // Clear any previous messages
 
-            const token = localStorage.getItem('rcm_buddy_token');
+            // FIX: Reverted to 'jwtToken' for consistency with index.html
+            const token = localStorage.getItem('jwtToken');
             console.log('setupNavigation: Checking for token...');
             console.log('setupNavigation: Token found:', token ? token.substring(0, 10) + '...' : 'None');
 
@@ -313,9 +339,14 @@
 
                 if (!response.ok) {
                     console.error('setupNavigation: Token verification failed:', response.statusText, response.status);
-                    displayPageMessage('Session expired. Please log in again.', 'error');
-                    localStorage.removeItem('rcm_buddy_token');
-                    setTimeout(() => { window.location.href = '/'; }, 1500);
+                    const errorText = await response.text();
+                    console.error('setupNavigation: Response text for failed verification:', errorText);
+
+                    displayPageMessage(`Session expired. Please log in again. (Error: ${response.status})`, 'error');
+
+                    // FIX: Reverted to 'jwtToken' for consistency with index.html
+                    localStorage.removeItem('jwtToken');
+                    setTimeout(() => { window.location.href = '/'; }, 3000); // Increased delay for message visibility
                     return;
                 }
 
@@ -327,19 +358,24 @@
                     console.log('setupNavigation: User data successfully loaded and displayed.');
                 } else {
                     console.error('setupNavigation: User data is missing or malformed in the response. Redirecting.');
+
                     displayPageMessage('Failed to load user data. Please log in again.', 'error');
-                    localStorage.removeItem('rcm_buddy_token');
-                    setTimeout(() => { window.location.href = '/'; }, 1500);
+
+                    // FIX: Reverted to 'jwtToken' for consistency with index.html
+                    localStorage.removeItem('jwtToken');
+                    setTimeout(() => { window.location.href = '/'; }, 3000); // Increased delay
                 }
             } catch (error) {
                 console.error('setupNavigation: Network or authentication error during fetch:', error);
+
                 displayPageMessage('Network error. Please try again. If issue persists, clear cache.', 'error');
             }
         }
 
         // Logout functionality
         document.getElementById('logoutButton').addEventListener('click', () => {
-            localStorage.removeItem('rcm_buddy_token');
+            // FIX: Reverted to 'jwtToken' for consistency with index.html
+            localStorage.removeItem('jwtToken');
             console.log('Logout: Token removed. Redirecting to login.');
             window.location.href = '/';
         });
