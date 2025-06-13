@@ -1,24 +1,17 @@
 [build]
-  # Directory where your static frontend files are located
   publish = "public"
-  # Directory where your Netlify Functions are located
   functions = "netlify/functions"
 
-# This section routes requests to /api/ to your Netlify Functions
-# For example, a request to your-site.netlify.app/api/login will execute the login.js function.
 [[redirects]]
   from = "/api/*"
   to = "/.netlify/functions/:splat"
   status = 200
 
-# Optional: This redirect is useful for Single Page Applications (SPAs)
-# It ensures that direct access to any path (e.g., /dashboard) or refreshing a page
-# routes back to index.html, allowing your client-side routing to take over.
-# [[redirects]]
-#   from = "/*"
-#   to = "/index.html"
-#   status = 200
+# NEW: Redirect for the Lag Report Validation tool
+[[redirects]]
+  from = "/api/lag-report-validation"
+  to = "/.netlify/functions/lag-report-validation"
+  status = 200
 
-# Required plugin to automatically install Node.js dependencies for Netlify Functions
 [[plugins]]
 package = "@netlify/plugin-functions-install-core"
