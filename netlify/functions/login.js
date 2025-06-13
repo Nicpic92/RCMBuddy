@@ -1,9 +1,8 @@
-// netlify/functions/login.js
+// CORRECTED VERSION of: netlify/functions/login.js
 const { Pool } = require('pg');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 
-// Initialize database connection pool (reused across invocations)
 const pool = new Pool({
     connectionString: process.env.DATABASE_URL,
     ssl: {
@@ -11,10 +10,6 @@ const pool = new Pool({
     }
 });
 
-/**
- * Netlify Function handler for user login.
- * Expects a POST request with 'identifier' (username or email) and 'password' in the body.
- */
 exports.handler = async (event, context) => {
     if (event.httpMethod !== 'POST') {
         return { statusCode: 405, body: 'Method Not Allowed' };
@@ -24,24 +19,21 @@ exports.handler = async (event, context) => {
     try {
         body = JSON.parse(event.body);
     } catch (error) {
-        console.error("Failed to parse request body:", error);
         return { statusCode: 400, body: JSON.stringify({ message: 'Invalid JSON body.' }) };
     }
 
     const { identifier, password } = body;
-
     if (!identifier || !password) {
         return { statusCode: 400, body: JSON.stringify({ message: 'Username/Email and password are required.' }) };
     }
 
     try {
-        // Find the user by either username OR email, and also fetch company name
-        // We join with the 'companies' table to get the company name for the JWT
+        // Find the user by either username OR email and get all necessary fields, including role and company_name
         const result = await pool.query(
-            `SELECT u.*, c.name as company_name
+            `SELECT u.id, u.username, u.email, u.password_hash, u.role, u.company_id, c.name as company_name
              FROM users u
              JOIN companies c ON u.company_id = c.id
-             WHERE u.email = $1 OR u.username = $1`, // Query by identifier in both columns
+             WHERE u.email = $1 OR u.username = $1`,
             [identifier]
         );
         const user = result.rows[0];
@@ -56,14 +48,16 @@ exports.handler = async (event, context) => {
             return { statusCode: 401, body: JSON.stringify({ message: 'Invalid credentials.' }) };
         }
 
-        // Generate JWT with user details, company_id, and company_name in payload
+        // --- THIS IS THE FIX ---
+        // Generate JWT with all user details INCLUDING the role.
         const token = jwt.sign(
             {
                 id: user.id,
                 username: user.username,
                 email: user.email,
-                company_id: user.company_id,      // Include company_id in JWT
-                company_name: user.company_name   // Include company_name in JWT
+                role: user.role, // <-- CRITICAL FIX: Add the user's role to the token payload
+                company_id: user.company_id,
+                company_name: user.company_name
             },
             process.env.JWT_SECRET,
             { expiresIn: '1h' } // Token expires in 1 hour
