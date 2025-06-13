@@ -51,9 +51,9 @@
             transition-property: transform, box-shadow; /* transition-transform duration-300 */
             transition-duration: 300ms;
             transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
-            display: flex; /* FIX: Use flexbox for better alignment of content */
-            flex-direction: column; /* FIX: Stack content vertically */
-            justify-content: space-between; /* FIX: Push launch button to bottom */
+            display: flex; /* Use flexbox for better alignment of content */
+            flex-direction: column; /* Stack content vertically */
+            justify-content: space-between; /* Push launch button to bottom */
         }
         .tool-card:hover {
             transform: scale(1.05);
@@ -67,7 +67,7 @@
         .tool-card p {
             color: #4b5563; /* text-gray-600 */
             margin-bottom: 1rem; /* mb-4 */
-            flex-grow: 1; /* FIX: flex-grow to push button down */
+            flex-grow: 1; /* flex-grow to push button down */
         }
         .tool-card a {
             display: inline-block; /* inline-block */
@@ -116,14 +116,25 @@
         .tool-card.data-dictionary-builder a { background-color: #a855f7; } /* theme('colors.purple.500') */
         .tool-card.data-dictionary-builder a:hover { background-color: #9333ea; } /* theme('colors.purple.600') */
 
-        /* NEW: Tool Card for Report Merger (using orange theme) */
-        .tool-card.report-merger {
-            border-color: #fed7aa; /* orange-200 */
-            background-color: #fff7ed; /* orange-50 */
+        /* NEW: Tool Card for Universal Ticket Tracker */
+        .tool-card.ticket-tracker {
+            border-color: #fed7aa; /* Using orange for contrast */
+            background-color: #fff7ed;
         }
-        .tool-card.report-merger h2 { color: #ea580c; } /* orange-600 */
-        .tool-card.report-merger a { background-color: #f97316; } /* orange-500 */
-        .tool-card.report-merger a:hover { background-color: #ea580c; } /* orange-600 */
+        .tool-card.ticket-tracker h2 { color: #ea580c; } /* orange-600 */
+        .tool-card.ticket-tracker a { background-color: #f97316; } /* orange-500 */
+        .tool-card.ticket-tracker a:hover { background-color: #ea580c; } /* orange-600 */
+
+
+        /* NEW: Tool Card for User Profile */
+        .tool-card.user-profile {
+            border-color: #fbcfe8; /* pink-200 */
+            background-color: #fdf2f8; /* pink-50 */
+        }
+        .tool-card.user-profile h2 { color: #db2777; } /* pink-600 */
+        .tool-card.user-profile a { background-color: #ec4899; } /* pink-500 */
+        .tool-card.user-profile a:hover { background-color: #db2777; } /* pink-600 */
+
 
         /* Styles for tools marked as 'development' (Coming Soon) */
         .development-tool {
@@ -131,25 +142,24 @@
             opacity: 0.7; /* Make it slightly faded */
             filter: grayscale(20%); /* Slight grayscale effect */
             position: relative;
-            background-color: #f9fafb; /* theme('colors.gray.100') */
-            border-color: #d1d5db; /* theme('colors.gray.300') */
+            background-color: #f9fafb; /* Lighter background for development tools */
+            border-color: #d1d5db;
             pointer-events: none; /* Disable clicks on the entire card */
         }
         .development-tool h2, .development-tool p {
-            color: #6b7280; /* theme('colors.gray.500') */
+            color: #6b7280; /* Grey out text */
         }
         .development-tool a {
             display: none; /* Hide the "Launch Tool" button */
         }
-        .development-tool span {
-            display: inline-block; /* inline-block */
+        .development-tool span.inline-block {
             font-size: 0.875rem; /* text-sm */
             color: #6b7280; /* text-gray-500 */
             font-style: italic; /* italic */
             margin-top: auto; /* Push to bottom if flex-grow on p doesn't work */
         }
         .development-tool::after {
-            content: "Coming Soon";
+            content: "Coming Soon"; /* Visible label for development tools */
             position: absolute;
             top: 10px;
             right: 10px;
@@ -161,38 +171,13 @@
             font-weight: bold;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
-
-        /* Message box styles from report-merger.html for consistency */
-        .message-box {
-            padding: 1rem;
-            border-radius: 0.5rem;
-            margin-top: 1rem;
-            font-weight: 500;
-            text-align: center;
-        }
-        .message-box.success {
-            background-color: #d1fae5;
-            color: #065f46;
-            border: 1px solid #10b981;
-        }
-        .message-box.error {
-            background-color: #fee2e2;
-            color: #991b1b;
-            border: 1px solid #ef4444;
-        }
-        .message-box.info {
-            background-color: #e0f2fe;
-            color: #0369a1;
-            border: 1px solid #38bdf8;
-        }
-        .hidden {
-            display: none;
-        }
+        /* You can uncomment this if you want to completely hide development tools */
+        .tool-card[data-status="development"] { display: none; }
     </style>
 </head>
 <body class="flex flex-col min-h-screen">
     <!-- Header Section -->
-    <header>
+    <header class="bg-gradient-to-r from-blue-600 to-indigo-700 p-4 shadow-lg">
         <div class="container mx-auto flex flex-col sm:flex-row items-center justify-between">
             <h1 class="text-white text-3xl font-bold mb-2 sm:mb-0">RCM Buddy Tools</h1> <!-- Changed title in header -->
             <nav>
@@ -200,6 +185,7 @@
                     <li><span id="navUsername" class="text-white font-medium mr-2"></span></li>
                     <li><a href="/dashboard.html" class="text-white hover:text-blue-200 transition duration-300">Dashboard</a></li>
                     <li><a href="/tools.html" class="text-white hover:text-blue-200 transition duration-300 active">Tools List</a></li>
+                    <li><a href="/profile.html" id="profileLink" class="text-white hover:text-blue-200 transition duration-300">Profile</a></li>
                     <li><a href="#" id="logoutButton" class="text-white hover:text-blue-200 transition duration-300 cursor-pointer">Logout</a></li>
                 </ul>
             </nav>
@@ -235,30 +221,53 @@
                     <a href="/tools/validation-engine.html">Go to Excel Validate &rarr;</a>
                 </div>
 
-                <!-- Tool Card: Data Dictionary Builder -->
+                <!-- NEW: Tool Card: Data Dictionary Builder -->
                 <div class="tool-card data-dictionary-builder" data-status="ready">
                     <h2>Data Dictionary Builder</h2>
                     <p>Create and manage custom data dictionaries to define validation rules for your columns.</p>
                     <a href="/tools/data-dictionary-builder.html">Build Dictionary &rarr;</a>
                 </div>
 
-                <!-- NEW: Tool Card: Report Merger -->
-                <div class="tool-card report-merger" data-status="ready">
-                    <h2>Report Merger</h2>
-                    <p>Merge check numbers from a claims report into a lag report based on common claim numbers.</p>
-                    <a href="/tools/report-merger.html">Go to Report Merger &rarr;</a>
+                <!-- NEW: Tool Card: Universal Ticket Tracker (already present) -->
+                <div class="tool-card ticket-tracker" data-status="ready">
+                    <h2>Universal Ticket Tracker</h2>
+                    <p>Upload and visualize your ticket data from any Excel report with dynamic filtering and printing.</p>
+                    <a href="/tools/ticket-tracker/ticket-tracker.html">Launch Tracker &rarr;</a>
+                </div>
+
+                <!-- NEW: Tool Card: User Profile (already present) -->
+                <div class="tool-card user-profile" data-status="ready">
+                    <h2>User Profile</h2>
+                    <p>View and manage your personal account details and settings.</p>
+                    <a href="/profile.html">View Profile &rarr;</a>
                 </div>
 
                 <!-- Placeholder for future development tools (these are now hidden by CSS) -->
-                <div class="tool-card development-tool" data-status="development" style="display: none;"> <!-- Added inline style to hide -->
+                <div class="tool-card development-tool" data-status="development">
+                    <h2>Report Automator</h2>
+                    <p>Automate the generation and distribution of your routine Excel reports with custom templates.</p>
+                    <span class="inline-block text-sm text-gray-500 italic">Coming Soon!</span>
+                </div>
+                <div class="tool-card development-tool" data-status="development">
                     <h2>Merger & Splitter</h2>
                     <p>Efficiently combine multiple Excel files or split large spreadsheets into manageable parts.</p>
-                    <span>Coming Soon!</span>
+                    <span class="inline-block text-sm text-gray-500 italic">Coming Soon!</span>
+                </div>
+                <div class="tool-card development-tool" data-status="development">
+                    <h2>Macro Recorder & Editor</h2>
+                    <p>Record your repetitive Excel actions and easily edit or share the generated VBA macros.</p>
+                    <span class="inline-block text-sm text-gray-500 italic">Coming Soon!</span>
+                </div>
+                <div class="tool-card development-tool" data-status="development">
+                    <h2>Custom Formula Builder</h2>
+                    <p>Create, save, and manage your own complex Excel formulas for re-use and efficiency.</p>
+                    <span class="inline-block text-sm text-gray-500 italic">Coming Soon!</span>
                 </div>
             </div>
         </section>
     </main>
 
+    <!-- Footer Section -->
     <footer class="bg-gray-800 text-white p-4 mt-8">
         <div class="container mx-auto text-center text-sm">
             &copy; 2025 RCM Buddy. All rights reserved.
@@ -283,17 +292,15 @@
         async function setupNavigation() {
             hidePageMessage(); // Clear any previous messages
 
-            // FIX: Changed 'jwtToken' to 'rcm_buddy_token' for consistency
             const token = localStorage.getItem('rcm_buddy_token');
             console.log('setupNavigation: Checking for token...');
+            console.log('setupNavigation: Token found:', token ? token.substring(0, 10) + '...' : 'None');
 
             if (!token) {
                 console.warn('setupNavigation: No authentication token found. Redirecting to login.');
                 displayPageMessage('Session expired. Please log in again.', 'error');
                 setTimeout(() => { window.location.href = '/'; }, 1500); // Redirect after a short delay
                 return;
-            } else {
-                console.log('setupNavigation: Token found. Attempting to validate...');
             }
 
             try {
@@ -304,29 +311,25 @@
                     }
                 });
 
-                if (response.ok) {
-                    const userData = await response.json();
-                    console.log('setupNavigation: Raw user data from /api/protected:', userData); // NEW LOG
-                    if (userData && userData.user) {
-                        document.getElementById('navUsername').textContent = `Hello, ${userData.user.username}`;
-                        console.log('setupNavigation: User data successfully loaded and displayed.');
-                    } else {
-                        console.error('setupNavigation: User data is missing or malformed in the response. Redirecting.'); // IMPROVED LOG
-                        displayPageMessage('Failed to load user data. Please log in again.', 'error');
-                        // FIX: Changed 'jwtToken' to 'rcm_buddy_token' for consistency
-                        localStorage.removeItem('rcm_buddy_token');
-                        setTimeout(() => { window.location.href = '/'; }, 1500);
-                    }
-                } else if (response.status === 401) {
-                    console.warn('setupNavigation: Token expired or invalid (401 Unauthorized). Removing token and redirecting.');
+                if (!response.ok) {
+                    console.error('setupNavigation: Token verification failed:', response.statusText, response.status);
                     displayPageMessage('Session expired. Please log in again.', 'error');
-                    // FIX: Changed 'jwtToken' to 'rcm_buddy_token' for consistency
                     localStorage.removeItem('rcm_buddy_token');
                     setTimeout(() => { window.location.href = '/'; }, 1500);
+                    return;
+                }
+
+                const userData = await response.json();
+                console.log("setupNavigation: Raw user data from /api/protected:", userData); // Log userData for inspection
+
+                if (userData && userData.user) {
+                    document.getElementById('navUsername').textContent = `Hello, ${userData.user.username}`;
+                    console.log('setupNavigation: User data successfully loaded and displayed.');
                 } else {
-                    const errorData = await response.json().catch(() => ({})); // Try to parse, fallback to empty object
-                    console.error(`setupNavigation: Error fetching user data. Status: ${response.status}, Message: ${errorData.message || response.statusText}`); // IMPROVED LOG
-                    displayPageMessage(`Error: ${errorData.message || 'Failed to load user data.'}`, 'error');
+                    console.error('setupNavigation: User data is missing or malformed in the response. Redirecting.');
+                    displayPageMessage('Failed to load user data. Please log in again.', 'error');
+                    localStorage.removeItem('rcm_buddy_token');
+                    setTimeout(() => { window.location.href = '/'; }, 1500);
                 }
             } catch (error) {
                 console.error('setupNavigation: Network or authentication error during fetch:', error);
@@ -336,7 +339,6 @@
 
         // Logout functionality
         document.getElementById('logoutButton').addEventListener('click', () => {
-            // FIX: Changed 'jwtToken' to 'rcm_buddy_token' for consistency
             localStorage.removeItem('rcm_buddy_token');
             console.log('Logout: Token removed. Redirecting to login.');
             window.location.href = '/';
