@@ -1,6 +1,7 @@
 // netlify/functions/lag-report-validation.js
 
 console.log('lag-report-validation: Function script loaded.'); // NEW: Very early log
+// Added this comment to trigger a fresh deploy. Please clear cache and deploy on Netlify.
 
 const jwt = require('jsonwebtoken');
 const { Pool } = require('pg'); // Included for general Netlify function context, not directly used in this merge logic
