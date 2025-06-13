@@ -1,24 +1,28 @@
-# In your netlify.toml file
-
+# =======================================================
+#        TEMPORARY DEBUGGING netlify.toml
+# =======================================================
 [build]
   publish = "public"
   functions = "netlify/functions"
 
-# --- ADD THIS NEW, MORE SPECIFIC RULE FIRST ---
-# This rule explicitly handles all requests to the /api/admin/ path.
-# Because it's more specific, Netlify will use this for admin calls.
+# --- ONLY THIS REDIRECT RULE IS ACTIVE ---
+# This is a direct, non-wildcard test of the routing.
+# It maps a unique URL directly to our new test function.
 [[redirects]]
-  from = "/api/admin/*"
-  to = "/.netlify/functions/admin/:splat"
+  from = "/test-admin-route"
+  to = "/.netlify/functions/admin/hello"
   status = 200
 
-# --- YOUR EXISTING RULE STAYS, BUT COMES SECOND ---
-# This rule will now handle all other /api/ calls like /api/login, /api/protected, etc.
-[[redirects]]
-  from = "/api/*"
-  to = "/.netlify/functions/:splat"
-  status = 200
+# --- All other rules are temporarily disabled ---
+# [[redirects]]
+#   from = "/api/admin/*"
+#   to = "/.netlify/functions/admin/:splat"
+#   status = 200
 
-# --- The rest of your file stays the same ---
+# [[redirects]]
+#   from = "/api/*"
+#   to = "/.netlify/functions/:splat"
+#   status = 200
+
 [[plugins]]
 package = "@netlify/plugin-functions-install-core"
