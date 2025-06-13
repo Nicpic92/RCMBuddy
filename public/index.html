@@ -158,19 +158,8 @@
                     
                     if (response.ok) {
                         localStorage.setItem('jwtToken', data.token);
-
-                        // =================================================================
-                        //                 *** DEBUGGING MODIFICATION ***
-                        // The redirect is disabled so you can inspect the 'login' network call.
-                        // After debugging, comment out the alert and uncomment the redirect.
-                        // =================================================================
-                        
-                        console.log("Login successful! Pausing redirect for debugging. Token:", data.token);
-                        alert("DEBUG MODE: Login successful! Redirect is paused. Check the Network tab now to inspect the 'login' response and copy the token.");
-                        
-                        // --- UNCOMMENT THIS LINE AFTER YOU ARE DONE DEBUGGING ---
-                        // window.location.href = '/dashboard.html';
-                        
+                        // Redirect to the dashboard upon successful login
+                        window.location.href = '/dashboard.html';
                     } else {
                         showMessage(data.message || 'Login failed.', true);
                     }
