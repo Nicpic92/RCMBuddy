@@ -175,6 +175,32 @@
         }
         /* You can uncomment this if you want to completely hide development tools */
         .tool-card[data-status="development"] { display: none; }
+
+        /* Message box styles (reverted to original hidden style for consistency) */
+        .message-box {
+            padding: 1rem;
+            border-radius: 0.5rem;
+            margin-top: 1rem;
+            font-weight: 500;
+            text-align: center;
+            /* Removed fixed positioning and transform for general use */
+            display: none; /* Hidden by default */
+        }
+        .message-box.success {
+            background-color: #d1fae5;
+            color: #065f46;
+            border: 1px solid #10b981;
+        }
+        .message-box.error {
+            background-color: #fee2e2;
+            color: #991b1b;
+            border: 1px solid #ef4444;
+        }
+        .message-box.info {
+            background-color: #e0f2fe;
+            color: #0369a1;
+            border: 1px solid #38bdf8;
+        }
     </style>
 </head>
 <body class="flex flex-col min-h-screen">
@@ -301,17 +327,21 @@
     <script>
         // Common authentication and navigation setup
         async function verifyAndSetupUser() {
-            // FIX: Changed 'jwtToken' to 'rcm_buddy_token' for consistency across RCM Buddy
-            const token = localStorage.getItem('rcm_buddy_token');
+            // FIX: Reverted to 'jwtToken' for consistency with index.html
+            const token = localStorage.getItem('jwtToken');
             console.log('Dashboard setup: Checking for token...');
-            // Log the token value, redacted for security.
             console.log('Dashboard setup: Token found:', token ? token.substring(0, 10) + '...' : 'None');
 
 
             if (!token) {
                 console.warn('Dashboard setup: No authentication token found. Redirecting to login.');
-                // In a real app, you might show a temporary message here
-                window.location.href = '/'; // Redirect to login if no token
+                // Display message only if message box is present
+                const messageBox = document.getElementById('pageMessageBox');
+                if (messageBox) {
+                    messageBox.textContent = 'Session expired. Please log in again.';
+                    messageBox.className = 'message-box error'; // Show it
+                }
+                setTimeout(() => { window.location.href = '/'; }, 1500); // Redirect after a short delay
                 return;
             }
 
@@ -325,20 +355,18 @@
 
                 if (!response.ok) {
                     console.error('Dashboard setup: Token verification failed:', response.statusText, response.status);
-                    // ADDED: console log to see the actual response text if not OK
                     const errorText = await response.text();
                     console.error('Dashboard setup: Response text for failed verification:', errorText);
-                    debugger; // PAUSE EXECUTION HERE IF AUTH FAILS
 
                     // Display user-friendly message
-                    // Using a short timeout to allow user to see message before redirect
-                    const messageBox = document.createElement('div');
-                    messageBox.className = 'message-box error fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50';
-                    messageBox.textContent = `Session expired. Please log in again. (Error: ${response.status})`;
-                    document.body.appendChild(messageBox);
+                    const messageBox = document.getElementById('pageMessageBox');
+                    if (messageBox) {
+                        messageBox.textContent = `Session expired. Please log in again. (Error: ${response.status})`;
+                        messageBox.className = 'message-box error'; // Show it
+                    }
 
-
-                    localStorage.removeItem('rcm_buddy_token');
+                    // FIX: Reverted to 'jwtToken' for consistency with index.html
+                    localStorage.removeItem('jwtToken');
                     setTimeout(() => { window.location.href = '/'; }, 3000); // Increased delay to 3 seconds for debugging
                     return;
                 }
@@ -358,24 +386,24 @@
                     console.log('Dashboard setup: User data successfully loaded and displayed.');
                 } else {
                     console.error('Dashboard setup: User data is missing or malformed in the response. Redirecting.');
-                    debugger; // PAUSE EXECUTION HERE IF USER DATA IS MISSING/MALFORMED
 
-                    const messageBox = document.createElement('div');
-                    messageBox.className = 'message-box error fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50';
-                    messageBox.textContent = 'Failed to load user data. Please log in again.';
-                    document.body.appendChild(messageBox);
+                    const messageBox = document.getElementById('pageMessageBox');
+                    if (messageBox) {
+                        messageBox.textContent = 'Failed to load user data. Please log in again.';
+                        messageBox.className = 'message-box error'; // Show it
+                    }
 
-                    localStorage.removeItem('rcm_buddy_token');
+                    // FIX: Reverted to 'jwtToken' for consistency with index.html
+                    localStorage.removeItem('jwtToken');
                     setTimeout(() => { window.location.href = '/'; }, 3000); // Increased delay
                 }
             } catch (error) {
                 console.error('Dashboard setup: Network or authentication error during fetch:', error);
-                debugger; // PAUSE EXECUTION HERE ON NETWORK ERROR
-
-                const messageBox = document.createElement('div');
-                messageBox.className = 'message-box error fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50';
-                messageBox.textContent = 'Network error. Please try again. If issue persists, clear cache.';
-                document.body.appendChild(messageBox);
+                const messageBox = document.getElementById('pageMessageBox');
+                if (messageBox) {
+                    messageBox.textContent = 'Network error. Please try again. If issue persists, clear cache.';
+                    messageBox.className = 'message-box error'; // Show it
+                }
                 // No automatic redirect for network errors, as it might be temporary connection issue
             }
         }
@@ -383,7 +411,8 @@
         // Logout functionality
         document.getElementById('logoutButton').addEventListener('click', (e) => {
             e.preventDefault();
-            localStorage.removeItem('rcm_buddy_token'); // Remove the JWT
+            // FIX: Reverted to 'jwtToken' for consistency with index.html
+            localStorage.removeItem('jwtToken'); // Remove the JWT
             console.log('Logout: Token removed. Redirecting to login.');
             window.location.href = '/'; // Redirect to login page
         });
@@ -393,23 +422,3 @@
     </script>
 </body>
 </html>
-```
-
-The issue is that the `dashboard.html` page isn't loading long enough for you to inspect the console logs, which is a significant barrier to debugging. The `debugger;` statement in the provided Canvas is designed to directly address this.
-
-To get the necessary logs, you need to:
-
-1.  **Ensure your `public/dashboard.html` file has the `debugger;` statements as shown in the provided Canvas.**
-2.  **Deploy this updated `dashboard.html` to Netlify.**
-3.  **Perform a full and aggressive browser cache clear**, including local storage and service workers, for your RCM Buddy domain.
-4.  **Open a brand new Incognito/Private Browsing window.**
-5.  **Open your browser's developer tools (F12)** and navigate to the **"Sources" (or "Debugger") tab**. This is crucial, as the `debugger;` statement only works if the developer tools are open to this tab.
-6.  **Go to your RCM Buddy login page** in that incognito window.
-7.  **Log in.**
-
-At this point, if there's an authentication issue, the browser execution **will pause** on one of the `debugger;` lines in the `dashboard.html` JavaScript. When it pauses:
-
-* **Look at the "Console" tab:** Copy all the `console.log` output.
-* **Look at the "Scope" panel (usually on the right of the "Sources" tab):** This panel will show you the values of variables like `token`, `response`, `userData`, and `error` at the exact moment of the pause. You can expand objects to see their full structure.
-
-The information from the console *and* the `Scope` panel (especially `userData` and `error` objects) will be the key to understanding why you're being logged out. Please provide this informati
