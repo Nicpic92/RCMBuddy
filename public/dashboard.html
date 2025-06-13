@@ -324,54 +324,60 @@
                 });
 
                 if (!response.ok) {
-                    // Token invalid or expired, clear and redirect to login
                     console.error('Dashboard setup: Token verification failed:', response.statusText, response.status);
-                    // FIX: Changed 'jwtToken' to 'rcm_buddy_token' for consistency
+                    // ADDED: console log to see the actual response text if not OK
+                    const errorText = await response.text();
+                    console.error('Dashboard setup: Response text for failed verification:', errorText);
+
+                    // Display user-friendly message
+                    // Using a short timeout to allow user to see message before redirect
+                    const messageBox = document.createElement('div');
+                    messageBox.className = 'message-box error fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50';
+                    messageBox.textContent = `Session expired. Please log in again. (Error: ${response.status})`;
+                    document.body.appendChild(messageBox);
+
+
                     localStorage.removeItem('rcm_buddy_token');
-                    window.location.href = '/';
+                    setTimeout(() => { window.location.href = '/'; }, 3000); // Increased delay to 3 seconds for debugging
                     return;
                 }
 
                 const userData = await response.json();
                 console.log("Dashboard setup: User Data from /api/protected:", userData); // Log userData for inspection
 
-                // Display user and company name
-                // FIX: Use navUsername for display in header and usernameDisplay for main welcome
-                document.getElementById('navUsername').textContent = `Hello, ${userData.user.username}`;
-                document.getElementById('usernameDisplay').textContent = userData.user.username;
+                if (userData && userData.user) {
+                    document.getElementById('navUsername').textContent = `Hello, ${userData.user.username}`;
+                    document.getElementById('usernameDisplay').textContent = userData.user.username;
 
-                // Correctly access company_name based on user's architecture description and recent fixes
-                // Check if company_name is directly in userData or nested under userData.user
-                if (userData.user && userData.user.company_name) { // Use nested access as per project overview
-                    document.getElementById('actualCompanyName').textContent = userData.user.company_name;
+                    if (userData.user.company_name) {
+                        document.getElementById('actualCompanyName').textContent = userData.user.company_name;
+                    } else {
+                        document.getElementById('actualCompanyName').textContent = 'N/A (Company name not found)';
+                    }
+                    console.log('Dashboard setup: User data successfully loaded and displayed.');
                 } else {
-                    document.getElementById('actualCompanyName').textContent = 'N/A (Company name not found)'; // Indicate if not found
-                }
+                    console.error('Dashboard setup: User data is missing or malformed in the response. Redirecting.');
+                    const messageBox = document.createElement('div');
+                    messageBox.className = 'message-box error fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50';
+                    messageBox.textContent = 'Failed to load user data. Please log in again.';
+                    document.body.appendChild(messageBox);
 
-                // Set profile link text (if profile page exists and link is desired there)
-                const profileLink = document.getElementById('profileLink');
-                if (profileLink) {
-                    // This was set to "Hello, [username]" in the original dashboard,
-                    // but the main nav bar now handles it with navUsername.
-                    // The profile link itself can just be "Profile" as per the nav structure.
-                    // If you intend for the profile link to also show username, uncomment below.
-                    // profileLink.textContent = `Hello, ${userData.user.username}`;
-                    profileLink.href = '/profile.html'; // Direct link to the new profile page
+                    localStorage.removeItem('rcm_buddy_token');
+                    setTimeout(() => { window.location.href = '/'; }, 3000); // Increased delay
                 }
-
             } catch (error) {
-                // Network error, assume token issue or server unreachable
-                console.error('Dashboard setup: Error verifying token or fetching user data:', error);
-                // FIX: Changed 'jwtToken' to 'rcm_buddy_token' for consistency
-                localStorage.removeItem('rcm_buddy_token');
-                window.location.href = '/';
+                console.error('Dashboard setup: Network or authentication error during fetch:', error);
+                const messageBox = document.createElement('div');
+                messageBox.className = 'message-box error fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50';
+                messageBox.textContent = 'Network error. Please try again. If issue persists, clear cache.';
+                document.body.appendChild(messageBox);
+                // No automatic redirect for network errors, as it might be temporary connection issue
             }
         }
 
         // Logout functionality
         document.getElementById('logoutButton').addEventListener('click', (e) => {
             e.preventDefault();
-            // FIX: Changed 'jwtToken' to 'rcm_buddy_token' for consistency
             localStorage.removeItem('rcm_buddy_token'); // Remove the JWT
             console.log('Logout: Token removed. Redirecting to login.');
             window.location.href = '/'; // Redirect to login page
