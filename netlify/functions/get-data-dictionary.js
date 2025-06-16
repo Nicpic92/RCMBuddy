@@ -1,32 +1,26 @@
 // netlify/functions/get-data-dictionary.js
-const jwt = require('jsonwebtoken'); // For JWT authentication
-const { Pool } = require('pg');      // PostgreSQL client
 
-// Initialize PostgreSQL pool
-const pool = new Pool({
-    connectionString: process.env.DATABASE_URL,
-    ssl: { rejectUnauthorized: false } // Required for Neon's SSL
-});
+// OLD: const jwt = require('jsonwebtoken'); // For JWT authentication
+// OLD: const { Pool } = require('pg');      // PostgreSQL client
+// OLD: const pool = new Pool({ ... });
+
+// NEW: Import centralized utility functions
+const { createDbClient } = require('./utils/db');
+const auth = require('./utils/auth');
 
 exports.handler = async (event, context) => {
     // Ensure only GET requests are allowed
     if (event.httpMethod !== 'GET') {
-        return { statusCode: 405, body: 'Method Not Allowed' };
+        return { statusCode: 405, body: JSON.stringify({ message: 'Method Not Allowed' }) };
     }
 
-    // 1. Authenticate user and get company_id
-    const authHeader = event.headers.authorization;
-    if (!authHeader) {
-        return { statusCode: 401, body: JSON.stringify({ message: 'Authentication required.' }) };
+    // 1. Authenticate user using the auth utility
+    const authResult = auth.verifyToken(event);
+    if (authResult.statusCode !== 200) {
+        return authResult; // Return authentication error response
     }
-    const token = authHeader.split(' ')[1];
-    let decoded;
-    try {
-        decoded = jwt.verify(token, process.env.JWT_SECRET);
-    } catch (error) {
-        return { statusCode: 403, body: JSON.stringify({ message: 'Invalid or expired token.' }) };
-    }
-    const company_id = decoded.company_id; // CRUCIAL for data isolation
+    const requestingUser = authResult.user; // Contains userId, companyId, role
+    const company_id = requestingUser.companyId; // CRUCIAL for data isolation
 
     // 2. Get the dictionary ID from query parameters
     const dictionaryId = event.queryStringParameters.id;
@@ -35,13 +29,14 @@ exports.handler = async (event, context) => {
     }
 
     // 3. Fetch the specific data dictionary from the 'data_dictionaries' table
-    let client;
+    let client; // Declare client outside try block for finally access
     try {
-        client = await pool.connect();
+        // NEW: Use the centralized createDbClient function
+        client = await createDbClient();
         const dictionaryResult = await client.query(
             `SELECT id, name, rules_json, source_headers_json, created_at, updated_at, user_id
              FROM data_dictionaries
-             WHERE id = $1 AND company_id = $2`,
+             WHERE id = $1 AND company_id = $2`, // Ensure company isolation
             [dictionaryId, company_id]
         );
 
@@ -59,10 +54,10 @@ exports.handler = async (event, context) => {
                 message: 'Data dictionary retrieved successfully.',
                 id: dictionary.id,
                 name: dictionary.name,
-                rules_json: dictionary.rules_json, // This is the actual JSON object/array
-                source_headers_json: dictionary.source_headers_json, // Also a JSON object/array
+                rules_json: dictionary.rules_json,
+                source_headers_json: dictionary.source_headers_json,
                 created_at: dictionary.created_at,
-                updated_at: dictionary.updated_at, // NEW: Include updated_at
+                updated_at: dictionary.updated_at,
                 user_id: dictionary.user_id
             })
         };
@@ -71,6 +66,8 @@ exports.handler = async (event, context) => {
         console.error('Database error retrieving data dictionary:', dbError);
         return { statusCode: 500, body: JSON.stringify({ message: 'Failed to retrieve data dictionary.', error: dbError.message }) };
     } finally {
-        if (client) client.release();
+        if (client) {
+            client.end(); // IMPORTANT: Use client.end() for direct client connections
+        }
     }
 };
