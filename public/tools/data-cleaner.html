@@ -3,10 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Excel Buddy - Data Cleaner</title>
-    <!-- Tailwind CSS CDN for modern styling -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Google Fonts - Inter for clean typography -->
+    <title>RCM Buddy - Data Cleaner</title> <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         body {
@@ -14,9 +11,9 @@
             background-color: #f0f4f8; /* Light background for the page */
         }
     </style>
+    <script src="/js/auth.js"></script>
 </head>
-<body class="flex flex-col min-h-screen text-gray-800">
-    <!-- Header Section: Consistent navigation across the app -->
+<body class="flex flex-col min-h-screen text-gray-800" onload="verifyAndSetupUser();">
     <header class="bg-gradient-to-r from-blue-600 to-indigo-700 p-4 shadow-lg">
         <div class="container mx-auto flex flex-col sm:flex-row items-center justify-between">
             <h1 class="text-white text-3xl font-bold mb-2 sm:mb-0">Data Cleaner</h1>
@@ -31,7 +28,6 @@
         </div>
     </header>
 
-    <!-- Main Content Section: Central area for the tool's functionality -->
     <main class="flex-grow container mx-auto p-4 sm:p-6 lg:p-8">
         <section class="bg-white p-6 sm:p-8 rounded-xl shadow-lg mb-8">
             <h2 class="text-2xl sm:text-3xl font-semibold text-center text-blue-700 mb-4">
@@ -42,8 +38,7 @@
             </p>
             <div class="max-w-xl mx-auto text-gray-600 text-base mb-6 p-4 border border-gray-200 rounded-lg bg-gray-50">
                 <p class="font-semibold text-gray-800 mb-2">About This Tool:</p>
-                <p>The **Data Cleaner** is designed to quickly and efficiently prepare your Excel spreadsheets for analysis or further use. It automates common data hygiene tasks that are often tedious and time-consuming when done manually. Simply upload your `.xlsx` or `.xls` file, select the cleaning options you need, and let Excel Buddy handle the rest. You'll receive a summary of the changes made and a link to download your freshly cleaned file.</p>
-                <ul class="list-disc list-inside mt-3">
+                <p>The **Data Cleaner** is designed to quickly and efficiently prepare your Excel spreadsheets for analysis or further use. It automates common data hygiene tasks that are often tedious and time-consuming when done manually. Simply upload your `.xlsx` or `.xls` file, select the cleaning options you need, and let RCM Buddy handle the rest. You'll receive a summary of the changes made and a link to download your freshly cleaned file.</p> <ul class="list-disc list-inside mt-3">
                     <li>**Remove Duplicate Rows:** Eliminates entire rows that have identical content, ensuring unique records.</li>
                     <li>**Trim Extra Spaces:** Cleans up leading, trailing, and excessive internal spaces within cells, improving consistency.</li>
                     <li>**Standardize Text Case:** Converts text to a consistent format (e.g., Proper Case/Title Case) for uniform appearance and easier comparisons.</li>
@@ -85,10 +80,8 @@
                     </button>
                 </form>
 
-                <!-- Status Message Display -->
                 <div id="statusMessage" class="mt-4 text-center text-gray-700 hidden"></div>
 
-                <!-- Cleaning Summary Section (hidden until results are available) -->
                 <div id="summarySection" class="mt-4 p-4 bg-blue-100 rounded-lg hidden">
                     <p class="font-semibold text-blue-800 mb-2">Cleaning Summary:</p>
                     <ul class="text-blue-700 text-sm list-disc list-inside">
@@ -98,7 +91,6 @@
                     </ul>
                 </div>
 
-                <!-- Download Section (hidden until file is ready) -->
                 <div id="downloadSection" class="mt-6 text-center hidden">
                     <p class="text-green-700 font-semibold mb-3">Data Cleaning Complete!</p>
                     <a id="downloadLink" href="#" download="cleaned_data.xlsx"
@@ -110,59 +102,12 @@
         </section>
     </main>
 
-    <!-- Footer Section -->
     <footer class="bg-gray-800 text-white p-4 mt-8">
         <div class="container mx-auto text-center text-sm">
-            &copy; 2025 Excel Buddy. All rights reserved.
-        </div>
+            &copy; 2025 RCM Buddy. All rights reserved. </div>
     </footer>
 
     <script>
-        // --- Authentication Check on Page Load ---
-        document.addEventListener('DOMContentLoaded', async () => {
-            const token = localStorage.getItem('jwtToken'); // Get JWT from local storage
-
-            // If no token exists, redirect to the login page (index.html)
-            if (!token) {
-                window.location.href = '/';
-                return;
-            }
-
-            // Optional: Re-validate token with a protected backend endpoint
-            // This ensures the session is still active and valid
-            try {
-                const response = await fetch('/api/protected', {
-                    method: 'GET',
-                    headers: {
-                        'Authorization': `Bearer ${token}` // Send token for validation
-                    }
-                });
-
-                if (!response.ok) {
-                    // If validation fails (e.g., token expired/invalid), clear token and redirect
-                    localStorage.removeItem('jwtToken');
-                    window.location.href = '/';
-                }
-            } catch (error) {
-                // Handle network errors during token validation
-                console.error('Error verifying token on Data Cleaner page:', error);
-                localStorage.removeItem('jwtToken'); // Assume token is bad or server unreachable
-                window.location.href = '/';
-            }
-        });
-
-        // --- Logout Functionality ---
-        document.getElementById('logoutBtn').addEventListener('click', () => {
-            localStorage.removeItem('jwtToken'); // Remove JWT from local storage
-            window.location.href = '/'; // Redirect to login page
-        });
-
-        // --- Profile Link Placeholder ---
-        document.getElementById('profileLink').addEventListener('click', (e) => {
-            e.preventDefault(); // Prevent default link behavior
-            alert('This would navigate to a detailed user profile page or open a modal.');
-        });
-
         // --- Data Cleaner Tool Core Logic ---
         const uploadForm = document.getElementById('uploadForm');
         const excelFile = document.getElementById('excelFile');
@@ -201,7 +146,9 @@
             formData.append('standardizeText', document.getElementById('standardizeText').checked);
 
             try {
-                const token = localStorage.getItem('jwtToken'); // Get the JWT for authentication
+                // The shared auth.js will handle token verification on page load.
+                // We just need to retrieve the token for the API call.
+                const token = localStorage.getItem('jwtToken');
                 if (!token) {
                     throw new Error('User not authenticated. Please log in again.');
                 }
@@ -230,7 +177,6 @@
                     summarySection.classList.remove('hidden'); // Show the summary section
 
                     // Convert the base64-encoded cleaned file from the backend into a Blob
-                    // A Blob is a file-like object of immutable, raw data.
                     const binaryString = atob(result.cleanedFileBase64); // Decode base64 string to binary string
                     const len = binaryString.length;
                     const bytes = new Uint8Array(len); // Create a Uint8Array to hold raw byte data
