@@ -1,3 +1,11 @@
+// Import common utilities
+import { showLoader, hideLoader, displayMessage } from '../../js/common-utils.js';
+// Import auth functions (assuming auth.js is also a module or its functions are globally available via script tag)
+// For this setup, since auth.js uses 'window.verifyAndSetupUser', we'll rely on global exposure.
+// If auth.js were also an ES module, we'd do:
+// import { verifyAndSetupUser, setupNavigation } from '../../js/auth.js';
+
+
 // --- Global Variables ---
 let parsedExcelData = null; // Stores the parsed data from the main Excel file
 let parsedDataDictionaryRules = null; // Stores parsed rules from the selected data dictionary (e.g., from rules_json)
@@ -19,48 +27,9 @@ let overallStats = {
 const TODAY = new Date();
 TODAY.setUTCHours(0, 0, 0, 0); // Normalize today's date for comparison
 
-// --- Helper Functions (Adapted) ---
-
-/**
- * Displays the loading spinner and disables relevant buttons.
- */
-function showLoader() {
-    document.getElementById('loader').style.display = 'block';
-    document.getElementById('results').style.display = 'none';
-    document.getElementById('summaryReportContainer').style.display = 'none';
-    document.getElementById('analyzeFileBtn').disabled = true;
-    document.getElementById('loadMainFileBtn').disabled = true;
-    document.getElementById('loadDataDictionaryBtn').disabled = true;
-}
-
-/**
- * Hides the loading spinner and enables relevant buttons.
- */
-function hideLoader() {
-    document.getElementById('loader').style.display = 'none';
-    document.getElementById('analyzeFileBtn').disabled = false;
-    document.getElementById('loadMainFileBtn').disabled = false;
-    document.getElementById('loadDataDictionaryBtn').disabled = false;
-}
-
-/**
- * Displays a message on the UI.
- */
-function displayMessage(elementId, message, type = 'info') {
-    const element = document.getElementById(elementId);
-    if (element) {
-        element.textContent = message;
-        // Basic color styling based on type
-        if (type === 'error') {
-            element.style.color = '#dc3545'; // Red
-        } else if (type === 'success') {
-            element.style.color = '#28a745'; // Green
-        } else {
-            element.style.color = '#495057'; // Gray
-        }
-        element.style.display = 'block'; // Show the message
-    }
-}
+// --- Helper Functions (Now imported from common-utils.js) ---
+// showLoader, hideLoader, displayMessage are now imported.
+// The displayMessage in common-utils.js is slightly more robust with default color.
 
 /**
  * Updates the overall counts display. Now focuses on custom issues and duplicates.
@@ -73,11 +42,7 @@ function updateInitialOverallCountsDisplay() {
     document.getElementById('totalCustomIssuesDisplay').textContent = `Total Custom Validation Issues Found: ${overallStats.customIssueCount}`;
 }
 
-// --- Authentication and Navigation (reused from other tools, adapted for current HTML) ---
-// These functions will now be imported from public/js/auth.js
-// function verifyToken() { ... }
-// function setupNavigation(userData) { ... }
-
+// --- File and Data Dictionary Selection and Loading ---
 
 /**
  * Populates the main file select dropdown (from company_files) and
@@ -322,7 +287,7 @@ async function analyzeFile() {
         return;
     }
 
-    showLoader();
+    showLoader('loader', ['analyzeFileBtn', 'loadMainFileBtn', 'loadDataDictionaryBtn']); // Using common-utils showLoader
     analysisResults = {}; // Reset results
     overallStats = { // Reset overall stats for each analysis
         customIssueCount: 0,
@@ -540,7 +505,7 @@ async function analyzeFile() {
             document.getElementById('results').style.display = 'none';
             document.getElementById('generateSummaryBtn').style.display = 'none';
         } finally {
-            hideLoader();
+            hideLoader('loader', ['analyzeFileBtn', 'loadMainFileBtn', 'loadDataDictionaryBtn']); // Using common-utils hideLoader
         }
     };
     reader.readAsArrayBuffer(fileToAnalyze);
@@ -575,15 +540,15 @@ function displaySheetResults(sheetName, issues, header) {
                 : `<span class="clean">Column "<strong>${colName}</strong>" is clean (custom rules).</span>`;
 
             const safeColumnName = String(colName).trim().replace(/"/g, "&quot;").replace(/'/g, "&#39;");
-            const overrideCheckboxId = `override-${sheetName.replace(/[^a-zA-Z0-9]/g, "_")}-${safeColumnName.replace(/[^a-zA-Z0-9]/g, "_")}`;
+            const overrideCheckboxId = `override-<span class="math-inline">\{sheetName\.replace\(/\[^a\-zA\-Z0\-9\]/g, "\_"\)\}\-</span>{safeColumnName.replace(/[^a-zA-Z0-9]/g, "_")}`;
 
             listItem.innerHTML = `
                 <div class="column-summary">
                     <div class="column-header-controls">
-                        <input type="checkbox" id="${overrideCheckboxId}" class="override-checkbox" data-sheet="${sheetName}" data-column="${safeColumnName}">
-                        <label for="${overrideCheckboxId}" class="override-checkbox-label">Override Issues</label>
-                        <span class="column-issue-text">${issueTextHTML}</span>
-                        <button class="toggle-values-btn" data-sheet="${sheetName}" data-column="${safeColumnName}">Show Values</button>
+                        <input type="checkbox" id="<span class="math-inline">\{overrideCheckboxId\}" class\="override\-checkbox" data\-sheet\="</span>{sheetName}" data-column="<span class="math-inline">\{safeColumnName\}"\>
+<label for\="</span>{overrideCheckboxId}" class="override-checkbox-label">Override Issues</label>
+                        <span class="column-issue-text"><span class="math-inline">\{issueTextHTML\}</span\>
+<button class\="toggle\-values\-btn" data\-sheet\="</span>{sheetName}" data-column="${safeColumnName}">Show Values</button>
                     </div>
                     <div class="column-counts">Custom: ${customIssues.length}</div>
                 </div>
@@ -633,7 +598,7 @@ function generateSummaryReport(shouldScrollToReport = true) {
     reportHTML += `<p><strong>Total Effective Issues (Custom + Duplicates):</strong> ${totalEffectiveIssues}</p>`;
     reportHTML += `<p><strong>Issue Rate (approximate):</strong> ${issueRate.toFixed(2)}%</p>`;
     reportHTML += `<p><strong>Clean Rate (approximate):</strong> ${cleanRate.toFixed(2)}%</p>`;
-    reportHTML += `<p><strong>Status: <span class="${passFailClass}">${passFailStatus}</span></strong> (Threshold: ${CLEAN_RATE_PASS_THRESHOLD}% clean)</p></div>`;
+    reportHTML += `<p><strong>Status: <span class="<span class="math-inline">\{passFailClass\}"\></span>{passFailStatus}</span></strong> (Threshold: ${CLEAN_RATE_PASS_THRESHOLD}% clean)</p></div>`;
 
     // Detailed Custom Issues by Column
     reportHTML += `<div class="summary-section"><h2>Detailed Custom Issues by Column</h2><table><thead><tr><th>Sheet</th><th>Column</th><th>Rule Type</th><th>Failure Message</th><th>Value</th><th>Row #</th><th>Overridden</th></tr></thead><tbody>`;
@@ -650,11 +615,11 @@ function generateSummaryReport(shouldScrollToReport = true) {
             const isColumnOverridden = overriddenColsForSheet[columnName] === true;
             if (isColumnOverridden) {
                 customDetailsAdded = true;
-                reportHTML += `<tr><td>${sheetName}</td><td>${columnName}</td><td colspan="4" style="text-align: center;">ALL ISSUES OVERRIDDEN FOR THIS COLUMN</td><td>Yes</td></tr>`;
+                reportHTML += `<tr><td><span class="math-inline">\{sheetName\}</td\><td\></span>{columnName}</td><td colspan="4" style="text-align: center;">ALL ISSUES OVERRIDDEN FOR THIS COLUMN</td><td>Yes</td></tr>`;
             } else {
                 sheetIssues.customValidation[columnName].forEach(issue => {
                     customDetailsAdded = true;
-                    reportHTML += `<tr><td>${sheetName}</td><td>${columnName}</td><td>${issue.ruleType}</td><td>${issue.message}</td><td>${String(issue.value) === '' ? '[Blank]' : String(issue.value)}</td><td>${issue.row}</td><td>No</td></tr>`;
+                    reportHTML += `<tr><td><span class="math-inline">\{sheetName\}</td\><td\></span>{columnName}</td><td><span class="math-inline">\{issue\.ruleType\}</td\><td\></span>{issue.message}</td><td><span class="math-inline">\{String\(issue\.value\) \=\=\= '' ? '\[Blank\]' \: String\(issue\.value\)\}</td\><td\></span>{issue.row}</td><td>No</td></tr>`;
                 });
             }
         }
@@ -673,7 +638,7 @@ function generateSummaryReport(shouldScrollToReport = true) {
                 const rowData = parsedExcelData.Sheets[sheetName] ? XLSX.utils.sheet_to_json(parsedExcelData.Sheets[sheetName], {header:1, defval:null})[dupeRow.originalRowIndex -1] : [];
                 if (rowData) {
                     const sample = rowData.slice(0, 3).map(d => d ?? "").join(', ');
-                    reportHTML += `<tr><td>${sheetName}</td><td>${dupeRow.originalRowIndex}</td><td>${dupeRow.duplicateOf}</td><td>${sample}...</td></tr>`;
+                    reportHTML += `<tr><td><span class="math-inline">\{sheetName\}</td\><td\></span>{dupeRow.originalRowIndex}</td><td><span class="math-inline">\{dupeRow\.duplicateOf\}</td\><td\></span>{sample}...</td></tr>`;
                 }
             });
         }
@@ -682,7 +647,7 @@ function generateSummaryReport(shouldScrollToReport = true) {
     reportHTML += `</tbody></table></div>`;
 
     reportHTML += `<button id="printSummaryBtn" onclick="window.print()" class="action-button">Print Report</button>`;
-    reportHTML += `<button id="exportExcelBtn" onclick="exportExcelWithSummary()" class="action-button">Export Excel w/ Summary</button>`;
+    reportHTML += `<button id="exportExcelBtn" onclick="exportExcelWithSummary()" class="action-button">Export Excel w/ Summary</button`;
     summaryContainer.innerHTML = reportHTML;
     summaryContainer.style.display = 'block';
     if (shouldScrollToReport) summaryContainer.scrollIntoView({ behavior: 'smooth' });
@@ -829,7 +794,7 @@ function exportExcelWithSummary() {
 
     // Define the output filename based on the selectedMainFileName
     const baseFileName = selectedMainFileName ? selectedMainFileName.replace(/\.(xlsx|xls|csv)$/i, '') : "Validation_Report";
-    const outputFileName = `${baseFileName}_Summary_${new Date().toISOString().slice(0, 10)}.xlsx`;
+    const outputFileName = `<span class="math-inline">\{baseFileName\}\_Summary\_</span>{new Date().toISOString().slice(0, 10)}.xlsx`;
     console.log("exportExcelWithSummary: Attempting to write file:", outputFileName);
 
     // Attempt to write the file
@@ -846,10 +811,18 @@ function exportExcelWithSummary() {
 async function initValidationEngine() {
     // Check for JWT on page load to ensure user is authenticated
     // Note: verifyAndSetupUser from public/js/auth.js will handle redirection if not authenticated
-    const userData = await verifyAndSetupUser(); 
-    if (userData) {
-        populateSelects(); // Populate file and dictionary dropdowns
+    // Assuming verifyAndSetupUser is still a global function exposed by auth.js
+    if (typeof verifyAndSetupUser === 'function') {
+        const userData = await verifyAndSetupUser();
+        if (userData) {
+            populateSelects(); // Populate file and dictionary dropdowns
+        }
+    } else {
+        console.error("verifyAndSetupUser function not found. Ensure public/js/auth.js is loaded correctly and exposes it globally.");
+        // Fallback for development if auth.js isn't fully set up, or redirect
+        window.location.href = '/';
     }
+
 
     // Set dynamic date display
     const options = { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' };
@@ -869,117 +842,4 @@ async function initValidationEngine() {
         displayMessage('mainFileStatus', '', 'info');
     });
     document.getElementById('mainFileSelect').addEventListener('change', () => {
-        document.getElementById('excelFile').value = '';
-        displayMessage('mainFileStatus', '', 'info');
-    });
-
-    // Data dictionary selection
-    document.getElementById('loadDataDictionaryBtn').addEventListener('click', loadDataDictionary);
-
-    // Analyze button (uses onclick in HTML, so no need to duplicate here)
-
-    // Delegate event for override checkboxes and show values buttons
-    document.getElementById('sheetResults').addEventListener('click', function(event) {
-        const target = event.target;
-        if (target.classList.contains('override-checkbox')) {
-            const { sheet, column } = target.dataset;
-
-            // Visually toggle 'column-overridden' class for immediate feedback
-            const columnSummaryElement = target.closest('.column-summary');
-            if (columnSummaryElement) {
-                columnSummaryElement.classList.toggle('column-overridden', target.checked);
-            } else {
-                console.warn("Could not find parent .column-summary for override checkbox.");
-            }
-
-            // Recalculate summary if it's already visible
-            if (document.getElementById('summaryReportContainer').style.display !== 'none') {
-                generateSummaryReport(false); // Update summary without scrolling
-            } else {
-                // Update overall counts for the initial display if needed (e.g. for duplicates)
-                recalculateGlobalOverallStatsFromWorkbookData();
-                updateInitialOverallCountsDisplay();
-            }
-        } else if (target.classList.contains('toggle-values-btn')) {
-            const { sheet, column } = target.dataset;
-            const valuesContainer = target.closest('li')?.querySelector('.column-values-container');
-            if (!valuesContainer) {
-                console.error("Could not find valuesContainer for toggle button.");
-                return;
-            }
-
-            // Check if there are custom issues for this column to display
-            if (!analysisResults[sheet]?.customValidation?.[column] || analysisResults[sheet].customValidation[column].length === 0) {
-                valuesContainer.innerHTML = '<p style="font-style: italic; color: #6c757d;">No custom issues for this column.</p>';
-                valuesContainer.style.display = 'block';
-                target.textContent = 'Hide Values';
-                return;
-            }
-
-            if (valuesContainer.style.display === 'none') {
-                valuesContainer.innerHTML = '';
-                const ul = document.createElement('ul');
-                const customIssuesForColumn = analysisResults[sheet].customValidation[column];
-
-                // Sort issues by row number for better readability
-                customIssuesForColumn.sort((a,b) => a.row - b.row).forEach(issue => {
-                    const li = document.createElement('li');
-                    let displayValue = `Row ${issue.row}: Rule: ${issue.ruleType} - Value: "${String(issue.value)}" - Message: ${issue.message}`;
-                    if (String(issue.value).trim() === '') {
-                        displayValue = `Row ${issue.row}: Rule: ${issue.ruleType} - Value: [BLANK] - Message: ${issue.message}`;
-                    } else if (issue.value === null) {
-                        displayValue = `Row ${issue.row}: Rule: ${issue.ruleType} - Value: [NULL] - Message: ${issue.message}`;
-                    }
-                    li.classList.add('value-generic-issue');
-                    li.textContent = displayValue;
-                    ul.appendChild(li);
-                });
-
-                valuesContainer.appendChild(ul);
-                valuesContainer.style.display = 'block';
-                target.textContent = 'Hide Values';
-            } else {
-                valuesContainer.style.display = 'none';
-                valuesContainer.innerHTML = '';
-                target.textContent = 'Show Values';
-            }
-        }
-    });
-
-    // Delegate event for editable stats in summary report (THIS FUNCTIONALITY WILL BE LIMITED)
-    document.getElementById('summaryReportContainer')?.addEventListener('blur', function(event) {
-        if (event.target.classList.contains('editable-stat')) {
-            const td = event.target;
-            const { sheet, column, type } = td.dataset;
-
-            // ALERT: Directly editing issue counts is not ideal.
-            // The numbers are derived from the analysis results and override checkboxes.
-            // This section of code is left as is, but it will only provide a warning
-            // and revert the text, as editing these directly isn't a good UX for custom rules.
-            alert('Editing issue counts directly is not fully supported for custom rules. Please use the "Override Issues" checkbox instead.');
-
-            // Revert text if they changed it
-            if (analysisResults[sheet]?.customValidation?.[column]) {
-                const originalCount = analysisResults[sheet].customValidation[column].length;
-                td.textContent = originalCount;
-            } else {
-                td.textContent = '0';
-            }
-        }
-    }, true);
-}
-
-// Expose functions to the global scope if they are called directly from HTML's onclick/onload
-// For example, analyzeFile is called via onclick="analyzeFile()"
-window.analyzeFile = analyzeFile;
-window.generateSummaryReport = generateSummaryReport;
-window.exportExcelWithSummary = exportExcelWithSummary;
-window.initValidationEngine = initValidationEngine; // Expose the initialization function
-
-// Import auth.js functions as they are now external
-// Assuming auth.js provides `verifyAndSetupUser` and `logout` globally or via a module export
-// For simplicity and to match the current HTML structure, we'll assume global functions for now.
-// In a proper module system, you would use:
-// import { verifyAndSetupUser, logout } from '../../js/auth.js';
-// For now, ensure auth.js is loaded BEFORE this script in the HTML.
-// The verifyAndSetupUser is called in initValidationEngine, and setupNavigation handles logout.
+        document.getElementById('excel
