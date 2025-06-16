@@ -1,4 +1,4 @@
-// netlify/functions/admin/update-company-defaults.js
+// netlify/functions/update-company-defaults.js
 
 // OLD: const jwt = require('jsonwebtoken');
 // OLD: const { Pool } = require('pg');
