@@ -3,6 +3,10 @@
   command = "# No build command needed"
 
 # --- Netlify Functions Configuration ---
+# This single line tells Netlify to look for functions in 'netlify/functions'
+# and its subdirectories. Since your other function folders (admin, data-dictionary,
+# file-management, user-auth) each have a package.json, Netlify will discover
+# and bundle them correctly.
 [functions]
   directory = "netlify/functions"
 
