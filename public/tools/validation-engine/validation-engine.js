@@ -540,15 +540,15 @@ function displaySheetResults(sheetName, issues, header) {
                 : `<span class="clean">Column "<strong>${colName}</strong>" is clean (custom rules).</span>`;
 
             const safeColumnName = String(colName).trim().replace(/"/g, "&quot;").replace(/'/g, "&#39;");
-            const overrideCheckboxId = `override-<span class="math-inline">\{sheetName\.replace\(/\[^a\-zA\-Z0\-9\]/g, "\_"\)\}\-</span>{safeColumnName.replace(/[^a-zA-Z0-9]/g, "_")}`;
+            const overrideCheckboxId = `override-${sheetName.replace(/[^a-zA-Z0-9]/g, "_")}-${safeColumnName.replace(/[^a-zA-Z0-9]/g, "_")}`;
 
             listItem.innerHTML = `
                 <div class="column-summary">
                     <div class="column-header-controls">
-                        <input type="checkbox" id="<span class="math-inline">\{overrideCheckboxId\}" class\="override\-checkbox" data\-sheet\="</span>{sheetName}" data-column="<span class="math-inline">\{safeColumnName\}"\>
-<label for\="</span>{overrideCheckboxId}" class="override-checkbox-label">Override Issues</label>
-                        <span class="column-issue-text"><span class="math-inline">\{issueTextHTML\}</span\>
-<button class\="toggle\-values\-btn" data\-sheet\="</span>{sheetName}" data-column="${safeColumnName}">Show Values</button>
+                        <input type="checkbox" id="${overrideCheckboxId}" class="override-checkbox" data-sheet="${sheetName}" data-column="${safeColumnName}">
+                        <label for="${overrideCheckboxId}" class="override-checkbox-label">Override Issues</label>
+                        <span class="column-issue-text">${issueTextHTML}</span>
+                        <button class="toggle-values-btn" data-sheet="${sheetName}" data-column="${safeColumnName}">Show Values</button>
                     </div>
                     <div class="column-counts">Custom: ${customIssues.length}</div>
                 </div>
@@ -598,7 +598,7 @@ function generateSummaryReport(shouldScrollToReport = true) {
     reportHTML += `<p><strong>Total Effective Issues (Custom + Duplicates):</strong> ${totalEffectiveIssues}</p>`;
     reportHTML += `<p><strong>Issue Rate (approximate):</strong> ${issueRate.toFixed(2)}%</p>`;
     reportHTML += `<p><strong>Clean Rate (approximate):</strong> ${cleanRate.toFixed(2)}%</p>`;
-    reportHTML += `<p><strong>Status: <span class="<span class="math-inline">\{passFailClass\}"\></span>{passFailStatus}</span></strong> (Threshold: ${CLEAN_RATE_PASS_THRESHOLD}% clean)</p></div>`;
+    reportHTML += `<p><strong>Status: <span class="${passFailClass}">${passFailStatus}</span></strong> (Threshold: ${CLEAN_RATE_PASS_THRESHOLD}% clean)</p></div>`;
 
     // Detailed Custom Issues by Column
     reportHTML += `<div class="summary-section"><h2>Detailed Custom Issues by Column</h2><table><thead><tr><th>Sheet</th><th>Column</th><th>Rule Type</th><th>Failure Message</th><th>Value</th><th>Row #</th><th>Overridden</th></tr></thead><tbody>`;
@@ -615,11 +615,11 @@ function generateSummaryReport(shouldScrollToReport = true) {
             const isColumnOverridden = overriddenColsForSheet[columnName] === true;
             if (isColumnOverridden) {
                 customDetailsAdded = true;
-                reportHTML += `<tr><td><span class="math-inline">\{sheetName\}</td\><td\></span>{columnName}</td><td colspan="4" style="text-align: center;">ALL ISSUES OVERRIDDEN FOR THIS COLUMN</td><td>Yes</td></tr>`;
+                reportHTML += `<tr><td>${sheetName}</td><td>${columnName}</td><td colspan="4" style="text-align: center;">ALL ISSUES OVERRIDDEN FOR THIS COLUMN</td><td>Yes</td></tr>`;
             } else {
                 sheetIssues.customValidation[columnName].forEach(issue => {
                     customDetailsAdded = true;
-                    reportHTML += `<tr><td><span class="math-inline">\{sheetName\}</td\><td\></span>{columnName}</td><td><span class="math-inline">\{issue\.ruleType\}</td\><td\></span>{issue.message}</td><td><span class="math-inline">\{String\(issue\.value\) \=\=\= '' ? '\[Blank\]' \: String\(issue\.value\)\}</td\><td\></span>{issue.row}</td><td>No</td></tr>`;
+                    reportHTML += `<tr><td>${sheetName}</td><td>${columnName}</td><td>${issue.ruleType}</td><td>${issue.message}</td><td>${String(issue.value) === '' ? '[Blank]' : String(issue.value)}</td><td>${issue.row}</td><td>No</td></tr>`;
                 });
             }
         }
@@ -638,7 +638,7 @@ function generateSummaryReport(shouldScrollToReport = true) {
                 const rowData = parsedExcelData.Sheets[sheetName] ? XLSX.utils.sheet_to_json(parsedExcelData.Sheets[sheetName], {header:1, defval:null})[dupeRow.originalRowIndex -1] : [];
                 if (rowData) {
                     const sample = rowData.slice(0, 3).map(d => d ?? "").join(', ');
-                    reportHTML += `<tr><td><span class="math-inline">\{sheetName\}</td\><td\></span>{dupeRow.originalRowIndex}</td><td><span class="math-inline">\{dupeRow\.duplicateOf\}</td\><td\></span>{sample}...</td></tr>`;
+                    reportHTML += `<tr><td>${sheetName}</td><td>${dupeRow.originalRowIndex}</td><td>${dupeRow.duplicateOf}</td><td>${sample}...</td></tr>`;
                 }
             });
         }
@@ -794,7 +794,7 @@ function exportExcelWithSummary() {
 
     // Define the output filename based on the selectedMainFileName
     const baseFileName = selectedMainFileName ? selectedMainFileName.replace(/\.(xlsx|xls|csv)$/i, '') : "Validation_Report";
-    const outputFileName = `<span class="math-inline">\{baseFileName\}\_Summary\_</span>{new Date().toISOString().slice(0, 10)}.xlsx`;
+    const outputFileName = `${baseFileName}_Summary_${new Date().toISOString().slice(0, 10)}.xlsx`;
     console.log("exportExcelWithSummary: Attempting to write file:", outputFileName);
 
     // Attempt to write the file
@@ -842,4 +842,109 @@ async function initValidationEngine() {
         displayMessage('mainFileStatus', '', 'info');
     });
     document.getElementById('mainFileSelect').addEventListener('change', () => {
-        document.getElementById('excel
+        document.getElementById('excelFile').value = '';
+        displayMessage('mainFileStatus', '', 'info');
+    });
+
+    // Data dictionary selection
+    document.getElementById('loadDataDictionaryBtn').addEventListener('click', loadDataDictionary);
+
+    // Analyze button (uses onclick in HTML, so no need to duplicate here)
+
+    // Delegate event for override checkboxes and show values buttons
+    document.getElementById('sheetResults').addEventListener('click', function(event) {
+        const target = event.target;
+        if (target.classList.contains('override-checkbox')) {
+            const { sheet, column } = target.dataset;
+
+            // Visually toggle 'column-overridden' class for immediate feedback
+            const columnSummaryElement = target.closest('.column-summary');
+            if (columnSummaryElement) {
+                columnSummaryElement.classList.toggle('column-overridden', target.checked);
+            } else {
+                console.warn("Could not find parent .column-summary for override checkbox.");
+            }
+
+            // Recalculate summary if it's already visible
+            if (document.getElementById('summaryReportContainer').style.display !== 'none') {
+                generateSummaryReport(false); // Update summary without scrolling
+            } else {
+                // Update overall counts for the initial display if needed (e.g. for duplicates)
+                recalculateGlobalOverallStatsFromWorkbookData();
+                updateInitialOverallCountsDisplay();
+            }
+        } else if (target.classList.contains('toggle-values-btn')) {
+            const { sheet, column } = target.dataset;
+            const valuesContainer = target.closest('li')?.querySelector('.column-values-container');
+            if (!valuesContainer) {
+                console.error("Could not find valuesContainer for toggle button.");
+                return;
+            }
+
+            // Check if there are custom issues for this column to display
+            if (!analysisResults[sheet]?.customValidation?.[column] || analysisResults[sheet].customValidation[column].length === 0) {
+                valuesContainer.innerHTML = '<p style="font-style: italic; color: #6c757d;">No custom issues for this column.</p>';
+                valuesContainer.style.display = 'block';
+                target.textContent = 'Hide Values';
+                return;
+            }
+
+            if (valuesContainer.style.display === 'none') {
+                valuesContainer.innerHTML = '';
+                const ul = document.createElement('ul');
+                const customIssuesForColumn = analysisResults[sheet].customValidation[column];
+
+                // Sort issues by row number for better readability
+                customIssuesForColumn.sort((a,b) => a.row - b.row).forEach(issue => {
+                    const li = document.createElement('li');
+                    let displayValue = `Row ${issue.row}: Rule: ${issue.ruleType} - Value: "${String(issue.value)}" - Message: ${issue.message}`;
+                    if (String(issue.value).trim() === '') {
+                        displayValue = `Row ${issue.row}: Rule: ${issue.ruleType} - Value: [BLANK] - Message: ${issue.message}`;
+                    } else if (issue.value === null) {
+                        displayValue = `Row ${issue.row}: Rule: ${issue.ruleType} - Value: [NULL] - Message: ${issue.message}`;
+                    }
+                    li.classList.add('value-generic-issue');
+                    li.textContent = displayValue;
+                    ul.appendChild(li);
+                });
+
+                valuesContainer.appendChild(ul);
+                valuesContainer.style.display = 'block';
+                target.textContent = 'Hide Values';
+            } else {
+                valuesContainer.style.display = 'none';
+                valuesContainer.innerHTML = '';
+                target.textContent = 'Show Values';
+            }
+        }
+    });
+
+    // Delegate event for editable stats in summary report (THIS FUNCTIONALITY WILL BE LIMITED)
+    document.getElementById('summaryReportContainer')?.addEventListener('blur', function(event) {
+        if (event.target.classList.contains('editable-stat')) {
+            const td = event.target;
+            const { sheet, column, type } = td.dataset;
+
+            // ALERT: Directly editing issue counts is not ideal.
+            // The numbers are derived from the analysis results and override checkboxes.
+            // This section of code is left as is, but it will only provide a warning
+            // and revert the text, as editing these directly isn't a good UX for custom rules.
+            alert('Editing issue counts directly is not fully supported for custom rules. Please use the "Override Issues" checkbox instead.');
+
+            // Revert text if they changed it
+            if (analysisResults[sheet]?.customValidation?.[column]) {
+                const originalCount = analysisResults[sheet].customValidation[column].length;
+                td.textContent = originalCount;
+            } else {
+                td.textContent = '0';
+            }
+        }
+    }, true);
+}
+
+// Expose functions to the global scope if they are called directly from HTML's onclick/onload
+// For example, analyzeFile is called via onclick="analyzeFile()"
+window.analyzeFile = analyzeFile;
+window.generateSummaryReport = generateSummaryReport;
+window.exportExcelWithSummary = exportExcelWithSummary;
+window.initValidationEngine = initValidationEngine; // Expose the initialization function
