@@ -1,0 +1,22 @@
+# The correct and complete netlify.toml file for RCMBuddy
+
+[build]
+  publish = "public"
+  functions = "netlify/functions"
+
+# This plugin ensures your function dependencies from package.json are installed.
+[[plugins]]
+  package = "@netlify/plugin-functions-install-core"
+
+# --- API Redirects ---
+# This rule handles all admin functions.
+[[redirects]]
+  from = "/api/admin/*"
+  to = "/.netlify/functions/admin/:splat"
+  status = 200
+
+# This rule handles all other non-admin functions.
+[[redirects]]
+  from = "/api/*"
+  to = "/.netlify/functions/:splat"
+  status = 200
