@@ -1,6 +1,4 @@
-// public/tools/validation-engine.js
-
-// --- Global Variables to store parsed data and rules ---
+// --- Global Variables ---
 let parsedExcelData = null; // Stores the parsed data from the main Excel file
 let parsedDataDictionaryRules = null; // Stores parsed rules from the selected data dictionary (e.g., from rules_json)
 let validationRules = {}; // Stores validation rules extracted from the data dictionary in a usable format
@@ -10,15 +8,25 @@ let analysisResults = {}; // Stores the results of the analysis for each sheet
 let selectedMainFileBlob = null;
 let selectedMainFileName = null;
 
+// Overall stats for the report, now primarily for custom issues and duplicates
+let overallStats = {
+    customIssueCount: 0,
+    duplicateRowCount: 0,
+    totalProcessedCells: 0, // Renamed for clarity on cells checked for custom rules
+    totalProcessedRowsForDuplicates: 0 // Renamed for clarity on rows checked for duplicates
+};
 
-// --- Helper Functions ---
+const TODAY = new Date();
+TODAY.setUTCHours(0, 0, 0, 0); // Normalize today's date for comparison
+
+// --- Helper Functions (Adapted) ---
 
 /**
  * Displays the loading spinner and disables relevant buttons.
  */
 function showLoader() {
     document.getElementById('loader').style.display = 'block';
-    document.getElementById('results').classList.add('hidden');
+    document.getElementById('results').style.display = 'none';
     document.getElementById('summaryReportContainer').style.display = 'none';
     document.getElementById('analyzeFileBtn').disabled = true;
     document.getElementById('loadMainFileBtn').disabled = true;
@@ -37,79 +45,39 @@ function hideLoader() {
 
 /**
  * Displays a message on the UI.
- * @param {string} elementId - The ID of the HTML element to display the message in.
- * @param {string} message - The message text.
- * @param {'info' | 'success' | 'error'} type - The type of message (influences styling).
  */
 function displayMessage(elementId, message, type = 'info') {
     const element = document.getElementById(elementId);
     if (element) {
         element.textContent = message;
-        element.classList.remove('hidden', 'text-red-600', 'text-green-600', 'text-gray-600');
+        // Basic color styling based on type
         if (type === 'error') {
-            element.classList.add('text-red-600');
+            element.style.color = '#dc3545'; // Red
         } else if (type === 'success') {
-            element.classList.add('text-green-600');
+            element.style.color = '#28a745'; // Green
         } else {
-            element.classList.add('text-gray-600');
+            element.style.color = '#495057'; // Gray
         }
-        element.classList.remove('hidden');
+        element.style.display = 'block'; // Show the message
     }
 }
 
-// --- Authentication and Navigation (reused from other tools) ---
-
-async function verifyToken() {
-    const token = localStorage.getItem('jwtToken');
-    if (!token) {
-        window.location.href = '/'; // Redirect to login if no token
-        return null;
-    }
-
-    try {
-        const response = await fetch('/api/protected', {
-            method: 'GET',
-            headers: {
-                'Authorization': `Bearer ${token}`
-            }
-        });
-
-        if (!response.ok) {
-            console.error('Token verification failed:', response.statusText);
-            localStorage.removeItem('jwtToken');
-            window.location.href = '/';
-            return null;
-        }
-
-        const data = await response.json();
-        console.log('User data:', data);
-        return data;
-    } catch (error) {
-        console.error('Error verifying token:', error);
-        localStorage.removeItem('jwtToken');
-        window.location.href = '/';
-        return null;
-    }
+/**
+ * Updates the overall counts display. Now focuses on custom issues and duplicates.
+ */
+function updateInitialOverallCountsDisplay() {
+    document.getElementById('totalBlankCellsDisplay').textContent = `Total Blank Cells (standard check disabled): 0`;
+    document.getElementById('totalNullCountDisplay').textContent = `Total "NULL" Strings (standard check disabled): 0`;
+    document.getElementById('totalFutureDatesDisplay').textContent = `Total Future Dates (standard check disabled): 0`;
+    document.getElementById('totalDuplicateRowsDisplay').textContent = `Total Duplicate Rows Found: ${overallStats.duplicateRowCount}`;
+    document.getElementById('totalCustomIssuesDisplay').textContent = `Total Custom Validation Issues Found: ${overallStats.customIssueCount}`;
 }
 
-function setupNavigation(userData) {
-    const profileLink = document.getElementById('profileLink');
-    if (profileLink && userData) {
-        profileLink.textContent = `Hello, ${userData.username}`;
-        profileLink.href = '#';
-    }
+// --- Authentication and Navigation (reused from other tools, adapted for current HTML) ---
+// These functions will now be imported from public/js/auth.js
+// function verifyToken() { ... }
+// function setupNavigation(userData) { ... }
 
-    const logoutBtn = document.getElementById('logoutBtn');
-    if (logoutBtn) {
-        logoutBtn.addEventListener('click', (e) => {
-            e.preventDefault();
-            localStorage.removeItem('jwtToken');
-            window.location.href = '/';
-        });
-    }
-}
-
-// --- File and Data Dictionary Selection and Loading ---
 
 /**
  * Populates the main file select dropdown (from company_files) and
@@ -128,7 +96,6 @@ async function populateSelects() {
         if (!filesResponse.ok) {
             console.error('Failed to fetch general files:', filesResponse.statusText);
             displayMessage('mainFileStatus', 'Could not load uploaded files list.', 'error');
-            // Don't throw, as data dictionaries might still load
         }
         const filesResult = await filesResponse.json();
         const generalFiles = filesResult.files || [];
@@ -143,7 +110,7 @@ async function populateSelects() {
             throw new Error(`Failed to fetch data dictionaries: ${dictsResponse.statusText}`);
         }
         const dictsResult = await dictsResponse.json();
-        const dataDictionaries = dictsResult.dictionaries || []; // Access the 'dictionaries' key
+        const dataDictionaries = dictsResult.dictionaries || [];
 
 
         const mainFileSelect = document.getElementById('mainFileSelect');
@@ -185,7 +152,7 @@ async function populateSelects() {
         }
 
         if (!hasDataDictionaries) {
-            dataDictionarySelect.innerHTML = '<option value="">No data dictionaries uploaded.</option>';
+            dataDictionarySelect.innerHTML = '<option value="">No data dictionaries available.</option>';
             dataDictionarySelect.disabled = true;
             document.getElementById('loadDataDictionaryBtn').disabled = true;
         } else {
@@ -216,7 +183,7 @@ async function loadMainFile() {
 
     try {
         // This uses the old get-file API for general files (from company_files)
-        const response = await fetch(`/api/get-file?id=${selectedFileId}`, {
+        const response = await fetch(`/api/get-file?fileId=${selectedFileId}`, {
             method: 'GET',
             headers: { 'Authorization': `Bearer ${token}` }
         });
@@ -231,9 +198,9 @@ async function loadMainFile() {
         const byteCharacters = decodedFileData.split('').map(char => char.charCodeAt(0));
         const byteArray = new Uint8Array(byteCharacters);
 
-        selectedMainFileBlob = new Blob([byteArray], { type: fileDataJson.mimetype }); // Create Blob
-        selectedMainFileName = fileDataJson.filename; // Get original filename
-        
+        selectedMainFileBlob = new Blob([byteArray], { type: fileDataJson.mimetype });
+        selectedMainFileName = fileDataJson.filename;
+
         displayMessage('mainFileStatus', `File loaded: ${selectedMainFileName}`, 'success');
 
         // Clear the local file input if a server file is loaded
@@ -274,12 +241,12 @@ async function loadDataDictionary() {
         }
 
         const dictionaryContent = await response.json();
-        // rules_json is now directly a JSON object from the new API, no base64 decoding needed!
+        // rules_json is now directly a JSON object from the new API
         const rulesData = dictionaryContent.rules_json;
 
         if (rulesData && Array.isArray(rulesData)) {
-            parsedDataDictionaryRules = rulesData; // Store the raw rules array
-            extractValidationRules(parsedDataDictionaryRules); // Process rules
+            parsedDataDictionaryRules = rulesData;
+            extractValidationRules(parsedDataDictionaryRules);
             displayMessage('dataDictionaryStatus', `Data dictionary loaded: ${document.getElementById('dataDictionarySelect').options[document.getElementById('dataDictionarySelect').selectedIndex].text}`, 'success');
         } else {
             displayMessage('dataDictionaryStatus', 'Data dictionary content is invalid or empty.', 'error');
@@ -298,7 +265,6 @@ async function loadDataDictionary() {
 /**
  * Transforms the raw data dictionary rules into a usable `validationRules` object
  * keyed by column name.
- * @param {Array<object>} dataDictionaryRules - Array of rule objects from the dictionary.
  */
 function extractValidationRules(dataDictionaryRules) {
     validationRules = {}; // Reset rules
@@ -319,10 +285,12 @@ function extractValidationRules(dataDictionaryRules) {
     console.log("Extracted Validation Rules:", validationRules);
 }
 
-// --- Main File Analysis Logic ---
+// --- Main File Analysis Logic (MODIFIED to only use custom rules and duplicates) ---
 
 async function analyzeFile() {
-    const localExcelFile = document.getElementById('excelFile').files[0];
+    const fileInput = document.getElementById('excelFile');
+    const localExcelFile = fileInput.files[0];
+    const MAX_ROWS_TO_PROCESS = 5000; // Define the row limit
 
     let fileToAnalyze = null;
     let fileName = null;
@@ -330,17 +298,24 @@ async function analyzeFile() {
     if (localExcelFile) {
         fileToAnalyze = localExcelFile;
         fileName = localExcelFile.name;
-        selectedMainFileBlob = null; // Clear server-loaded file if a local one is chosen
-        document.getElementById('mainFileSelect').value = ''; // Clear server select
-        displayMessage('mainFileStatus', '', 'info'); // Clear any previous server file status
+        selectedMainFileBlob = null;
+        document.getElementById('mainFileSelect').value = '';
+        displayMessage('mainFileStatus', '', 'info');
     } else if (selectedMainFileBlob) {
         fileToAnalyze = selectedMainFileBlob;
         fileName = selectedMainFileName;
-        document.getElementById('excelFile').value = ''; // Clear local file input if a server file is chosen
+        fileInput.value = '';
     } else {
         alert('Please select an Excel or CSV file to validate, either from your local machine or from your uploaded files.');
         return;
     }
+
+    // Check if a data dictionary is loaded if custom rules are the only validation
+    if (!parsedDataDictionaryRules || Object.keys(validationRules).length === 0) {
+        alert('Please select and load a Data Dictionary to apply custom validation rules.');
+        return;
+    }
+
 
     if (!fileToAnalyze) {
         alert('No file available for analysis.');
@@ -349,118 +324,111 @@ async function analyzeFile() {
 
     showLoader();
     analysisResults = {}; // Reset results
+    overallStats = { // Reset overall stats for each analysis
+        customIssueCount: 0,
+        duplicateRowCount: 0,
+        totalProcessedCells: 0, // Renamed for clarity on cells checked for custom rules
+        totalProcessedRowsForDuplicates: 0 // Renamed for clarity on rows checked for duplicates
+    };
 
-    document.getElementById('fileName').textContent = `Analyzing: ${fileName}`;
+    document.getElementById('fileName').textContent = `File: ${fileName}`;
 
     const reader = new FileReader();
-    reader.onload = function(e) {
+    reader.onload = function(event) {
         try {
-            const data = new Uint8Array(e.target.result);
-            const workbook = XLSX.read(data, { type: 'array' });
+            const data = new Uint8Array(event.target.result);
+            parsedExcelData = XLSX.read(data, { type: 'array', cellNF: true, cellDates: false });
 
-            parsedExcelData = workbook; // Store the parsed workbook for later use
+            document.getElementById('results').style.display = 'block';
+            document.getElementById('sheetResults').innerHTML = '';
 
-            let totalBlankCells = 0;
-            let totalNullCount = 0;
-            let totalFutureDates = 0;
-            let totalDuplicateRows = 0;
-
-            const sheetResultsContainer = document.getElementById('sheetResults');
-            sheetResultsContainer.innerHTML = ''; // Clear previous sheet results
-
-            workbook.SheetNames.forEach(sheetName => {
-                const worksheet = workbook.Sheets[sheetName];
-                const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }); // Read as array of arrays
+            parsedExcelData.SheetNames.forEach(sheetName => {
+                const worksheet = parsedExcelData.Sheets[sheetName];
+                // Get raw data, treating empty/missing cells as null
+                const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval:null });
 
                 if (jsonData.length === 0) return; // Skip empty sheets
 
-                const sheetHeader = jsonData[0]; // First row is header
-                const sheetData = jsonData.slice(1); // Remaining rows are data
+                const sheetHeader = jsonData[0] || [];
+                let sheetData = jsonData.slice(1); // All data rows (excluding header)
+
+                // NEW: Apply row limit
+                if (sheetData.length > MAX_ROWS_TO_PROCESS) {
+                    console.warn(`Validation Tool: Sheet "${sheetName}" has ${sheetData.length} data rows. Processing only the first ${MAX_ROWS_TO_PROCESS} rows.`);
+                    sheetData = sheetData.slice(0, MAX_ROWS_TO_PROCESS);
+                    displayMessage('mainFileStatus', `Warning: Sheet "${sheetName}" exceeds ${MAX_ROWS_TO_PROCESS} rows. Only first ${MAX_ROWS_TO_PROCESS} rows processed.`, 'info');
+                }
+
 
                 const currentSheetIssues = {
-                    blankCells: {},
-                    nullStrings: {},
-                    futureDates: {},
-                    duplicateRows: [], // Stores row numbers of duplicates
-                    customValidation: {} // Stores custom rule violations per column
+                    customValidation: {}, // Stores custom rule violations per column
+                    duplicateRows: [] // Stores row numbers of duplicates
                 };
 
-                // --- Standard Validations (Blank, NULL, Future Dates) ---
-                sheetData.forEach((row, rowIndex) => {
-                    sheetHeader.forEach((header, colIndex) => {
-                        const cellValue = row[colIndex];
+                // Update overallStats.totalProcessedRowsForDuplicates (for the *sheet*)
+                if (sheetData.length > 0) {
+                    overallStats.totalProcessedRowsForDuplicates += sheetData.length;
+                }
 
-                        // Blank Cells
-                        if (cellValue === undefined || cellValue === null || String(cellValue).trim() === '') {
-                            currentSheetIssues.blankCells[header] = (currentSheetIssues.blankCells[header] || 0) + 1;
-                            totalBlankCells++;
-                        }
-
-                        // "NULL" Strings (case-insensitive)
-                        if (typeof cellValue === 'string' && String(cellValue).trim().toLowerCase() === 'null') {
-                            currentSheetIssues.nullStrings[header] = (currentSheetIssues.nullStrings[header] || 0) + 1;
-                            totalNullCount++;
-                        }
-
-                        // Future Dates
-                        if (typeof cellValue === 'number' && !isNaN(cellValue)) { // XLSX stores dates as numbers (OLE Automation date)
-                            const jsDate = new Date(Math.round((cellValue - 25569) * 86400 * 1000));
-                            if (jsDate instanceof Date && !isNaN(jsDate) && jsDate > new Date()) {
-                                currentSheetIssues.futureDates[header] = (currentSheetIssues.futureDates[header] || 0) + 1;
-                                totalFutureDates++;
-                            }
-                        } else if (typeof cellValue === 'string') {
-                            try {
-                                const parsedDate = new Date(cellValue);
-                                if (parsedDate instanceof Date && !isNaN(parsedDate) && parsedDate > new Date()) {
-                                    currentSheetIssues.futureDates[header] = (currentSheetIssues.futureDates[header] || 0) + 1;
-                                    totalFutureDates++;
-                                }
-                            } catch (e) { /* ignore invalid date strings */ }
-                        }
-                    });
-                });
-
-                // --- Duplicate Rows ---
-                const rowHashes = new Set();
-                const duplicateRows = [];
+                // --- Duplicate Rows Detection (RETAINED) ---
+                // This applies to the entire row content across all cells in the row
+                const seenRowStrings = new Map();
                 sheetData.forEach((row, index) => {
-                    const rowString = JSON.stringify(row);
-                    if (rowHashes.has(rowString)) {
-                        duplicateRows.push(index + 2); // Excel row number (header + 1-indexed data)
-                        totalDuplicateRows++;
-                    } else {
-                        rowHashes.add(rowString);
+                    // Create a string representation of the row for hashing, trimming each cell
+                    const valStrings = row.map(cell => {
+                        const val = (cell === null || cell === undefined) ? "" : String(cell);
+                        return typeof val === 'string' ? val.trim() : val;
+                    });
+                    const rowString = valStrings.join('~!~'); // Used a more descriptive name
+                    if (rowString !== null) { // rowString can actually be empty if all cells are empty
+                        if (seenRowStrings.has(rowString)) {
+                            currentSheetIssues.duplicateRows.push({
+                                originalRowIndex: index + 2, // Excel row number (1-indexed data + 1 for header)
+                                duplicateOf: seenRowStrings.get(rowString) + 2 // Row where first seen
+                            });
+                        } else {
+                            seenRowStrings.set(rowString, index); // Store index of first occurrence
+                        }
                     }
                 });
-                currentSheetIssues.duplicateRows = duplicateRows;
+                overallStats.duplicateRowCount += currentSheetIssues.duplicateRows.length;
 
 
-                // --- Custom Validation from Data Dictionary ---
+                // --- Custom Validation from Data Dictionary (PRIMARY VALIDATION) ---
                 if (parsedDataDictionaryRules && Object.keys(validationRules).length > 0) {
                     sheetHeader.forEach((header, colIndex) => {
                         const columnName = String(header).trim();
-                        if (validationRules[columnName]) { // Check if there are rules defined for this column
-                            currentSheetIssues.customValidation[columnName] = [];
-                            // Store unique values for 'UNIQUE' rule check
-                            const uniqueColumnValues = new Set();
-                            const uniqueDuplicates = []; // To store {row, value, message} for UNIQUE violations
+                        // Rules for this specific column
+                        const columnRules = validationRules[columnName];
 
-                            validationRules[columnName].forEach(rule => {
+                        if (columnRules && columnRules.length > 0) {
+                            currentSheetIssues.customValidation[columnName] = [];
+
+                            // Process non-UNIQUE rules first
+                            columnRules.filter(r => String(r['Validation Type']).trim().toUpperCase() !== 'UNIQUE').forEach(rule => {
                                 const ruleType = String(rule['Validation Type']).trim().toUpperCase();
                                 const ruleValue = rule['Validation Value'];
                                 const failureMessage = rule['Failure Message'] || `Validation failed for ${columnName} (Rule: ${ruleType})`;
 
-                                // For UNIQUE, we need to collect all column values first
-                                if (ruleType === 'UNIQUE') {
-                                    return; // Skip individual cell processing for UNIQUE here, handled later
-                                }
-
                                 sheetData.forEach((row, rowIndex) => {
                                     const cellValue = row[colIndex];
+                                    // More robust check for empty/whitespace: explicitly ensure string before trim
+                                    const isCellEmptyOrWhitespace = (cellValue === undefined || cellValue === null || (typeof cellValue === 'string' && cellValue.trim() === ''));
                                     let isValid = true;
+
+                                    // Increment processed cells count only if it's not a UNIQUE rule (handled separately)
+                                    // and if the cell is NOT empty/whitespace, OR if it's a REQUIRED rule (which checks for emptiness)
+                                    if (ruleType !== 'UNIQUE' && (!isCellEmptyOrWhitespace || ruleType === 'REQUIRED')) {
+                                        overallStats.totalProcessedCells++;
+                                    }
+
+                                    // NEW LOGIC: Skip non-REQUIRED rules for empty/whitespace cells
+                                    if (ruleType !== 'REQUIRED' && isCellEmptyOrWhitespace) {
+                                        return; // Skip validation for this cell for this rule
+                                    }
+
                                     let issueDetails = {
-                                        row: rowIndex + 2, // Excel row number (1-based + 1 for header)
+                                        row: rowIndex + 2, // Excel row number (1-indexed data + 1 for header)
                                         value: cellValue,
                                         message: failureMessage,
                                         ruleType: ruleType
@@ -468,81 +436,90 @@ async function analyzeFile() {
 
                                     switch (ruleType) {
                                         case 'REQUIRED':
-                                            isValid = !(cellValue === undefined || cellValue === null || String(cellValue).trim() === '');
+                                            isValid = !isCellEmptyOrWhitespace;
                                             break;
                                         case 'ALLOWED_VALUES':
                                             if (ruleValue) {
                                                 const allowed = String(ruleValue).split(',').map(s => s.trim().toLowerCase());
-                                                isValid = allowed.includes(String(cellValue || '').trim().toLowerCase()); // Handle undefined/null cellValue
-                                            }
+                                                isValid = allowed.includes(String(cellValue).trim().toLowerCase());
+                                            } else { isValid = false; }
                                             break;
                                         case 'NUMERIC_RANGE':
                                             if (ruleValue) {
                                                 const [min, max] = String(ruleValue).split('-').map(Number);
                                                 const numericValue = parseFloat(cellValue);
                                                 isValid = !isNaN(numericValue) && numericValue >= min && numericValue <= max;
-                                            } else { isValid = false; } // Rule value missing
+                                            } else { isValid = false; }
                                             break;
                                         case 'REGEX':
                                             if (ruleValue) {
                                                 try {
                                                     const regex = new RegExp(ruleValue);
-                                                    isValid = regex.test(String(cellValue || '')); // Handle undefined/null cellValue
+                                                    isValid = regex.test(String(cellValue));
                                                 } catch (e) {
                                                     console.warn(`Invalid regex for column ${columnName}: ${ruleValue}. Skipping rule.`);
-                                                    isValid = true; // Don't fail if regex is malformed
+                                                    isValid = true;
                                                 }
-                                            } else { isValid = false; } // Rule value missing
+                                            } else { isValid = false; }
                                             break;
                                         case 'DATE_PAST':
                                             try {
-                                                const dateValue = new Date(cellValue);
-                                                // Check for valid date and if it's in the past
-                                                isValid = dateValue instanceof Date && !isNaN(dateValue) && dateValue < new Date();
+                                                let processedDate = cellValue;
+                                                if (typeof cellValue === 'number' && !isNaN(cellValue)) {
+                                                    processedDate = new Date(Math.round((cellValue - 25569) * 86400 * 1000));
+                                                } else if (typeof cellValue === 'string') {
+                                                    processedDate = new Date(cellValue);
+                                                }
+                                                isValid = processedDate instanceof Date && !isNaN(processedDate.getTime()) && processedDate < TODAY;
                                             } catch (e) {
-                                                isValid = false; // Treat invalid date strings as failure
+                                                isValid = false;
                                             }
                                             break;
                                         default:
                                             console.warn(`Unknown validation type: ${ruleType} for column ${columnName}. Skipping.`);
-                                            isValid = true; // Assume valid for unknown rules
+                                            isValid = true;
                                     }
 
                                     if (!isValid) {
                                         currentSheetIssues.customValidation[columnName].push(issueDetails);
+                                        overallStats.customIssueCount++;
                                     }
                                 });
                             });
 
-                            // Handle UNIQUE rule separately after all column values are collected
-                            if (validationRules[columnName].some(r => String(r['Validation Type']).trim().toUpperCase() === 'UNIQUE')) {
-                                const columnValues = sheetData.map(row => row[colIndex]);
-                                const seenValues = new Set();
-                                columnValues.forEach((val, idx) => {
-                                    if (val !== undefined && val !== null && String(val).trim() !== '') {
-                                        const lowerCaseVal = String(val).trim().toLowerCase();
-                                        if (seenValues.has(lowerCaseVal)) {
-                                            // Only add if not already marked as duplicate for this specific rule in this column
-                                            const alreadyFlagged = uniqueDuplicates.some(issue =>
-                                                issue.row === idx + 2 && issue.ruleType === 'UNIQUE'
+                            // NEW LOGIC: Dedicated pass for UNIQUE rule after all single-cell rules
+                            const uniqueRule = columnRules.find(r => String(r['Validation Type']).trim().toUpperCase() === 'UNIQUE');
+                            if (uniqueRule) {
+                                // The message for the UNIQUE rule (if defined)
+                                const failureMessageUnique = uniqueRule['Failure Message'] || `Value in column '${columnName}' is not unique.`;
+                                const seenForUniqueFinal = new Set();
+
+                                sheetData.forEach((row, idx) => { // Iterate sheetData rows
+                                    const cellValue = row[colIndex]; // Get the cell value for the current column
+                                    const isValEmpty = (cellValue === undefined || cellValue === null || (typeof cellValue === 'string' && String(cellValue).trim() === ''));
+
+                                    if (!isValEmpty) { // Only consider non-empty values for uniqueness
+                                        overallStats.totalProcessedCells++; // Count as processed for UNIQUE rule
+                                        const lowerCaseVal = String(cellValue).trim().toLowerCase();
+
+                                        if (seenForUniqueFinal.has(lowerCaseVal)) {
+                                            const alreadyFlagged = currentSheetIssues.customValidation[columnName].some(issue =>
+                                                issue.row === idx + 2 && String(issue.value).trim().toLowerCase() === lowerCaseVal && issue.ruleType === 'UNIQUE'
                                             );
                                             if (!alreadyFlagged) {
-                                                uniqueDuplicates.push({
-                                                    row: idx + 2, // Excel row number
-                                                    value: val,
-                                                    message: `Value '${val}' in column '${columnName}' is not unique.`,
+                                                currentSheetIssues.customValidation[columnName].push({
+                                                    row: idx + 2,
+                                                    value: cellValue, // Use original cellValue here
+                                                    message: failureMessageUnique, // Use specific message for unique
                                                     ruleType: 'UNIQUE'
                                                 });
+                                                overallStats.customIssueCount++;
                                             }
                                         } else {
-                                            seenValues.add(lowerCaseVal);
+                                            seenForUniqueFinal.add(lowerCaseVal);
                                         }
                                     }
                                 });
-                                // Add collected UNIQUE violations to customValidation for this column
-                                if (uniqueDuplicates.length > 0) {
-                                    currentSheetIssues.customValidation[columnName] = currentSheetIssues.customValidation[columnName].concat(uniqueDuplicates);
-                                }
                             }
                         }
                     });
@@ -552,19 +529,16 @@ async function analyzeFile() {
                 displaySheetResults(sheetName, currentSheetIssues, sheetHeader);
             });
 
-            document.getElementById('totalBlankCellsDisplay').textContent = `Total Blank Cells: ${totalBlankCells}`;
-            document.getElementById('totalNullCountDisplay').textContent = `Total "NULL" String Cells: ${totalNullCount}`;
-            document.getElementById('totalFutureDatesDisplay').textContent = `Total Future Dates: ${totalFutureDates}`;
-            document.getElementById('totalDuplicateRowsDisplay').textContent = `Total Duplicate Rows: ${totalDuplicateRows}`;
+            updateInitialOverallCountsDisplay();
 
-            document.getElementById('results').classList.remove('hidden');
-            document.getElementById('generateSummaryBtn').classList.remove('hidden');
+            document.getElementById('results').style.display = 'block';
+            document.getElementById('generateSummaryBtn').style.display = 'inline-block';
 
         } catch (error) {
             console.error('Error processing file:', error);
-            alert('Error processing file. Please ensure it is a valid Excel or CSV file.');
-            document.getElementById('results').classList.add('hidden');
-            document.getElementById('generateSummaryBtn').classList.add('hidden');
+            alert('Error processing file: ' + error.message + '. Please ensure it is a valid Excel or CSV file.');
+            document.getElementById('results').style.display = 'none';
+            document.getElementById('generateSummaryBtn').style.display = 'none';
         } finally {
             hideLoader();
         }
@@ -573,329 +547,439 @@ async function analyzeFile() {
 }
 
 
+/**
+ * Renders the detailed results for each sheet, focusing on custom validation issues and duplicates.
+ */
 function displaySheetResults(sheetName, issues, header) {
-    const sheetResultsContainer = document.getElementById('sheetResults');
-    const sheetDiv = document.createElement('div');
-    sheetDiv.classList.add('sheet-summary', 'mt-6');
-    sheetDiv.innerHTML = `<h3 class="text-xl font-bold text-gray-800 mb-3">Sheet: ${sheetName}</h3>`;
+    const sheetResultsDiv = document.getElementById('sheetResults');
+    const sheetResultsContainer = document.createElement('div');
+    sheetResultsContainer.classList.add('sheet-summary');
+    sheetResultsContainer.innerHTML = `<h3>Sheet: ${sheetName}</h3>`;
 
-    const issueCounts = {
-        blankCells: Object.values(issues.blankCells).reduce((sum, count) => sum + count, 0),
-        nullStrings: Object.values(issues.nullStrings).reduce((sum, count) => sum + count, 0),
-        futureDates: Object.values(issues.futureDates).reduce((sum, count) => sum + count, 0),
-        duplicateRows: issues.duplicateRows.length,
-        customValidation: Object.values(issues.customValidation).flat().length
-    };
+    const columnsListUL = document.createElement('ul');
+    const hasCustomIssues = Object.keys(issues.customValidation).some(col => issues.customValidation[col].length > 0);
+    const hasDuplicates = issues.duplicateRows.length > 0;
 
-    const overallSheetStatus = (issueCounts.blankCells === 0 && issueCounts.nullStrings === 0 &&
-                                issueCounts.futureDates === 0 && issueCounts.duplicateRows === 0 &&
-                                issueCounts.customValidation === 0) ? 'status-pass' : 'status-fail';
+    if (hasCustomIssues || hasDuplicates) {
+        header.forEach(colName => {
+            const customIssues = issues.customValidation[String(colName).trim()] || [];
+            const listItem = document.createElement('li');
 
-    const summaryList = document.createElement('ul');
-    summaryList.innerHTML = `
-        <li><strong>Blank Cells Found:</strong> <span class="${issueCounts.blankCells > 0 ? 'issue-count-error' : 'issue-count-ok'}">${issueCounts.blankCells}</span></li>
-        <li><strong>"NULL" Strings Found:</strong> <span class="${issueCounts.nullStrings > 0 ? 'issue-count-error' : 'issue-count-ok'}">${issueCounts.nullStrings}</span></li>
-        <li><strong>Future Dates Found:</strong> <span class="${issueCounts.futureDates > 0 ? 'issue-count-error' : 'issue-count-ok'}">${issueCounts.futureDates}</span></li>
-        <li><strong>Duplicate Rows Found:</strong> <span class="${issueCounts.duplicateRows > 0 ? 'issue-count-error' : 'issue-count-ok'}">${issueCounts.duplicateRows.length}</span></li>
-        <li><strong>Custom Validation Issues Found:</strong> <span class="${issueCounts.customValidation > 0 ? 'issue-count-error' : 'issue-count-ok'}">${issueCounts.customValidation}</span></li>
-        <li><strong>Overall Sheet Status:</strong> <span class="${overallSheetStatus}">${overallSheetStatus === 'status-pass' ? 'PASS' : 'FAIL'}</span></li>
-    `;
-    sheetDiv.appendChild(summaryList);
+            let issueDescriptions = [];
+            if (customIssues.length > 0) {
+                issueDescriptions.push(`${customIssues.length} custom issue(s)`);
+            }
 
-    // Detailed issues table for each column with override checkboxes
-    const detailedTable = document.createElement('table');
-    detailedTable.classList.add('results-table', 'mt-4');
-    let tableHtml = `<thead><tr><th>Column Name</th><th>Blank</th><th>NULL</th><th>Future Date</th><th>Custom Issues</th><th>Override</th></tr></thead><tbody>`;
+            const issueTextHTML = issueDescriptions.length > 0
+                ? `<span class="issues">Column "<strong>${colName}</strong>" contains: ${issueDescriptions.join(', ')}.</span>`
+                : `<span class="clean">Column "<strong>${colName}</strong>" is clean (custom rules).</span>`;
 
-    header.forEach(colName => {
-        const cleanedColName = String(colName).trim();
-        const blankCount = issues.blankCells[cleanedColName] || 0;
-        const nullCount = issues.nullStrings[cleanedColName] || 0;
-        const futureDateCount = issues.futureDates[cleanedColName] || 0;
-        const customIssueCount = (issues.customValidation[cleanedColName] || []).length;
+            const safeColumnName = String(colName).trim().replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+            const overrideCheckboxId = `override-${sheetName.replace(/[^a-zA-Z0-9]/g, "_")}-${safeColumnName.replace(/[^a-zA-Z0-9]/g, "_")}`;
 
-        tableHtml += `
-            <tr>
-                <td>${cleanedColName}</td>
-                <td class="${blankCount > 0 ? 'issue-count-error' : 'issue-count-ok'}">${blankCount}</td>
-                <td class="${nullCount > 0 ? 'issue-count-error' : 'issue-count-ok'}">${nullCount}</td>
-                <td class="${futureDateCount > 0 ? 'issue-count-error' : 'issue-count-ok'}">${futureDateCount}</td>
-                <td class="${customIssueCount > 0 ? 'issue-count-error' : 'issue-count-ok'}">${customIssueCount}</td>
-                <td><input type="checkbox" data-sheet="${sheetName}" data-column="${cleanedColName}" class="override-checkbox"></td>
-            </tr>
-        `;
-    });
-    tableHtml += `</tbody>`;
-    detailedTable.innerHTML = tableHtml;
-    sheetDiv.appendChild(detailedTable);
+            listItem.innerHTML = `
+                <div class="column-summary">
+                    <div class="column-header-controls">
+                        <input type="checkbox" id="${overrideCheckboxId}" class="override-checkbox" data-sheet="${sheetName}" data-column="${safeColumnName}">
+                        <label for="${overrideCheckboxId}" class="override-checkbox-label">Override Issues</label>
+                        <span class="column-issue-text">${issueTextHTML}</span>
+                        <button class="toggle-values-btn" data-sheet="${sheetName}" data-column="${safeColumnName}">Show Values</button>
+                    </div>
+                    <div class="column-counts">Custom: ${customIssues.length}</div>
+                </div>
+                <div class="column-values-container" style="display:none;"></div>
+            `;
+            columnsListUL.appendChild(listItem);
+        });
+    } else {
+        const cleanMsg = document.createElement('li');
+        cleanMsg.textContent = "No custom validation issues or duplicate rows found for this sheet.";
+        columnsListUL.appendChild(cleanMsg);
+    }
 
-    sheetResultsContainer.appendChild(sheetDiv);
+    sheetResultsContainer.appendChild(columnsListUL);
+
+    sheetResultsDiv.appendChild(sheetResultsContainer);
 }
 
-// --- Summary Report Generation ---
-
-function generateSummaryReport() {
+/**
+ * Generates and displays a comprehensive summary report.
+ * Now accounts for only custom validation issues and duplicates.
+ */
+function generateSummaryReport(shouldScrollToReport = true) {
     const summaryContainer = document.getElementById('summaryReportContainer');
     summaryContainer.innerHTML = '';
     summaryContainer.style.display = 'block';
 
-    const excelFileName = selectedMainFileName || (document.getElementById('excelFile').files[0]?.name || "N/A");
+    // Recalculate stats based on overrides from the display
+    recalculateGlobalOverallStatsFromWorkbookData();
 
-    let reportHtml = `
-        <h2 class="summary-report-title">Data Validation Summary Report</h2>
-        <p class="summary-report-subtitle">For File: ${excelFileName}</p>
-        <p class="summary-report-subtitle">Generated On: ${new Date().toLocaleString()}</p>
-    `;
+    const excelFileName = document.getElementById('fileName').textContent.replace('File: ', '');
 
-    let totalIssuesIdentified = 0;
-    let totalIssuesOverridden = 0;
-    let totalIssuesAfterOverride = 0;
+    const totalEffectiveIssues = overallStats.customIssueCount + overallStats.duplicateRowCount;
+    const denominator = (overallStats.totalProcessedCells + overallStats.totalProcessedRowsForDuplicates) || 1;
+    const issueRate = (totalEffectiveIssues / denominator) * 100;
+    const cleanRate = Math.max(0, 100 - issueRate);
+    const CLEAN_RATE_PASS_THRESHOLD = 95;
+    const passFailStatus = cleanRate >= CLEAN_RATE_PASS_THRESHOLD ? "Pass" : "Fail";
+    const passFailClass = passFailStatus === "Pass" ? "pass-status" : "fail-status";
 
-    const overrideCheckboxes = document.querySelectorAll('.override-checkbox');
-    const overriddenColumns = {};
-    overrideCheckboxes.forEach(checkbox => {
-        if (checkbox.checked) {
-            const sheet = checkbox.dataset.sheet;
-            const column = checkbox.dataset.column;
-            if (!overriddenColumns[sheet]) {
-                overriddenColumns[sheet] = {};
+    let reportHTML = `<h1>Data Quality Summary Report</h1><div class="summary-section"><h2>Overall Statistics (Overrides Applied)</h2>`;
+    reportHTML += `<p><strong>File:</strong> ${excelFileName}</p>`;
+    reportHTML += `<p><strong>Total Cells Processed (for custom rules):</strong> ${overallStats.totalProcessedCells}</p>`;
+    reportHTML += `<p><strong>Total Rows Processed (for duplicates):</strong> ${overallStats.totalProcessedRowsForDuplicates}</p>`;
+    reportHTML += `<p><strong>Total Custom Validation Issues (effective):</strong> ${overallStats.customIssueCount}</p>`;
+    reportHTML += `<p><strong>Total Duplicate Rows Found:</strong> ${overallStats.duplicateRowCount}</p>`;
+    reportHTML += `<p><strong>Total Effective Issues (Custom + Duplicates):</strong> ${totalEffectiveIssues}</p>`;
+    reportHTML += `<p><strong>Issue Rate (approximate):</strong> ${issueRate.toFixed(2)}%</p>`;
+    reportHTML += `<p><strong>Clean Rate (approximate):</strong> ${cleanRate.toFixed(2)}%</p>`;
+    reportHTML += `<p><strong>Status: <span class="${passFailClass}">${passFailStatus}</span></strong> (Threshold: ${CLEAN_RATE_PASS_THRESHOLD}% clean)</p></div>`;
+
+    // Detailed Custom Issues by Column
+    reportHTML += `<div class="summary-section"><h2>Detailed Custom Issues by Column</h2><table><thead><tr><th>Sheet</th><th>Column</th><th>Rule Type</th><th>Failure Message</th><th>Value</th><th>Row #</th><th>Overridden</th></tr></thead><tbody>`;
+    let customDetailsAdded = false;
+    for (const sheetName in analysisResults) {
+        const sheetIssues = analysisResults[sheetName];
+        const overrideCheckboxes = document.querySelectorAll(`.override-checkbox[data-sheet="${sheetName.replace(/[^a-zA-Z0-9]/g, "_")}"]`);
+        const overriddenColsForSheet = {};
+        overrideCheckboxes.forEach(cb => {
+            if(cb.checked) overriddenColsForSheet[cb.dataset.column] = true;
+        });
+
+        for (const columnName in sheetIssues.customValidation) {
+            const isColumnOverridden = overriddenColsForSheet[columnName] === true;
+            if (isColumnOverridden) {
+                customDetailsAdded = true;
+                reportHTML += `<tr><td>${sheetName}</td><td>${columnName}</td><td colspan="4" style="text-align: center;">ALL ISSUES OVERRIDDEN FOR THIS COLUMN</td><td>Yes</td></tr>`;
+            } else {
+                sheetIssues.customValidation[columnName].forEach(issue => {
+                    customDetailsAdded = true;
+                    reportHTML += `<tr><td>${sheetName}</td><td>${columnName}</td><td>${issue.ruleType}</td><td>${issue.message}</td><td>${String(issue.value) === '' ? '[Blank]' : String(issue.value)}</td><td>${issue.row}</td><td>No</td></tr>`;
+                });
             }
-            overriddenColumns[sheet][column] = true;
         }
-    });
+    }
+    if (!customDetailsAdded) reportHTML += `<tr><td colspan="7">No custom validation issues found.</td></tr>`;
+    reportHTML += `</tbody></table></div>`;
+
+    // Duplicate Row Details
+    reportHTML += `<div class="summary-section"><h3>Duplicate Row Details</h3><table><thead><tr><th>Sheet</th><th>Duplicate Row #</th><th>First Seen At Row #</th><th>Sample Data (First 3 Cells)</th></tr></thead><tbody>`;
+    let duplicatesListed = false;
+    for (const sheetName in analysisResults) {
+        const { duplicateRows } = analysisResults[sheetName];
+        if (duplicateRows && duplicateRows.length > 0) {
+            duplicatesListed = true;
+            duplicateRows.forEach(dupeRow => {
+                const rowData = parsedExcelData.Sheets[sheetName] ? XLSX.utils.sheet_to_json(parsedExcelData.Sheets[sheetName], {header:1, defval:null})[dupeRow.originalRowIndex -1] : [];
+                if (rowData) {
+                    const sample = rowData.slice(0, 3).map(d => d ?? "").join(', ');
+                    reportHTML += `<tr><td>${sheetName}</td><td>${dupeRow.originalRowIndex}</td><td>${dupeRow.duplicateOf}</td><td>${sample}...</td></tr>`;
+                }
+            });
+        }
+    }
+    if (!duplicatesListed) reportHTML += `<tr><td colspan="4">No duplicate rows found.</td></tr>`;
+    reportHTML += `</tbody></table></div>`;
+
+    reportHTML += `<button id="printSummaryBtn" onclick="window.print()" class="action-button">Print Report</button>`;
+    reportHTML += `<button id="exportExcelBtn" onclick="exportExcelWithSummary()" class="action-button">Export Excel w/ Summary</button>`;
+    summaryContainer.innerHTML = reportHTML;
+    summaryContainer.style.display = 'block';
+    if (shouldScrollToReport) summaryContainer.scrollIntoView({ behavior: 'smooth' });
+}
+
+
+/**
+ * Recalculates overall stats based on current analysisResults and override checkboxes.
+ * Now focuses only on custom issues and duplicates.
+ */
+function recalculateGlobalOverallStatsFromWorkbookData() {
+    let newCustom = 0;
+    let newDuplicates = 0;
 
     for (const sheetName in analysisResults) {
         const sheetIssues = analysisResults[sheetName];
-        const sheetHeader = parsedExcelData.Sheets[sheetName] ? XLSX.utils.sheet_to_json(parsedExcelData.Sheets[sheetName], { header: 1 })[0] : [];
-
-        reportHtml += `<h3 class="text-xl font-bold text-gray-800 mt-8 mb-4">Sheet: ${sheetName}</h3>`;
-        reportHtml += `<table class="summary-table">
-            <thead>
-                <tr>
-                    <th class="column-header">Column Name</th>
-                    <th>Blank Cells</th>
-                    <th>"NULL" Strings</th>
-                    <th>Future Dates</th>
-                    <th>Custom Validation Issues</th>
-                    <th>Total Issues (Column)</th>
-                    <th>Status (After Override)</th>
-                </tr>
-            </thead>
-            <tbody>`;
-
-        let sheetTotalIssuesIdentified = 0;
-        let sheetTotalIssuesOverridden = 0;
-        let sheetTotalIssuesAfterOverride = 0;
-
-        sheetHeader.forEach(colName => {
-            const cleanedColName = String(colName).trim();
-            const isOverridden = overriddenColumns[sheetName] && overriddenColumns[sheetName][cleanedColName];
-
-            const blankCount = issues.blankCells[cleanedColName] || 0;
-            const nullCount = issues.nullStrings[cleanedColName] || 0;
-            const futureDateCount = issues.futureDates[cleanedColName] || 0;
-            const customIssueCount = (issues.customValidation[cleanedColName] || []).length;
-
-            const columnIssuesIdentified = blankCount + nullCount + futureDateCount + customIssueCount;
-            sheetTotalIssuesIdentified += columnIssuesIdentified;
-
-            let columnIssuesAfterOverride = columnIssuesIdentified;
-            let statusClass = 'status-pass';
-            let statusText = 'PASS';
-
-            if (isOverridden) {
-                columnIssuesAfterOverride = 0;
-                sheetTotalIssuesOverridden += columnIssuesIdentified;
-                statusClass = 'status-ignored';
-                statusText = 'OVERRIDDEN';
-            } else if (columnIssuesIdentified > 0) {
-                statusClass = 'status-fail';
-                statusText = 'FAIL';
+        const overrideCheckboxes = document.querySelectorAll(`.override-checkbox[data-sheet="${sheetName.replace(/[^a-zA-Z0-9]/g, "_")}"]`);
+        const overriddenColsForSheet = {};
+        overrideCheckboxes.forEach(cb => {
+            if (cb.checked) {
+                overriddenColsForSheet[cb.dataset.column] = true;
             }
-            sheetTotalIssuesAfterOverride += columnIssuesAfterOverride;
-
-
-            reportHtml += `
-                <tr>
-                    <td>${cleanedColName}</td>
-                    <td class="issue-count">${blankCount}</td>
-                    <td class="issue-count">${nullCount}</td>
-                    <td class="issue-count">${futureDateCount}</td>
-                    <td class="issue-count">${customIssueCount}</td>
-                    <td class="issue-count">${columnIssuesIdentified}</td>
-                    <td class="${statusClass}">${statusText}</td>
-                </tr>
-            `;
         });
-        reportHtml += `</tbody></table>`;
 
-        const sheetOverallStatus = sheetTotalIssuesAfterOverride === 0 ? 'status-pass' : 'status-fail';
-        reportHtml += `
-            <div class="overall-summary mt-4">
-                <p><strong>Total Issues Identified for Sheet (${sheetName}):</strong> ${sheetTotalIssuesIdentified}</p>
-                <p><strong>Total Issues Overridden for Sheet (${sheetName}):</strong> ${sheetTotalIssuesOverridden}</p>
-                <p><strong>Total Issues Remaining for Sheet (${sheetName}):</strong> <span class="${sheetOverallStatus}">${sheetTotalIssuesAfterOverride}</span></p>
-                <p><strong>Sheet Overall Status (After Override):</strong> <span class="${sheetOverallStatus}">${sheetTotalIssuesAfterOverride === 0 ? 'PASS' : 'FAIL'}</span></p>
-            </div>
-        `;
+        // Count custom issues only if column is NOT overridden
+        for (const colName in sheetIssues.customValidation) {
+            if (!overriddenColsForSheet[colName]) {
+                newCustom += sheetIssues.customValidation[colName].length;
+            }
+        }
 
-        totalIssuesIdentified += sheetTotalIssuesIdentified;
-        totalIssuesOverridden += sheetTotalIssuesOverridden;
-        totalIssuesAfterOverride += sheetTotalIssuesAfterOverride;
+        // Duplicates are counted directly from analysisResults
+        newDuplicates += sheetIssues.duplicateRows.length;
     }
 
-    reportHtml += `
-        <h3 class="text-xl font-bold text-gray-800 mt-8 mb-4">Overall File Summary</h3>
-        <div class="overall-summary">
-            <p><strong>Grand Total Issues Identified:</strong> ${totalIssuesIdentified}</p>
-            <p><strong>Grand Total Issues Overridden:</strong> ${totalIssuesOverridden}</p>
-            <p><strong>Grand Total Issues Remaining (After Override):</strong> <span class="${totalIssuesAfterOverride === 0 ? 'status-pass' : 'status-fail'}">${totalIssuesAfterOverride}</span></p>
-            <p><strong>Overall File Status (After Override):</strong> <span class="${totalIssuesAfterOverride === 0 ? 'status-pass' : 'status-fail'}">${totalIssuesAfterOverride === 0 ? 'PASS' : 'FAIL'}</span></p>
-        </div>
-        <div class="print-buttons print-hidden">
-            <button class="print-button" onclick="window.print()">Print Report</button>
-            <button class="export-button" onclick="exportReportToExcel()">Export Report + Data to Excel</button>
-        </div>
-    `;
-
-    summaryContainer.innerHTML = reportHtml;
+    overallStats.customIssueCount = newCustom;
+    overallStats.duplicateRowCount = newDuplicates;
 }
 
-// --- Export Functionality ---
-
-function exportReportToExcel() {
+/**
+ * Exports the original Excel data along with a new sheet containing the validation summary report
+ * to a new Excel file downloadable by the user.
+ */
+function exportExcelWithSummary() {
+    console.log("exportExcelWithSummary: Function started.");
     if (!parsedExcelData) {
-        alert("No Excel file has been analyzed yet to export.");
+        alert("Please analyze a file first.");
+        console.warn("exportExcelWithSummary: parsedExcelData is null. Cannot export.");
         return;
     }
 
-    const newWorkbook = XLSX.utils.book_new();
+    const wb = XLSX.utils.book_new();
+    console.log("exportExcelWithSummary: Workbook created.");
 
-    // Add original data sheets to the new workbook
+    // Add original data sheets
     parsedExcelData.SheetNames.forEach(sheetName => {
-        const worksheet = parsedExcelData.Sheets[sheetName];
-        XLSX.utils.book_append_sheet(newWorkbook, worksheet, sheetName);
+        console.log(`exportExcelWithSummary: Appending original sheet: ${sheetName}`);
+        // Use XLSX.utils.sheet_to_json to get AoA, then XLSX.utils.aoa_to_sheet to convert back
+        // This ensures consistency in structure, crucial if the original worksheet has complex cell types.
+        const aoaFromSheet = XLSX.utils.sheet_to_json(parsedExcelData.Sheets[sheetName], { header: 1, defval: null });
+        const ws = XLSX.utils.aoa_to_sheet(aoaFromSheet);
+        XLSX.utils.book_append_sheet(wb, ws, sheetName);
+    });
+    console.log("exportExcelWithSummary: Original sheets appended.");
+
+    // Generate Summary Report sheet
+    const summaryAoA = [];
+    recalculateGlobalOverallStatsFromWorkbookData();
+    console.log("exportExcelWithSummary: Overall Stats for Summary:", overallStats);
+
+    const { customIssueCount, duplicateRowCount, totalProcessedCells, totalProcessedRowsForDuplicates } = overallStats;
+    const totalEffectiveIssues = customIssueCount + duplicateRowCount;
+    const denominator = (totalProcessedCells + totalProcessedRowsForDuplicates) || 1;
+    const issueRate = (totalEffectiveIssues / denominator) * 100;
+    const cleanRate = Math.max(0, 100 - issueRate);
+    const CLEAN_RATE_PASS_THRESHOLD = 95;
+    const status = cleanRate >= CLEAN_RATE_PASS_THRESHOLD ? "Pass" : "Fail";
+
+    summaryAoA.push(["Data Quality Summary Report"]);
+    summaryAoA.push([]);
+    summaryAoA.push(["Overall Statistics"]);
+    summaryAoA.push(["File:", document.getElementById('fileName').textContent.replace('File: ', '')]);
+    summaryAoA.push(["Total Cells Processed (for custom rules):", totalProcessedCells]);
+    summaryAoA.push(["Total Rows Processed (for duplicates):", totalProcessedRowsForDuplicates]);
+    summaryAoA.push(["Total Custom Validation Issues (effective):", customIssueCount]);
+    summaryAoA.push(["Total Duplicate Rows Found:", duplicateRowCount]);
+    summaryAoA.push(["Total Effective Issues (Custom + Duplicates):", totalEffectiveIssues]);
+    summaryAoA.push(["Issue Rate (approximate):", `${issueRate.toFixed(2)}%`]);
+    summaryAoA.push(["Clean Rate (approximate):", `${cleanRate.toFixed(2)}%`]);
+    summaryAoA.push(["Status:", `${status} (Threshold: ${CLEAN_RATE_PASS_THRESHOLD}% clean)`]);
+    summaryAoA.push([]);
+
+    // Detailed Custom Issues by Column for Export
+    summaryAoA.push(["Detailed Custom Issues by Column"]);
+    summaryAoA.push(["Sheet", "Column", "Rule Type", "Failure Message", "Value", "Row #", "Overridden"]);
+
+    let customDetailsAdded = false;
+    for (const sheetName in analysisResults) {
+        const sheetIssues = analysisResults[sheetName];
+        const overrideCheckboxes = document.querySelectorAll(`.override-checkbox[data-sheet="${sheetName.replace(/[^a-zA-Z0-9]/g, "_")}"]`);
+        const overriddenColsForSheet = {};
+        overrideCheckboxes.forEach(cb => {
+            if(cb.checked) overriddenColsForSheet[cb.dataset.column] = true;
+        });
+
+        for (const columnName in sheetIssues.customValidation) {
+            const isColumnOverridden = overriddenColsForSheet[columnName] === true;
+            if (isColumnOverridden) {
+                customDetailsAdded = true;
+                summaryAoA.push([sheetName, columnName, "N/A", "ALL ISSUES OVERRIDDEN FOR THIS COLUMN", "N/A", "N/A", "Yes"]);
+            } else {
+                sheetIssues.customValidation[columnName].forEach(issue => {
+                    customDetailsAdded = true;
+                    summaryAoA.push([sheetName, columnName, issue.ruleType, issue.message, String(issue.value) === '' ? '[Blank]' : String(issue.value), issue.row, "No"]);
+                });
+            }
+        }
+    }
+    if (!customDetailsAdded) summaryAoA.push(["No custom validation issues found or overridden to export."]);
+    summaryAoA.push([]);
+
+    // Duplicate Row Details for Export
+    summaryAoA.push(["Duplicate Row Details"]);
+    summaryAoA.push(["Sheet", "Duplicate Row #", "First Seen At Row #", "Sample Data (First 3 Cells)"]);
+
+    let duplicatesExported = false;
+    for (const sheetName in analysisResults) {
+        const { duplicateRows } = analysisResults[sheetName];
+        if (duplicateRows && duplicateRows.length > 0) {
+            duplicatesExported = true;
+            duplicateRows.forEach(dupeRow => {
+                const rowData = parsedExcelData.Sheets[sheetName] ? XLSX.utils.sheet_to_json(parsedExcelData.Sheets[sheetName], {header:1, defval:null})[dupeRow.originalRowIndex -1] : [];
+                if (rowData) {
+                    const sample = rowData.slice(0, 3).map(d => d ?? "").join(', ');
+                    summaryAoA.push([sheetName, dupeRow.originalRowIndex, dupeRow.duplicateOf, `${sample}...`]);
+                }
+            });
+        }
+    }
+    if (!duplicatesExported) summaryAoA.push(["No duplicate rows found to export."]);
+
+    const summaryWS = XLSX.utils.aoa_to_sheet(summaryAoA);
+    XLSX.utils.book_append_sheet(wb, summaryWS, "Validation Summary");
+
+    // Define the output filename based on the selectedMainFileName
+    const baseFileName = selectedMainFileName ? selectedMainFileName.replace(/\.(xlsx|xls|csv)$/i, '') : "Validation_Report";
+    const outputFileName = `${baseFileName}_Summary_${new Date().toISOString().slice(0, 10)}.xlsx`;
+    console.log("exportExcelWithSummary: Attempting to write file:", outputFileName);
+
+    // Attempt to write the file
+    try {
+        XLSX.writeFile(wb, outputFileName);
+        console.log("exportExcelWithSummary: File write command executed successfully. Check downloads.");
+    } catch (writeError) {
+        console.error("exportExcelWithSummary: Error writing file:", writeError);
+        alert(`Error exporting report: ${writeError.message}. Check browser console.`);
+    }
+}
+
+// --- Initialization Function ---
+async function initValidationEngine() {
+    // Check for JWT on page load to ensure user is authenticated
+    // Note: verifyAndSetupUser from public/js/auth.js will handle redirection if not authenticated
+    const userData = await verifyAndSetupUser(); 
+    if (userData) {
+        populateSelects(); // Populate file and dictionary dropdowns
+    }
+
+    // Set dynamic date display
+    const options = { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' };
+    const dateElement = document.getElementById('dynamicTodayDate');
+    if (dateElement) {
+        dateElement.textContent = TODAY.toLocaleDateString('en-US', options);
+    }
+
+    // --- Event Listeners for Validation Engine Logic ---
+
+    // Main file selection (from server or local)
+    document.getElementById('loadMainFileBtn').addEventListener('click', loadMainFile);
+    document.getElementById('excelFile').addEventListener('change', () => {
+        document.getElementById('mainFileSelect').value = '';
+        selectedMainFileBlob = null;
+        selectedMainFileName = null;
+        displayMessage('mainFileStatus', '', 'info');
+    });
+    document.getElementById('mainFileSelect').addEventListener('change', () => {
+        document.getElementById('excelFile').value = '';
+        displayMessage('mainFileStatus', '', 'info');
     });
 
-    // Generate and add the Summary Report sheet
-    const summaryData = [];
-    const reportFileName = selectedMainFileName || (document.getElementById('excelFile').files[0]?.name || "N/A");
+    // Data dictionary selection
+    document.getElementById('loadDataDictionaryBtn').addEventListener('click', loadDataDictionary);
 
-    summaryData.push(["Data Validation Summary Report"]);
-    summaryData.push([`For File: ${reportFileName}`]);
-    summaryData.push([`Generated On: ${new Date().toLocaleString()}`]);
-    summaryData.push([]); // Blank row for spacing
+    // Analyze button (uses onclick in HTML, so no need to duplicate here)
 
-    let totalIssuesIdentified = 0;
-    let totalIssuesOverridden = 0;
-    let totalIssuesAfterOverride = 0;
+    // Delegate event for override checkboxes and show values buttons
+    document.getElementById('sheetResults').addEventListener('click', function(event) {
+        const target = event.target;
+        if (target.classList.contains('override-checkbox')) {
+            const { sheet, column } = target.dataset;
 
-    const overrideCheckboxes = document.querySelectorAll('.override-checkbox');
-    const overriddenColumns = {};
-    overrideCheckboxes.forEach(checkbox => {
-        if (checkbox.checked) {
-            const sheet = checkbox.dataset.sheet;
-            const column = checkbox.dataset.column;
-            if (!overriddenColumns[sheet]) {
-                overriddenColumns[sheet] = {};
+            // Visually toggle 'column-overridden' class for immediate feedback
+            const columnSummaryElement = target.closest('.column-summary');
+            if (columnSummaryElement) {
+                columnSummaryElement.classList.toggle('column-overridden', target.checked);
+            } else {
+                console.warn("Could not find parent .column-summary for override checkbox.");
             }
-            overriddenColumns[sheet][column] = true;
+
+            // Recalculate summary if it's already visible
+            if (document.getElementById('summaryReportContainer').style.display !== 'none') {
+                generateSummaryReport(false); // Update summary without scrolling
+            } else {
+                // Update overall counts for the initial display if needed (e.g. for duplicates)
+                recalculateGlobalOverallStatsFromWorkbookData();
+                updateInitialOverallCountsDisplay();
+            }
+        } else if (target.classList.contains('toggle-values-btn')) {
+            const { sheet, column } = target.dataset;
+            const valuesContainer = target.closest('li')?.querySelector('.column-values-container');
+            if (!valuesContainer) {
+                console.error("Could not find valuesContainer for toggle button.");
+                return;
+            }
+
+            // Check if there are custom issues for this column to display
+            if (!analysisResults[sheet]?.customValidation?.[column] || analysisResults[sheet].customValidation[column].length === 0) {
+                valuesContainer.innerHTML = '<p style="font-style: italic; color: #6c757d;">No custom issues for this column.</p>';
+                valuesContainer.style.display = 'block';
+                target.textContent = 'Hide Values';
+                return;
+            }
+
+            if (valuesContainer.style.display === 'none') {
+                valuesContainer.innerHTML = '';
+                const ul = document.createElement('ul');
+                const customIssuesForColumn = analysisResults[sheet].customValidation[column];
+
+                // Sort issues by row number for better readability
+                customIssuesForColumn.sort((a,b) => a.row - b.row).forEach(issue => {
+                    const li = document.createElement('li');
+                    let displayValue = `Row ${issue.row}: Rule: ${issue.ruleType} - Value: "${String(issue.value)}" - Message: ${issue.message}`;
+                    if (String(issue.value).trim() === '') {
+                        displayValue = `Row ${issue.row}: Rule: ${issue.ruleType} - Value: [BLANK] - Message: ${issue.message}`;
+                    } else if (issue.value === null) {
+                        displayValue = `Row ${issue.row}: Rule: ${issue.ruleType} - Value: [NULL] - Message: ${issue.message}`;
+                    }
+                    li.classList.add('value-generic-issue');
+                    li.textContent = displayValue;
+                    ul.appendChild(li);
+                });
+
+                valuesContainer.appendChild(ul);
+                valuesContainer.style.display = 'block';
+                target.textContent = 'Hide Values';
+            } else {
+                valuesContainer.style.display = 'none';
+                valuesContainer.innerHTML = '';
+                target.textContent = 'Show Values';
+            }
         }
     });
 
-    for (const sheetName in analysisResults) {
-        const sheetIssues = analysisResults[sheetName];
-        const sheetHeader = parsedExcelData.Sheets[sheetName] ? XLSX.utils.sheet_to_json(parsedExcelData.Sheets[sheetName], { header: 1 })[0] : [];
+    // Delegate event for editable stats in summary report (THIS FUNCTIONALITY WILL BE LIMITED)
+    document.getElementById('summaryReportContainer')?.addEventListener('blur', function(event) {
+        if (event.target.classList.contains('editable-stat')) {
+            const td = event.target;
+            const { sheet, column, type } = td.dataset;
 
-        summaryData.push([]); // Blank row for spacing between sheets
-        summaryData.push([`Sheet: ${sheetName}`]);
-        summaryData.push(["Column Name", "Blank Cells", "\"NULL\" Strings", "Future Dates", "Custom Validation Issues", "Total Issues (Column)", "Status (After Override)"]);
+            // ALERT: Directly editing issue counts is not ideal.
+            // The numbers are derived from the analysis results and override checkboxes.
+            // This section of code is left as is, but it will only provide a warning
+            // and revert the text, as editing these directly isn't a good UX for custom rules.
+            alert('Editing issue counts directly is not fully supported for custom rules. Please use the "Override Issues" checkbox instead.');
 
-        let sheetTotalIssuesIdentified = 0;
-        let sheetTotalIssuesOverridden = 0;
-        let sheetTotalIssuesAfterOverride = 0;
-
-        sheetHeader.forEach(colName => {
-            const cleanedColName = String(colName).trim();
-            const isOverridden = overriddenColumns[sheetName] && overriddenColumns[sheetName][cleanedColName];
-
-            const blankCount = issues.blankCells[cleanedColName] || 0;
-            const nullCount = issues.nullStrings[cleanedColName] || 0;
-            const futureDateCount = issues.futureDates[cleanedColName] || 0;
-            const customIssueCount = (issues.customValidation[cleanedColName] || []).length;
-
-            const columnIssuesIdentified = blankCount + nullCount + futureDateCount + customIssueCount;
-            sheetTotalIssuesIdentified += columnIssuesIdentified;
-
-            let columnIssuesAfterOverride = columnIssuesIdentified;
-            let statusText = 'PASS';
-
-            if (isOverridden) {
-                columnIssuesAfterOverride = 0;
-                sheetTotalIssuesOverridden += columnIssuesIdentified;
-                statusText = 'OVERRIDDEN';
-            } else if (columnIssuesIdentified > 0) {
-                statusText = 'FAIL';
+            // Revert text if they changed it
+            if (analysisResults[sheet]?.customValidation?.[column]) {
+                const originalCount = analysisResults[sheet].customValidation[column].length;
+                td.textContent = originalCount;
+            } else {
+                td.textContent = '0';
             }
-            sheetTotalIssuesAfterOverride += columnIssuesAfterOverride;
-
-            summaryData.push([
-                cleanedColName,
-                blankCount,
-                nullCount,
-                futureDateCount,
-                customIssueCount,
-                columnIssuesIdentified,
-                statusText
-            ]);
-        });
-
-        summaryData.push([]); // Blank row after column details
-        summaryData.push([`Total Issues Identified for Sheet (${sheetName}):`, sheetTotalIssuesIdentified]);
-        summaryData.push([`Total Issues Overridden for Sheet (${sheetName}):`, sheetTotalIssuesOverridden]);
-        summaryData.push([`Total Issues Remaining for Sheet (${sheetName}):`, sheetTotalIssuesAfterOverride]);
-        summaryData.push([`Sheet Overall Status (After Override):`, sheetTotalIssuesAfterOverride === 0 ? 'PASS' : 'FAIL']);
-
-        totalIssuesIdentified += sheetTotalIssuesIdentified;
-        totalIssuesOverridden += sheetTotalIssuesOverridden;
-        totalIssuesAfterOverride += sheetTotalIssuesAfterOverride;
-    }
-
-    summaryData.push([]); // Blank row before overall summary
-    summaryData.push(["Overall File Summary"]);
-    summaryData.push(["Grand Total Issues Identified:", totalIssuesIdentified]);
-    summaryData.push(["Grand Total Issues Overridden:", totalIssuesOverridden]);
-    summaryData.push(["Grand Total Issues Remaining (After Override):", totalIssuesAfterOverride]);
-    summaryData.push(["Overall File Status (After Override):", totalIssuesAfterOverride === 0 ? 'PASS' : 'FAIL']);
-
-    const summaryWs = XLSX.utils.aoa_to_sheet(summaryData);
-    XLSX.utils.book_append_sheet(newWorkbook, summaryWs, "Validation Summary");
-
-    const outputFileName = `Validation_Report_${reportFileName.replace(/\.(xlsx|xls|csv)$/, '')}_${new Date().toISOString().slice(0, 10)}.xlsx`;
-    XLSX.writeFile(newWorkbook, outputFileName);
+        }
+    }, true);
 }
 
-// --- Event Listeners and Initial Load ---
-document.addEventListener('DOMContentLoaded', async () => {
-    const userData = await verifyToken();
-    if (userData) {
-        setupNavigation(userData);
-        populateSelects(); // Call function to populate both dropdowns
-    }
+// Expose functions to the global scope if they are called directly from HTML's onclick/onload
+// For example, analyzeFile is called via onclick="analyzeFile()"
+window.analyzeFile = analyzeFile;
+window.generateSummaryReport = generateSummaryReport;
+window.exportExcelWithSummary = exportExcelWithSummary;
+window.initValidationEngine = initValidationEngine; // Expose the initialization function
 
-    // Event Listeners for main file selection
-    document.getElementById('loadMainFileBtn').addEventListener('click', loadMainFile);
-    document.getElementById('excelFile').addEventListener('change', () => {
-        document.getElementById('mainFileSelect').value = ''; // Clear server select
-        selectedMainFileBlob = null; // Clear server-loaded blob
-        selectedMainFileName = null; // Clear server-loaded name
-        displayMessage('mainFileStatus', '', 'info'); // Clear any previous status
-    });
-    document.getElementById('mainFileSelect').addEventListener('change', () => {
-        document.getElementById('excelFile').value = ''; // Clear local file input
-    });
-
-    // Event Listeners for data dictionary selection and analysis
-    document.getElementById('loadDataDictionaryBtn').addEventListener('click', loadDataDictionary);
-    document.getElementById('analyzeFileBtn').addEventListener('click', analyzeFile);
-});
+// Import auth.js functions as they are now external
+// Assuming auth.js provides `verifyAndSetupUser` and `logout` globally or via a module export
+// For simplicity and to match the current HTML structure, we'll assume global functions for now.
+// In a proper module system, you would use:
+// import { verifyAndSetupUser, logout } from '../../js/auth.js';
+// For now, ensure auth.js is loaded BEFORE this script in the HTML.
+// The verifyAndSetupUser is called in initValidationEngine, and setupNavigation handles logout.
