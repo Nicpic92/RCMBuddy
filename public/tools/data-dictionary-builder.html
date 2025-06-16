@@ -8,8 +8,9 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/tools/data-dictionary-builder.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="/js/auth.js"></script>
 </head>
-<body class="flex flex-col min-h-screen text-gray-800">
+<body class="flex flex-col min-h-screen text-gray-800" onload="verifyAndSetupUser();">
     <header class="bg-gradient-to-r from-blue-600 to-indigo-700 p-4 shadow-lg">
         <div class="container mx-auto flex flex-col sm:flex-row items-center justify-between">
             <h1 class="text-white text-3xl font-bold mb-2 sm:mb-0">Data Dictionary Builder</h1>
@@ -67,7 +68,7 @@
                     <p class="text-sm text-gray-600 mb-3">Upload a new file to define rules for its headers.</p>
                     <div class="flex flex-wrap items-center justify-between gap-2">
                         <input type="file" id="excelFile" accept=".xlsx, .xls, .csv"
-                                class="flex-grow mt-1 block w-full text-sm text-gray-900 border border-gray-300 rounded-lg cursor-pointer bg-white focus:outline-none focus:border-blue-500">
+                                 class="flex-grow mt-1 block w-full text-sm text-gray-900 border border-gray-300 rounded-lg cursor-pointer bg-white focus:outline-none focus:border-blue-500">
                         <button type="button" id="createNewDictionaryBtn" class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm transition duration-300">Start New</button>
                     </div>
                     <div id="newDictStatus" class="mt-2 text-sm text-gray-600 hidden"></div>
@@ -128,7 +129,7 @@
             <div class="mb-4">
                 <label for="dictionaryName" class="block text-sm font-medium text-gray-700">Data Dictionary Name</label>
                 <input type="text" id="dictionaryName" placeholder="e.g., HR Data Dictionary V1" required
-                                class="mt-1 block w-full p-2 border border-gray-300 rounded-md focus:ring-green-500 focus:border-green-500">
+                                 class="mt-1 block w-full p-2 border border-gray-300 rounded-md focus:ring-green-500 focus:border-green-500">
             </div>
             <div id="headersTableContainer" class="overflow-x-auto relative shadow-md sm:rounded-lg">
                 <table class="w-full text-sm text-left text-gray-500" id="headersTable">
@@ -162,11 +163,11 @@
             </div>
             <div class="flex flex-col sm:flex-row gap-4 mt-6">
                 <button type="button" id="saveDictionaryBtn"
-                                class="flex-1 w-full justify-center py-3 px-4 border border-transparent rounded-lg shadow-lg text-lg font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition duration-300 ease-in-out transform hover:-translate-y-0.5">
+                                 class="flex-1 w-full justify-center py-3 px-4 border border-transparent rounded-lg shadow-lg text-lg font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition duration-300 ease-in-out transform hover:-translate-y-0.5">
                     Save Data Dictionary
                 </button>
                 <button type="button" id="printDictionaryBtn"
-                                class="flex-1 w-full justify-center py-3 px-4 border border-transparent rounded-lg shadow-lg text-lg font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition duration-300 ease-in-out transform hover:-translate-y-0.5">
+                                 class="flex-1 w-full justify-center py-3 px-4 border border-transparent rounded-lg shadow-lg text-lg font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition duration-300 ease-in-out transform hover:-translate-y-0.5">
                     Print Report
                 </button>
                 </div>
