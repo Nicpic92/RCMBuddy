@@ -2,16 +2,39 @@
 
 [build]
   publish = "public"
-  functions = "netlify/functions" # Keep this to tell Netlify where functions broadly reside
   command = "# No build command needed"
+  # REMOVED functions = "netlify/functions" from here, as we'll define them explicitly below
 
 # This plugin ensures your function dependencies from the root package.json are installed.
 [[plugins]]
   package = "@netlify/plugin-functions-install-core"
 
+# --- Netlify Functions Configuration ---
+# Define each function directory as a separate functions source.
+# This ensures Netlify discovers and bundles all functions,
+# including those within subdirectories.
+
+[[functions]]
+  directory = "netlify/functions/user-auth"
+
+[[functions]]
+  directory = "netlify/functions/admin"
+
+[[functions]]
+  directory = "netlify/functions/file-management"
+
+[[functions]]
+  directory = "netlify/functions/data-dictionary"
+
+# Include the top-level 'netlify/functions' directory as well,
+# in case there are any functions directly inside it (like clean-excel.js)
+[[functions]]
+  directory = "netlify/functions"
+
 # --- API Redirects ---
 # These rules map frontend API calls (e.g., /api/register) to Netlify's deployed function paths.
-# Netlify by default flattens functions in subdirectories by replacing '/' with '-' (e.g., user-auth/register.js becomes user-auth-register).
+# Netlify by default flattens functions in subdirectories by replacing '/' with '-'
+# (e.g., user-auth/register.js becomes user-auth-register).
 
 # User Authentication Functions
 [[redirects]]
