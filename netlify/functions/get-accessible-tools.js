@@ -1,4 +1,4 @@
-// netlify/functions/user-auth/get-accessible-tools.js
+// netlify/functions/get-accessible-tools.js
 
 // Import centralized utility functions (note the ../ for path from user-auth/ subdirectory)
 const { createDbClient } = require('../utils/db');
