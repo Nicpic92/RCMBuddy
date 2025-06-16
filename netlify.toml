@@ -1,17 +1,13 @@
 [build]
   publish = "public"
-  command = "# No build command needed"
+  # IMPORTANT: This command will now ensure dependencies are installed for all your functions
+  command = "npm install && cd netlify/functions/user-auth && npm install && cd ../admin && npm install && cd ../data-dictionary && npm install && cd ../file-management && npm install && cd ../../" # Add more `cd` and `npm install` commands for any other function directories you have.
 
 # --- Netlify Functions Configuration ---
-# This single line tells Netlify to look for functions in 'netlify/functions'
-# and its subdirectories. Since your other function folders (admin, data-dictionary,
-# file-management, user-auth) each have a package.json, Netlify will discover
-# and bundle them correctly.
 [functions]
   directory = "netlify/functions"
 
 # --- Netlify Plugins Configuration ---
-# This needs to be an array of tables, hence the double brackets [[plugins]]
 [[plugins]]
   package = "@netlify/plugin-functions-install-core"
 
