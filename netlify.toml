@@ -1,9 +1,35 @@
+# The final, correct, and complete netlify.toml file
+
 [build]
   publish = "public"
-  functions = "netlify/functions" # This should bundle all functions, including nested ones
   command = "# No build command needed"
+  # IMPORTANT: Ensure 'functions = "netlify/functions"' is NOT here under [build].
+  # We are defining function directories explicitly below.
 
 [[plugins]]
   package = "@netlify/plugin-functions-install-core"
 
-# All [[redirects]] rules are REMOVED.
+# --- Netlify Functions Configuration ---
+# Explicitly define each function directory as a separate source.
+# THIS IS CRUCIAL FOR NESTED FUNCTIONS TO BE DISCOVERED AND BUNDLED.
+# Make sure there are NO leading spaces before '[[functions]]' or 'directory ='.
+
+[[functions]]
+  directory = "netlify/functions/user-auth"
+
+[[functions]]
+  directory = "netlify/functions/admin"
+
+[[functions]]
+  directory = "netlify/functions/file-management"
+
+[[functions]]
+  directory = "netlify/functions/data-dictionary"
+
+# Also explicitly include the top-level 'netlify/functions' directory
+# for any functions directly inside it (like clean-excel.js).
+[[functions]]
+  directory = "netlify/functions"
+
+# --- NO [[redirects]] RULES ---
+# Frontend calls should now directly hit paths like /.netlify/functions/user-auth-register
