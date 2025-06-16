@@ -2,10 +2,35 @@
 
 [build]
   publish = "public"
-  functions = "netlify/functions"
-  command = "# No build command needed"
+  command = "# No build command needed" # Keep this, as functions are handled by functions settings/plugins
+
+# --- Netlify Functions Configuration ---
+# Define each function directory as a separate functions source to ensure they are all built.
+# This explicitly tells Netlify to look into these subdirectories for functions.
+
+[[functions]]
+  directory = "netlify/functions/user-auth"
+  # Optional: You can specify node_bundler = "esbuild" or "zip" if needed,
+  # but Netlify usually defaults to esbuild for JS/TS functions.
+
+[[functions]]
+  directory = "netlify/functions/admin"
+
+[[functions]]
+  directory = "netlify/functions/file-management"
+
+[[functions]]
+  directory = "netlify/functions/data-dictionary"
+
+# For the top-level clean-excel.js (if it's not in a subdirectory)
+# If clean-excel.js is directly under netlify/functions, it should be fine with the default functions = "netlify/functions"
+# but since the log only picked it up, it might be the *only* one directly there.
+# If it's truly standalone, you might define it like this:
+[[functions]]
+  directory = "netlify/functions" # This captures clean-excel.js and any other root-level functions
 
 # This plugin ensures your function dependencies from the root package.json are installed.
+# It helps with shared node_modules for all functions.
 [[plugins]]
   package = "@netlify/plugin-functions-install-core"
 
@@ -102,5 +127,3 @@
   from = "/api/clean-excel"
   to = "/.netlify/functions/clean-excel" # This one is directly in netlify/functions
   status = 200
-
-# The generic /api/* redirect has been removed in favor of explicit rules to avoid ambiguity.
