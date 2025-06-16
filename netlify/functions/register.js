@@ -1,4 +1,4 @@
-// netlify/functions/user-auth/register.js (This is the assumed correct path based on your screenshot)
+// netlify/functions/register.js (This is the assumed correct path based on your screenshot)
 
 // NEW: Import centralized utility functions
 // CORRECTED PATH: Go up two levels (from user-auth to functions) then down into utils
