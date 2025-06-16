@@ -1,71 +1,3 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin Console - RCM Buddy</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-    <style>
-        /* Simple loader animation */
-        .loader { border: 5px solid #f3f3f3; border-top: 5px solid #3b82f6; border-radius: 50%; width: 50px; height: 50px; animation: spin 1s linear infinite; }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        /* Toast notification for feedback */
-        .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); padding: 12px 24px; border-radius: 8px; color: white; z-index: 1000; opacity: 0; transition: opacity 0.5s, transform 0.5s; transform: translate(-50%, 20px); }
-        .toast.show { opacity: 1; transform: translateX(-50%); }
-        .toast.success { background-color: #22c55e; } /* Green */
-        .toast.error { background-color: #ef4444; } /* Red */
-    </style>
-</head>
-<body class="bg-gray-100 font-sans">
-
-    <!-- Navigation Bar -->
-    <nav class="bg-white shadow-md sticky top-0 z-50">
-        <div class="container mx-auto px-6 py-4 flex justify-between items-center">
-            <a href="/dashboard.html" class="text-2xl font-bold text-gray-800">RCM Buddy</a>
-            <ul id="nav-list" class="flex items-center space-x-4">
-                <li><a href="/dashboard.html" class="text-gray-600 hover:text-blue-500 font-medium">Dashboard</a></li>
-                <li><a href="/tools.html" class="text-gray-600 hover:text-blue-500 font-medium">All Tools</a></li>
-                <li><span id="nav-username" class="text-gray-700 font-semibold"></span></li>
-                <li><button id="logout-btn" class="bg-red-500 text-white px-4 py-2 rounded-md hover:bg-red-600 transition-colors">Logout</button></li>
-            </ul>
-        </div>
-    </nav>
-
-    <!-- Main Admin Content (hidden by default) -->
-    <main id="admin-content" class="container mx-auto p-4 md:p-8" style="display: none;">
-        <div class="mb-8">
-            <h1 class="text-4xl font-extrabold text-gray-800">Admin Console</h1>
-            <p id="company-name-display" class="text-lg text-gray-600 mt-1"></p>
-        </div>
-        <section class="bg-white p-6 rounded-lg shadow-md mb-8">
-            <h2 class="text-2xl font-semibold text-gray-700 mb-4 flex items-center"><i class="fas fa-cogs text-blue-500 mr-3"></i>Default Tools for New Users</h2>
-            <p class="text-gray-600 mb-4">Select the tools that new users in your company will have access to by default.</p>
-            <div id="defaultToolsChecklist" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"></div>
-            <button id="saveDefaultsBtn" class="mt-6 bg-blue-600 text-white px-5 py-2 rounded-md font-semibold hover:bg-blue-700 transition-colors">Save Defaults</button>
-        </section>
-        <section class="bg-white p-6 rounded-lg shadow-md">
-            <h2 class="text-2xl font-semibold text-gray-700 mb-4 flex items-center"><i class="fas fa-users-cog text-green-500 mr-3"></i>Manage Individual User Access</h2>
-            <div class="mb-4">
-                <label for="userSelector" class="block text-sm font-medium text-gray-700">Select a User to Manage:</label>
-                <select id="userSelector" class="mt-1 block w-full md:w-1/2 p-2 border border-gray-300 rounded-md shadow-sm"></select>
-            </div>
-            <div id="individualToolsChecklist" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 min-h-[50px]">
-                <p class="text-gray-500 col-span-full">Select a user to see their permissions.</p>
-            </div>
-            <button id="saveUserToolsBtn" class="mt-6 bg-green-600 text-white px-5 py-2 rounded-md font-semibold hover:bg-green-700" disabled>Save User Permissions</button>
-        </section>
-    </main>
-
-    <!-- Loading Spinner -->
-    <div id="loader-container" class="flex justify-center items-center h-[calc(100vh-80px)]"><div class="loader"></div></div>
-    
-    <!-- Access Denied Message -->
-    <div id="auth-error" class="text-center p-8 hidden"><i class="fas fa-exclamation-triangle text-5xl text-red-500 mb-4"></i><h2 class="text-2xl font-bold text-red-600">Access Denied</h2><p class="text-gray-700 mt-2">You must be an administrator to view this page.</p><a href="/dashboard.html" class="mt-4 inline-block bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">Go to Dashboard</a></div>
-
-    <!-- Toast Notification Container -->
-    <div id="toast-notification" class="toast"></div>
-
     <script>
         document.addEventListener('DOMContentLoaded', async () => {
             const token = localStorage.getItem('jwtToken');
@@ -78,149 +10,107 @@
                 return;
             }
 
-            let ALL_TOOLS = [];
-            let USER_TOOL_MAP = {};
-            let USERS = [];
-
             try {
                 // 1. Validate token and get user role
                 const protectedRes = await fetch('/api/protected', {
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
-                
-                if (!protectedRes.ok) throw new Error('Session expired or invalid.');
-                
-                const protectedData = await protectedRes.json();
-                const user = protectedData.user;
 
-                setupNavigation(user);
+                // --- THIS IS THE NEW "BLACK BOX RECORDER" ---
+                // If the response the **root** of your repository on GitHub.
+*   Click the pencil icon to edit it.
+*   **Delete everything** and replace it with this:
+    ```toml
+    [build]
+      command = "# No build command needed"
+      publish = "public"
+      functions = "netlify/functions"
+    ```
+*   Commit the change with the message `chore: Finalize netlify.toml`.
 
-                // 2. Admin Gatekeeper Check
-                if (user.role !== 'admin') {
-                    loader.style.display = 'none';
-                    authError.classList.remove('hidden');
-                    return;
-                }
-                
-                // 3. If admin, fetch detailed data for the page
-                const adminRes = await fetch('/api/admin/get-company-admin-data', {
-                    headers: { 'Authorization': `Bearer ${token}` }
-                });
+**3. Replace `protected.js` with a Diagnostic Version**
+*   Go to the `protected.js` file inside `netlify/functions/` on GitHub.
+*   Click the pencil icon to edit it.
+*   **Delete everything** and replace it with this special diagnostic version. This version will tell us *exactly* which `require` call is failing if it still fails.
+    ```javascript
+    exports.handler = async (event, context) => {
+        try {
+            console.log('[DEBUG] Protected function starting.');
 
-                if (!adminRes.ok) {
-                    const errorData = await adminRes.json().catch(() => ({ message: 'Failed to load administrative data.' }));
-                    throw new Error(errorData.message);
-                }
-                const adminData = await adminRes.json();
-                
-                // 4. Store fetched data and populate the UI
-                ALL_TOOLS = adminData.all_available_tools;
-                USER_TOOL_MAP = adminData.user_tool_map;
-                USERS = adminData.users;
+            console.log('[DEBUG] Attempting to require jsonwebtoken...');
+            const jwt = require('jsonwebtoken');
+            console.log('[DEBUG] Successfully required jsonwebtoken.');
 
-                document.getElementById('company-name-display').textContent = `Managing settings for: ${user.company_name}`;
-                populateDefaultToolsChecklist(adminData.company_defaults);
-                populateUserSelector();
-                
-                // Hide loader and show the main content
-                loader.style.display = 'none';
-                adminContent.style.display = 'block';
+            console.log('[DEBUG] Attempting to require pg...');
+            const { Pool } = require('pg');
+            console.log('[DEBUG] Successfully required pg.');
 
-            } catch (error) {
-                console.error('Initialization Error:', error.message);
-                localStorage.removeItem('jwtToken');
-                window.location.href = '/index.html';
-            }
-            
-            // --- Helper Functions ---
-            function setupNavigation(user) {
-                document.getElementById('nav-username').textContent = `Hello, ${user.username}`;
-                document.getElementById('logout-btn').addEventListener('click', () => {
-                    localStorage.removeItem('jwtToken');
-                    window.location.href = '/index.html';
-                });
-                if (user.role === 'admin') {
-                    const navList = document.getElementById('nav-list');
-                    const adminLinkLi = document.createElement('li');
-                    adminLinkLi.innerHTML = `<a href="/admin.html" class="text-blue-600 font-bold hover:underline">Admin Console</a>`;
-                    const usernameElement = document.getElementById('nav-username').parentElement;
-                    navList.insertBefore(adminLinkLi, usernameElement);
-                }
-            }
-            
-            const createCheckboxHTML = (tool, isChecked) => `<label class="flex items-center space-x-3 p-2 rounded-md hover:bg-gray-50 cursor-pointer"><input type="checkbox" data-tool-identifier="${tool.identifier}" ${isChecked ? 'checked' : ''} class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"><span class="text-gray-800 select-none">${tool.display_name}</span></label>`;
-            
-            function populateDefaultToolsChecklist(companyDefaults) {
-                const container = document.getElementById('defaultToolsChecklist');
-                container.innerHTML = ALL_TOOLS.map(tool => createCheckboxHTML(tool, companyDefaults.includes(tool.identifier))).join('');
-            }
+            console.log('[DEBUG] Checking for DATABASE_URL...');
+            if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL is not defined.');
+            console.log('[DEBUG] DATABASE_URL found.');
 
-            function populateUserSelector() {
-                const selector = document.getElementById('userSelector');
-                selector.innerHTML = '<option value="">-- Select a User --</option>' + USERS.map(u => `<option value="${u.id}">${u.username} (${u.email})</option>`).join('');
-            }
-
-            function populateIndividualToolsChecklist(userId) {
-                const container = document.getElementById('individualToolsChecklist');
-                if (!userId) {
-                    container.innerHTML = '<p class="text-gray-500 col-span-full">Select a user to see their permissions.</p>';
-                    return;
-                }
-                const userTools = USER_TOOL_MAP[userId] || [];
-                container.innerHTML = ALL_TOOLS.map(tool => createCheckboxHTML(tool, userTools.includes(tool.identifier))).join('');
-            }
-
-            // --- Event Listeners ---
-            document.getElementById('userSelector').addEventListener('change', (e) => {
-                const selectedUserId = e.target.value;
-                document.getElementById('saveUserToolsBtn').disabled = !selectedUserId;
-                populateIndividualToolsChecklist(selectedUserId);
+            console.log('[DEBUG] Creating new database pool...');
+            const pool = new Pool({
+                connectionString: process.env.DATABASE_URL,
+                ssl: { rejectUnauthorized: false }
             });
+            console.log('[DEBUG] Database pool created.');
+
+            // Your original logic starts here
+            const authHeader = event.headers.authorization;
+            if (!authHeader) throw new Error('Access denied. No token provided.');
+            const token = authHeader.split(' ')[1];
+            if (!token) throw new Error('Access denied. Token format is "Bearer [token]".');
             
-            async function handleApiUpdate(button, url, body) {
-                const originalText = button.textContent;
-                button.disabled = true;
-                button.textContent = 'Saving...';
-                try {
-                    const res = await fetch(url, {
-                        method: 'POST',
-                        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-                        body: JSON.stringify(body)
-                    });
-                    const result = await res.json();
-                    if (!res.ok) throw new Error(result.message);
-                    showToast(result.message, 'success');
-                    return result;
-                } catch (error) {
-                    showToast(error.message || 'An error occurred.', 'error');
-                } finally {
-                    button.disabled = false;
-                    button.textContent = originalText;
-                }
+            const decodedToken = jwt.verify(token, process.env.JWT_SECRET);
+            const userId = decodedToken.id;
+
+            const client = await pool.connect();
+            try {
+                const { rows } = await client.query('SELECT id, username, email, role, company_id, (SELECT name FROM companies WHERE id = users.company_id) as company_name FROM users WHERE id = $1', [userId]);
+                if (rows.length === 0) throw new Error('User not found.');
+                
+                return {
+                    statusCode: 200,
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ message: 'Access granted.', user: rows[0] })
+                };
+            } finally {
+                client.release();
             }
+        } catch (error) {
+            console.error('[CRITICAL ERROR in protected.js]:', error);
+            return {
+                statusCode: 500,
+                body: JSON.stringify({ message: 'Internal Server Error', error: error.message })
+            };
+        }
+    };
+    ```
+*   Commit the change with the message `debug: Add verbose logging to protected.js`.
 
-            document.getElementById('saveDefaultsBtn').addEventListener('click', (e) => {
-                const checkedBoxes = document.querySelectorAll('#defaultToolsChecklist input:checked');
-                const defaultToolIdentifiers = Array.from(checkedBoxes).map(cb => cb.dataset.toolIdentifier);
-                handleApiUpdate(e.target, '/api/admin/update-company-defaults', { defaultToolIdentifiers });
-            });
+---
 
-            document.getElementById('saveUserToolsBtn').addEventListener('click', async (e) => {
-                const userIdToUpdate = document.getElementById('userSelector').value;
-                if (!userIdToUpdate) return;
-                const checkedBoxes = document.querySelectorAll('#individualToolsChecklist input:checked');
-                const toolIdentifiers = Array.from(checkedBoxes).map(cb => cb.dataset.toolIdentifier);
-                const result = await handleApiUpdate(e.target, '/api/admin/update-user-tools', { userIdToUpdate: parseInt(userIdToUpdate), toolIdentifiers });
-                if (result) USER_TOOL_MAP[userIdToUpdate] = toolIdentifiers;
-            });
+#### Part 2: Reset The Live Environment on Netlify
 
-            function showToast(message, type = 'success') {
-                const toast = document.getElementById('toast-notification');
-                toast.textContent = message;
-                toast.className = `toast ${type} show`;
-                setTimeout(() => toast.classList.remove('show'), 3000);
-            }
-        });
-    </script>
-</body>
-</html>
+1.  Go to your site's dashboard on the **Netlify website**.
+2.  Go to **Site settings > Environment variables**.
+3.  **Delete** both `JWT_SECRET` and `DATABASE_URL`.
+4.  **Re-add them** from scratch. This clears any potential caching issues in Netlify's backend. Make sure they are set for "All scopes".
+
+---
+
+#### Part 3: The Final Deploy
+
+1.  Go to the **Deploys** tab for your site on Netlify.
+2.  Click the **"Trigger deploy"** dropdown button.
+3.  Choose the option **"Clear cache and deploy site"**. This is the most important step. It forces a completely fresh build.
+
+### The Final Test
+
+Let the deploy finish. Clear your browser cache one last time (`Ctrl+Shift+R`). Then test the admin console.
+
+*   **If it works:** Congratulations. The "scorched earth" reset cleared the bad state.
+*   **If it still logs you out:** This is okay. We now have our definitive answer. Go to the **Netlify Function Log** for `protected.js` (like we tried before). This time, it **will** contain a specific error message from our new diagnostic code, telling us exactly what failed.
+
+**ACTION REQUIRED:** Please perform this entire three-part plan. If it fails, send me a screenshot of the **Netlify Function Log for `protected.js`**. It will contain the final answer.
