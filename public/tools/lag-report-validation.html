@@ -13,6 +13,43 @@
             background-color: #f3f4f6;
             color: #333;
         }
+        /* Consistent header styling with other pages */
+        header {
+            background-color: #3b82f6; /* Tailwind blue-600 equivalent */
+            padding: 1rem; /* p-4 */
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1); /* shadow-md */
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        header .container {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            width: 100%;
+        }
+        header h1 { /* Adjusted for branding */
+            color: white;
+            font-size: 1.25rem; /* text-xl */
+            font-weight: 700; /* font-bold */
+        }
+        header nav ul { /* Ensure navigation is consistent */
+            display: flex;
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            gap: 1rem; /* space-x-4 */
+        }
+        header nav ul li a, header nav ul li button {
+            color: white;
+            transition: color 0.3s ease;
+            text-decoration: none;
+        }
+        header nav ul li a:hover, header nav ul li button:hover {
+            color: #bfdbfe; /* blue-200 */
+        }
+
+
         .card {
             background-color: #ffffff;
             border-radius: 0.75rem;
@@ -91,18 +128,32 @@
         .dashboard-table tbody tr:hover {
             background-color: #f0f4f8;
         }
+        /* Spinner for loading state */
+        .spinner {
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            border-top: 4px solid #fff;
+            border-radius: 50%;
+            width: 1.25rem;
+            height: 1.25rem;
+            animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .hidden { display: none !important; } /* Ensure hidden works consistently */
     </style>
+    <script src="/js/auth.js"></script>
+    <script src="/tools/lag-report-validation/lag-report-validation.js"></script>
 </head>
-<body class="min-h-screen flex flex-col">
-    <!-- Navigation Bar -->
-    <nav class="bg-indigo-600 text-white p-4 shadow-md flex justify-between items-center">
-        <div class="text-xl font-bold">RCM Buddy</div>
+<body class="min-h-screen flex flex-col" onload="verifyAndSetupUser();">
+    <header class="bg-indigo-600 text-white p-4 shadow-md flex justify-between items-center">
+        <div class="text-xl font-bold">
+            <a href="/dashboard.html" class="hover:text-indigo-200 transition-colors">RCM Buddy</a> </div>
         <div class="flex items-center space-x-4">
-            <span id="navUsername" class="font-medium"></span>
-            <a href="/dashboard.html" class="hover:text-indigo-200 transition-colors">Dashboard</a>
+            <span id="profileLink" class="font-medium"></span> <a href="/dashboard.html" class="hover:text-indigo-200 transition-colors">Dashboard</a>
             <a href="/tools.html" class="hover:text-indigo-200 transition-colors">Tools</a>
-            <button id="logoutButton" class="bg-indigo-700 hover:bg-indigo-800 text-white py-2 px-4 rounded-md transition-colors">Logout</button>
-        </div>
+            <button id="logoutBtn" class="bg-indigo-700 hover:bg-indigo-800 text-white py-2 px-4 rounded-md transition-colors">Logout</button> </div>
     </nav>
 
     <main class="flex-grow container mx-auto p-6">
@@ -129,185 +180,14 @@
             <div class="dashboard-table-container">
                 <table id="lagReportTable" class="dashboard-table">
                     <thead>
-                        <tr></tr> <!-- Headers will go here -->
-                    </thead>
+                        <tr></tr> </thead>
                     <tbody>
-                        <!-- Data rows will go here -->
-                    </tbody>
+                        </tbody>
                 </table>
             </div>
             <p id="rowCount" class="text-gray-600 mt-4"></p>
         </div>
     </main>
 
-    <script>
-        // Function to display messages in a dedicated box
-        function displayMessage(message, type) {
-            const messageBox = document.getElementById('messageBox');
-            messageBox.textContent = message;
-            messageBox.className = `message-box ${type}`; // Add classes for styling
-            messageBox.classList.remove('hidden'); // Show the box
-        }
-
-        // Function to hide messages
-        function hideMessage() {
-            document.getElementById('messageBox').classList.add('hidden');
-        }
-
-        // Function to show/hide loading spinner
-        function setLoading(isLoading) {
-            const buttonText = document.getElementById('buttonText');
-            const loadingSpinner = document.getElementById('loadingSpinner');
-            if (isLoading) {
-                buttonText.textContent = 'Processing...';
-                loadingSpinner.classList.remove('hidden');
-                document.getElementById('displayDashboardButton').disabled = true;
-            } else {
-                buttonText.textContent = 'Display Dashboard';
-                loadingSpinner.classList.add('hidden');
-                document.getElementById('displayDashboardButton').disabled = false;
-            }
-        }
-
-        // Function to set up navigation with user details
-        async function setupNavigation() {
-            // Use 'jwtToken' for consistency with index.html
-            const token = localStorage.getItem('jwtToken');
-            if (!token) {
-                window.location.href = '/';
-                return;
-            }
-
-            try {
-                const response = await fetch('/api/protected', {
-                    method: 'GET',
-                    headers: {
-                        'Authorization': `Bearer ${token}`
-                    }
-                });
-
-                if (response.ok) {
-                    const userData = await response.json();
-                    if (userData && userData.user) {
-                        document.getElementById('navUsername').textContent = `Hello, ${userData.user.username}`;
-                    } else {
-                        console.error('User data missing from protected endpoint response');
-                        displayMessage('Failed to load user data. Please log in again.', 'error');
-                        localStorage.removeItem('jwtToken');
-                        setTimeout(() => { window.location.href = '/'; }, 1500);
-                    }
-                } else if (response.status === 401) {
-                    displayMessage('Session expired. Please log in again.', 'error');
-                    localStorage.removeItem('jwtToken');
-                    setTimeout(() => { window.location.href = '/'; }, 1500);
-                } else {
-                    const errorData = await response.json();
-                    console.error('Error fetching user data:', errorData.message || response.statusText);
-                    displayMessage(`Error: ${errorData.message || 'Failed to load user data.'}`, 'error');
-                    setTimeout(() => { window.location.href = '/'; }, 1500);
-                }
-            } catch (error) {
-                console.error('Network or authentication error:', error);
-                displayMessage('Network error. Please try again.', 'error');
-                setTimeout(() => { window.location.href = '/'; }, 1500);
-            }
-        }
-
-        // Logout functionality
-        document.getElementById('logoutButton').addEventListener('click', () => {
-            localStorage.removeItem('jwtToken');
-            window.location.href = '/';
-        });
-
-        // Function to read an Excel/CSV file and display its contents
-        function readFileAndDisplay(file) {
-            return new Promise((resolve, reject) => {
-                const reader = new FileReader();
-                reader.onload = (e) => {
-                    try {
-                        const data = new Uint8Array(e.target.result);
-                        const workbook = XLSX.read(data, { type: 'array' });
-                        const firstSheetName = workbook.SheetNames[0];
-                        const worksheet = workbook.Sheets[firstSheetName];
-                        
-                        // Convert to array of arrays (raw data for table)
-                        const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
-
-                        if (jsonData.length === 0) {
-                            reject('File is empty or contains no readable data.');
-                            return;
-                        }
-
-                        // Assume first row is headers
-                        const headers = jsonData[0];
-                        const rows = jsonData.slice(1);
-
-                        const tableHead = document.getElementById('lagReportTable').querySelector('thead tr');
-                        const tableBody = document.getElementById('lagReportTable').querySelector('tbody');
-                        const rowCountElement = document.getElementById('rowCount');
-
-                        tableHead.innerHTML = ''; // Clear old headers
-                        tableBody.innerHTML = ''; // Clear old data
-
-                        // Populate headers
-                        headers.forEach(header => {
-                            const th = document.createElement('th');
-                            th.textContent = header;
-                            tableHead.appendChild(th);
-                        });
-
-                        // Populate data rows
-                        rows.forEach(rowData => {
-                            const tr = document.createElement('tr');
-                            rowData.forEach(cellData => {
-                                const td = document.createElement('td');
-                                td.textContent = cellData;
-                                tr.appendChild(td);
-                            });
-                            tableBody.appendChild(tr);
-                        });
-
-                        document.getElementById('dashboardDisplayArea').classList.remove('hidden');
-                        rowCountElement.textContent = `Displaying ${rows.length} rows.`;
-                        resolve();
-
-                    } catch (error) {
-                        reject('Error parsing file: ' + error.message);
-                    }
-                };
-                reader.onerror = (error) => {
-                    reject('FileReader error: ' + error.message);
-                };
-                reader.readAsArrayBuffer(file);
-            });
-        }
-
-        document.getElementById('displayDashboardButton').addEventListener('click', async () => {
-            hideMessage(); // Clear previous messages
-            setLoading(true); // Show loading spinner
-            document.getElementById('dashboardDisplayArea').classList.add('hidden'); // Hide previous dashboard
-
-            const lagReportFile = document.getElementById('lagReportFile').files[0];
-
-            if (!lagReportFile) {
-                displayMessage('Please select a Lag Detail Report to display.', 'error');
-                setLoading(false);
-                return;
-            }
-
-            try {
-                await readFileAndDisplay(lagReportFile);
-                displayMessage('Lag Report loaded and displayed successfully!', 'success');
-            } catch (error) {
-                console.error('Error displaying dashboard:', error);
-                displayMessage(`Error displaying dashboard: ${error}`, 'error');
-            } finally {
-                setLoading(false); // Hide loading spinner
-            }
-        });
-
-        // Initialize navigation on page load
-        document.addEventListener('DOMContentLoaded', setupNavigation);
-    </script>
-</body>
+    </body>
 </html>
