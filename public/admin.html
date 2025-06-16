@@ -1,4 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Console - RCM Buddy</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        body { background-color: #f4f7f6; }
+        /* Loader styles */
+        .loader {
+            border: 4px solid #f3f3f3; /* Light grey */
+            border-top: 4px solid #3498db; /* Blue */
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            display: inline-block;
+            margin-left: 10px;
+            vertical-align: middle;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        /* Hidden class for elements */
+        .hidden { display: none; }
+        /* Error message styling */
+        .error-message {
+            color: #ef4444; /* Red */
+            background-color: #fee2e2; /* Light red background */
+            border: 1px solid #fca5a5;
+            padding: 10px;
+            border-radius: 5px;
+            text-align: center;
+            margin-top: 20px;
+        }
+        /* General form/button styling consistent with other pages */
+        .form-section { background-color: #ffffff; padding: 25px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); margin-bottom: 20px; }
+        .form-section h3 { color: #007bff; border-bottom: 2px solid #007bff; padding-bottom: 10px; margin-top: 0; margin-bottom: 20px; }
+        .form-section label { display: block; margin-bottom: 8px; font-weight: 500; color: #555; }
+        .form-section input[type="text"], .form-section input[type="email"], .form-section input[type="password"], .form-section select {
+            width: 100%; padding: 10px; margin-bottom: 15px; border: 1px solid #ddd; border-radius: 5px; font-size: 1rem; box-sizing: border-box;
+        }
+        .form-section button {
+            padding: 12px 20px; background-color: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 1.1rem; font-weight: bold; transition: background-color 0.3s ease; width: 100%; box-sizing: border-box;
+        }
+        .form-section button:hover { background-color: #0056b3; }
+        .form-section .success-message { color: #28a745; background-color: #d4edda; border: 1px solid #c3e6cb; padding: 10px; border-radius: 5px; text-align: center; margin-top: 15px; }
+        .form-section .error-message { color: #dc3545; background-color: #f8d7da; border: 1px solid #f5c6cb; padding: 10px; border-radius: 5px; text-align: center; margin-top: 15px; }
+        /* Styling for user list */
+        .user-list-item { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid #eee; }
+        .user-list-item:last-child { border-bottom: none; }
+        .user-info { flex-grow: 1; }
+        .user-actions button { margin-left: 10px; padding: 5px 10px; font-size: 0.9em; border-radius: 4px; }
+        .user-actions .deactivate-btn { background-color: #f44336; }
+        .user-actions .deactivate-btn:hover { background-color: #d32f2f; }
+        .user-status.active { color: #28a745; font-weight: bold; }
+        .user-status.inactive { color: #6c757d; font-style: italic; }
+        /* Tool assignment multiselect */
+        .multiselect-container { border: 1px solid #ddd; border-radius: 5px; min-height: 100px; max-height: 200px; overflow-y: auto; padding: 5px; margin-bottom: 15px; }
+        .multiselect-option { padding: 5px; cursor: pointer; }
+        .multiselect-option:hover { background-color: #e9ecef; }
+        .multiselect-option.selected { background-color: #cfe2ff; font-weight: bold; }
+    </style>
+    <script src="/js/auth.js"></script>
+    <script src="/js/admin.js"></script>
+</head>
+<body class="font-sans" onload="verifyAndSetupUser().then(user => { if(user) initAdminPage(user); });">
+
+    <header class="bg-gradient-to-r from-blue-600 to-indigo-700 p-4 shadow-lg">
+        <div class="container mx-auto px-6 py-4 flex justify-between items-center">
+            <a href="/dashboard.html" class="text-2xl font-bold text-gray-800">RCM Buddy</a>
+            <ul id="nav-list" class="flex items-center space-x-4">
+                <li><a href="/dashboard.html" class="text-gray-600 hover:text-blue-500 font-medium">Dashboard</a></li>
+                <li><a href="/tools.html" class="text-gray-600 hover:text-blue-500 font-medium">All Tools</a></li>
+                <li><a href="/admin.html" class="text-blue-600 font-bold hover:underline">Admin Console</a></li> <li><span id="profileLink" class="text-gray-700 font-semibold">Loading...</span></li> <li><button id="logoutBtn" class="bg-red-500 text-white px-4 py-2 rounded-md hover:bg-red-600 transition-colors">Logout</button></li> </ul>
+        </div>
+    </header>
+
+    <main class="container mx-auto p-8">
+        <div class="text-center mb-10">
+            <h1 class="text-4xl font-extrabold text-gray-800 mb-2">Admin Console</h1>
+            <p class="text-xl text-gray-600">Manage users, roles, and company settings.</p>
+        </div>
+
+        <div id="loader-container" class="text-center hidden">
+            <div class="loader"></div>
+            <p class="text-gray-600 mt-2">Loading admin data...</p>
+        </div>
+        <div id="auth-error" class="error-message hidden"></div>
+
+        <div id="admin-content" class="grid grid-cols-1 md:grid-cols-2 gap-8" style="display: none;">
+            
+            <div class="form-section">
+                <h3>Manage Users</h3>
+                <div id="user-list">
+                    <p class="text-gray-500 italic">Loading users...</p>
+                    </div>
+                <div id="user-manage-message" class="mt-4 text-center hidden"></div>
+            </div>
+
+            <div class="form-section">
+                <h3>Register New User</h3>
+                <form id="register-user-form">
+                    <label for="reg-username">Username:</label>
+                    <input type="text" id="reg-username" required>
+                    <label for="reg-email">Email:</label>
+                    <input type="email" id="reg-email" required>
+                    <label for="reg-password">Password:</label>
+                    <input type="password" id="reg-password" required>
+                    <button type="submit">Register User</button>
+                </form>
+                <div id="register-message" class="mt-4 text-center hidden"></div>
+            </div>
+
+            <div class="form-section">
+                <h3>Assign Tools to User</h3>
+                <form id="assign-tools-form">
+                    <label for="assign-user-select">Select User:</label>
+                    <select id="assign-user-select" required>
+                        <option value="">-- Select a User --</option>
+                    </select>
+                    <label for="assign-tools-multiselect">Select Tools:</label>
+                    <div id="assign-tools-multiselect" class="multiselect-container">
+                        <div class="multiselect-option">Loading tools...</div>
+                    </div>
+                    <button type="submit">Update User Tools</button>
+                </form>
+                <div id="assign-tools-message" class="mt-4 text-center hidden"></div>
+            </div>
+
+            <div class="form-section">
+                <h3>Company Default Tool Assignments</h3>
+                <p class="text-sm text-gray-600 mb-4">Set tools that are automatically assigned to new users in your company.</p>
+                <form id="company-defaults-form">
+                    <label for="company-default-tools-multiselect">Default Tools:</label>
+                    <div id="company-default-tools-multiselect" class="multiselect-container">
+                        <div class="multiselect-option">Loading tools...</div>
+                    </div>
+                    <button type="submit">Save Company Defaults</button>
+                </form>
+                <div id="company-defaults-message" class="mt-4 text-center hidden"></div>
+            </div>
+            
+            <div id="superadmin-section" class="form-section col-span-1 md:col-span-2 hidden">
+                <h3>Superadmin Operations</h3>
+                <p class="text-sm text-gray-600 mb-4">Global tool and company management.</p>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="admin-panel">
+                        <h4 class="text-lg font-bold text-gray-700 mb-3">Create New Tool</h4>
+                        <form id="create-tool-form">
+                            <label for="new-tool-name">Tool Name:</label>
+                            <input type="text" id="new-tool-name" required>
+                            <label for="new-tool-description">Description:</label>
+                            <input type="text" id="new-tool-description" required>
+                            <div class="flex items-center mb-3">
+                                <input type="checkbox" id="new-tool-is-global" class="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
+                                <label for="new-tool-is-global" class="ml-2 text-sm text-gray-700">Global Tool</label>
+                            </div>
+                            <button type="submit">Create Tool</button>
+                        </form>
+                        <div id="create-tool-message" class="mt-3 text-center hidden"></div>
+                    </div>
+
+                    <div class="admin-panel">
+                        <h4 class="text-lg font-bold text-gray-700 mb-3">Assign Tool to Company</h4>
+                        <form id="assign-tool-to-company-form">
+                            <label for="assign-company-select">Select Company:</label>
+                            <select id="assign-company-select" required>
+                                <option value="">-- Select a Company --</option>
+                            </select>
+                            <label for="assign-comp-tool-select">Select Tool:</label>
+                            <select id="assign-comp-tool-select" required>
+                                <option value="">-- Select a Tool --</option>
+                            </select>
+                            <button type="submit">Assign Tool to Company</button>
+                        </form>
+                        <div id="assign-comp-tool-message" class="mt-3 text-center hidden"></div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <footer class="bg-gray-800 text-white p-4 mt-8 text-center">
+        <div class="container mx-auto text-sm">
+            &copy; 2025 RCM Buddy. All rights reserved.
+        </div>
+    </footer>
+
     <script>
+        // --- Authentication & Initialization Logic (will be moved to js/admin.js) ---
+        // (This embedded script block will be removed from here)
         document.addEventListener('DOMContentLoaded', async () => {
             const token = localStorage.getItem('jwtToken');
             const adminContent = document.getElementById('admin-content');
@@ -16,101 +212,501 @@
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
 
-                // --- THIS IS THE NEW "BLACK BOX RECORDER" ---
-                // If the response the **root** of your repository on GitHub.
-*   Click the pencil icon to edit it.
-*   **Delete everything** and replace it with this:
-    ```toml
-    [build]
-      command = "# No build command needed"
-      publish = "public"
-      functions = "netlify/functions"
-    ```
-*   Commit the change with the message `chore: Finalize netlify.toml`.
+                if (!protectedRes.ok) {
+                    const errorData = await protectedRes.json();
+                    authError.textContent = `Authentication error: ${errorData.message}. Redirecting to login.`;
+                    authError.classList.remove('hidden');
+                    localStorage.removeItem('jwtToken');
+                    localStorage.removeItem('currentUser');
+                    setTimeout(() => window.location.href = '/index.html', 2000);
+                    return;
+                }
 
-**3. Replace `protected.js` with a Diagnostic Version**
-*   Go to the `protected.js` file inside `netlify/functions/` on GitHub.
-*   Click the pencil icon to edit it.
-*   **Delete everything** and replace it with this special diagnostic version. This version will tell us *exactly* which `require` call is failing if it still fails.
-    ```javascript
-    exports.handler = async (event, context) => {
-        try {
-            console.log('[DEBUG] Protected function starting.');
+                const userData = await protectedRes.json();
+                const user = userData.user;
+                localStorage.setItem('currentUser', JSON.stringify(user)); // Update local user data
 
-            console.log('[DEBUG] Attempting to require jsonwebtoken...');
-            const jwt = require('jsonwebtoken');
-            console.log('[DEBUG] Successfully required jsonwebtoken.');
+                // 2. Check if user has admin/superadmin role
+                if (user.role !== 'admin' && user.role !== 'superadmin') {
+                    authError.textContent = 'Access Denied: You do not have administrator privileges.';
+                    authError.classList.remove('hidden');
+                    loader.classList.add('hidden');
+                    return;
+                }
 
-            console.log('[DEBUG] Attempting to require pg...');
-            const { Pool } = require('pg');
-            console.log('[DEBUG] Successfully required pg.');
+                // --- UI setup for authenticated admin ---
+                document.getElementById('nav-username').textContent = `Hello, ${user.username}`; // Update nav username
+                document.getElementById('profileLink').textContent = `Hello, ${user.username}`; // Update profile link text
+                document.getElementById('profileLink').href = '/profile.html'; // Set actual profile page URL
 
-            console.log('[DEBUG] Checking for DATABASE_URL...');
-            if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL is not defined.');
-            console.log('[DEBUG] DATABASE_URL found.');
+                document.getElementById('logoutBtn').addEventListener('click', () => {
+                    localStorage.removeItem('jwtToken');
+                    localStorage.removeItem('currentUser');
+                    window.location.href = '/index.html';
+                });
 
-            console.log('[DEBUG] Creating new database pool...');
-            const pool = new Pool({
-                connectionString: process.env.DATABASE_URL,
-                ssl: { rejectUnauthorized: false }
-            });
-            console.log('[DEBUG] Database pool created.');
+                // Display admin sections
+                adminContent.style.display = 'grid'; // Show the main admin content grid
+                loader.classList.add('hidden'); // Hide loader
 
-            // Your original logic starts here
-            const authHeader = event.headers.authorization;
-            if (!authHeader) throw new Error('Access denied. No token provided.');
-            const token = authHeader.split(' ')[1];
-            if (!token) throw new Error('Access denied. Token format is "Bearer [token]".');
-            
-            const decodedToken = jwt.verify(token, process.env.JWT_SECRET);
-            const userId = decodedToken.id;
+                // If superadmin, show superadmin section
+                if (user.role === 'superadmin') {
+                    document.getElementById('superadmin-section').classList.remove('hidden');
+                    // Load data for superadmin dropdowns
+                    await loadAllCompaniesForSuperadmin();
+                    await loadAllToolsForSuperadmin();
+                }
 
-            const client = await pool.connect();
-            try {
-                const { rows } = await client.query('SELECT id, username, email, role, company_id, (SELECT name FROM companies WHERE id = users.company_id) as company_name FROM users WHERE id = $1', [userId]);
-                if (rows.length === 0) throw new Error('User not found.');
-                
-                return {
-                    statusCode: 200,
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ message: 'Access granted.', user: rows[0] })
-                };
-            } finally {
-                client.release();
+                // Load initial data for admin sections
+                await loadCompanyUsers();
+                await loadCompanyDefaultTools(user.company_id);
+                await loadAvailableToolsForAssignment(); // For Assign Tools to User dropdown
+
+            } catch (error) {
+                console.error('Error on admin page:', error);
+                authError.textContent = `An error occurred: ${error.message}. Please try again or contact support.`;
+                authError.classList.remove('hidden');
+                loader.classList.add('hidden');
+                localStorage.removeItem('jwtToken');
+                localStorage.removeItem('currentUser');
+                setTimeout(() => window.location.href = '/index.html', 2000); // Redirect on critical error
             }
-        } catch (error) {
-            console.error('[CRITICAL ERROR in protected.js]:', error);
-            return {
-                statusCode: 500,
-                body: JSON.stringify({ message: 'Internal Server Error', error: error.message })
-            };
+        });
+
+
+        // --- Message Display Helpers ---
+        function displayFormMessage(elementId, message, type = 'info') {
+            const element = document.getElementById(elementId);
+            if (element) {
+                element.textContent = message;
+                element.className = `mt-4 text-center ${type === 'error' ? 'text-red-700' : (type === 'success' ? 'text-green-700' : 'text-gray-700')}`;
+                element.classList.remove('hidden');
+            }
         }
-    };
-    ```
-*   Commit the change with the message `debug: Add verbose logging to protected.js`.
+        function hideFormMessage(elementId) {
+            document.getElementById(elementId).classList.add('hidden');
+        }
 
----
 
-#### Part 2: Reset The Live Environment on Netlify
+        // --- Admin/Superadmin Data Loaders (will be part of admin.js) ---
 
-1.  Go to your site's dashboard on the **Netlify website**.
-2.  Go to **Site settings > Environment variables**.
-3.  **Delete** both `JWT_SECRET` and `DATABASE_URL`.
-4.  **Re-add them** from scratch. This clears any potential caching issues in Netlify's backend. Make sure they are set for "All scopes".
+        let allCompanyUsers = []; // Cache for user list and dropdowns
+        let availableToolsForAssignment = []; // Cache for tools dropdowns
+        let allCompanies = []; // Superadmin only
+        let allTools = []; // Superadmin only
 
----
+        // Function to load company users for "Manage Users" and "Assign Tools" sections
+        async function loadCompanyUsers() {
+            try {
+                const token = localStorage.getItem('jwtToken');
+                const response = await fetch('/api/admin/get-company-users', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const data = await response.json();
 
-#### Part 3: The Final Deploy
+                if (response.ok) {
+                    allCompanyUsers = data.users;
+                    const userListDiv = document.getElementById('user-list');
+                    userListDiv.innerHTML = ''; // Clear existing list
+                    const assignUserSelect = document.getElementById('assign-user-select');
+                    assignUserSelect.innerHTML = '<option value="">-- Select a User --</option>'; // Clear existing dropdown
 
-1.  Go to the **Deploys** tab for your site on Netlify.
-2.  Click the **"Trigger deploy"** dropdown button.
-3.  Choose the option **"Clear cache and deploy site"**. This is the most important step. It forces a completely fresh build.
+                    if (allCompanyUsers.length > 0) {
+                        allCompanyUsers.forEach(user => {
+                            const userItem = document.createElement('div');
+                            userItem.className = 'user-list-item';
+                            const userStatusClass = user.is_active ? 'active' : 'inactive';
+                            const userStatusText = user.is_active ? 'Active' : 'Inactive';
 
-### The Final Test
+                            userItem.innerHTML = `
+                                <div class="user-info">
+                                    <span class="font-semibold"><span class="math-inline">\{user\.username\}</span\> \(</span>{user.email}) - <span class="user-status <span class="math-inline">\{userStatusClass\}"\></span>{userStatusText}</span>
+                                </div>
+                                <div class="user-actions">
+                                    ${user.is_active ? `<button class="deactivate-btn" data-user-id="${user.id}">Deactivate</button>` : ''}
+                                    </div>
+                            `;
+                            userListDiv.appendChild(userItem);
 
-Let the deploy finish. Clear your browser cache one last time (`Ctrl+Shift+R`). Then test the admin console.
+                            const option = document.createElement('option');
+                            option.value = user.id;
+                            option.textContent = `<span class="math-inline">\{user\.username\} \(</span>{user.email}) - ${userStatusText}`;
+                            assignUserSelect.appendChild(option);
+                        });
 
-*   **If it works:** Congratulations. The "scorched earth" reset cleared the bad state.
-*   **If it still logs you out:** This is okay. We now have our definitive answer. Go to the **Netlify Function Log** for `protected.js` (like we tried before). This time, it **will** contain a specific error message from our new diagnostic code, telling us exactly what failed.
+                        // Attach event listeners for deactivate buttons (using delegation)
+                        userListDiv.querySelectorAll('.deactivate-btn').forEach(btn => {
+                            btn.addEventListener('click', async (e) => {
+                                const userIdToDeactivate = e.target.dataset.userId;
+                                if (confirm(`Are you sure you want to deactivate ${e.target.closest('.user-list-item').querySelector('.font-semibold').textContent}?`)) {
+                                    e.target.disabled = true;
+                                    e.target.textContent = 'Deactivating...';
+                                    await deactivateUser(userIdToDeactivate);
+                                }
+                            });
+                        });
 
-**ACTION REQUIRED:** Please perform this entire three-part plan. If it fails, send me a screenshot of the **Netlify Function Log for `protected.js`**. It will contain the final answer.
+                    } else {
+                        userListDiv.innerHTML = '<p class="text-gray-500 italic">No other users found in your company.</p>';
+                    }
+                } else {
+                    displayFormMessage('user-manage-message', data.message || 'Failed to load users.', 'error');
+                }
+            } catch (error) {
+                console.error('Error loading company users:', error);
+                displayFormMessage('user-manage-message', 'Network error loading users.', 'error');
+            }
+        }
+
+        // Function to load tools for "Assign Tools to User" dropdown
+        async function loadAvailableToolsForAssignment() {
+            try {
+                const token = localStorage.getItem('jwtToken');
+                const response = await fetch('/api/user-auth/get-accessible-tools', { // Reuse get-accessible-tools
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const data = await response.json();
+
+                if (response.ok) {
+                    availableToolsForAssignment = data.tools; // This is an array of identifiers
+                    const assignToolsMultiselect = document.getElementById('assign-tools-multiselect');
+                    assignToolsMultiselect.innerHTML = ''; // Clear existing options
+
+                    if (availableToolsForAssignment.length > 0) {
+                        availableToolsForAssignment.forEach(toolIdentifier => {
+                            const optionDiv = document.createElement('div');
+                            optionDiv.className = 'multiselect-option';
+                            optionDiv.textContent = toolIdentifier; // Display identifier
+                            optionDiv.dataset.toolIdentifier = toolIdentifier;
+                            optionDiv.addEventListener('click', () => {
+                                optionDiv.classList.toggle('selected');
+                            });
+                            assignToolsMultiselect.appendChild(optionDiv);
+                        });
+                    } else {
+                        assignToolsMultiselect.innerHTML = '<div class="multiselect-option">No tools available to assign.</div>';
+                    }
+                } else {
+                    displayFormMessage('assign-tools-message', data.message || 'Failed to load available tools.', 'error');
+                }
+            } catch (error) {
+                console.error('Error loading available tools for assignment:', error);
+                displayFormMessage('assign-tools-message', 'Network error loading tools for assignment.', 'error');
+            }
+        }
+
+        // Function to load company default tools (for update-company-defaults)
+        async function loadCompanyDefaultTools(companyId) {
+            try {
+                const token = localStorage.getItem('jwtToken');
+                // You'll need a backend function to get the current company's default tools.
+                // Assuming /api/admin/get-company-defaults. This is a NEW API you'd create.
+                const response = await fetch(`/api/admin/get-company-defaults?companyId=${companyId}`, { // NEW API PATH
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const data = await response.json();
+
+                if (response.ok) {
+                    const currentDefaults = data.default_tools || []; // Array of identifiers
+                    const companyDefaultToolsMultiselect = document.getElementById('company-default-tools-multiselect');
+                    companyDefaultToolsMultiselect.innerHTML = ''; // Clear existing options
+
+                    // This part needs to ensure all available tools are listed, and then select the defaults
+                    if (availableToolsForAssignment.length > 0) { // Reuse the list from loadAvailableToolsForAssignment
+                        availableToolsForAssignment.forEach(toolIdentifier => {
+                            const optionDiv = document.createElement('div');
+                            optionDiv.className = 'multiselect-option';
+                            optionDiv.textContent = toolIdentifier;
+                            optionDiv.dataset.toolIdentifier = toolIdentifier;
+                            if (currentDefaults.includes(toolIdentifier)) {
+                                optionDiv.classList.add('selected');
+                            }
+                            optionDiv.addEventListener('click', () => {
+                                optionDiv.classList.toggle('selected');
+                            });
+                            companyDefaultToolsMultiselect.appendChild(optionDiv);
+                        });
+                    } else {
+                        companyDefaultToolsMultiselect.innerHTML = '<div class="multiselect-option">No tools available to set as default.</div>';
+                    }
+                } else {
+                    displayFormMessage('company-defaults-message', data.message || 'Failed to load company defaults.', 'error');
+                }
+            } catch (error) {
+                console.error('Error loading company default tools:', error);
+                displayFormMessage('company-defaults-message', 'Network error loading company defaults.', 'error');
+            }
+        }
+
+
+        // --- Superadmin Data Loaders (will be part of admin.js) ---
+
+        // Function to load all companies for superadmin's "Assign Tool to Company" dropdown
+        async function loadAllCompaniesForSuperadmin() {
+            try {
+                const token = localStorage.getItem('jwtToken');
+                // This is a new API you'd create for superadmins
+                const response = await fetch('/api/admin/get-all-companies', { // NEW API PATH for superadmin
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const data = await response.json();
+
+                if (response.ok) {
+                    allCompanies = data.companies; // Array of {id, name}
+                    const assignCompanySelect = document.getElementById('assign-company-select');
+                    assignCompanySelect.innerHTML = '<option value="">-- Select a Company --</option>';
+
+                    allCompanies.forEach(company => {
+                        const option = document.createElement('option');
+                        option.value = company.id;
+                        option.textContent = company.name;
+                        assignCompanySelect.appendChild(option);
+                    });
+                } else {
+                    displayFormMessage('assign-comp-tool-message', data.message || 'Failed to load companies for superadmin.', 'error');
+                }
+            } catch (error) {
+                console.error('Error loading all companies for superadmin:', error);
+                displayFormMessage('assign-comp-tool-message', 'Network error loading companies.', 'error');
+            }
+        }
+
+        // Function to load all tools for superadmin's "Assign Tool to Company" dropdown
+        async function loadAllToolsForSuperadmin() {
+            try {
+                const token = localStorage.getItem('jwtToken');
+                // This is a new API you'd create for superadmins
+                const response = await fetch('/api/admin/get-all-tools', { // NEW API PATH for superadmin
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const data = await response.json();
+
+                if (response.ok) {
+                    allTools = data.tools; // Array of {id, name, identifier, is_global}
+                    const assignCompToolSelect = document.getElementById('assign-comp-tool-select');
+                    assignCompToolSelect.innerHTML = '<option value="">-- Select a Tool --</option>';
+
+                    allTools.forEach(tool => {
+                        const option = document.createElement('option');
+                        option.value = tool.id;
+                        option.textContent = `<span class="math-inline">\{tool\.name\} \(</span>{tool.identifier || 'N/A'})`;
+                        assignCompToolSelect.appendChild(option);
+                    });
+                } else {
+                    displayFormMessage('assign-comp-tool-message', data.message || 'Failed to load tools for superadmin.', 'error');
+                }
+            } catch (error) {
+                console.error('Error loading all tools for superadmin:', error);
+                displayFormMessage('assign-comp-tool-message', 'Network error loading tools.', 'error');
+            }
+        }
+
+
+        // --- Admin Form Submission Handlers (will be part of admin.js) ---
+
+        // Register New User
+        document.getElementById('register-user-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const username = document.getElementById('reg-username').value;
+            const email = document.getElementById('reg-email').value;
+            const password = document.getElementById('reg-password').value;
+            displayFormMessage('register-message', 'Registering user...', 'info');
+
+            try {
+                const token = localStorage.getItem('jwtToken');
+                const response = await fetch('/api/user-auth/register', { // Reusing main register API, but could be admin-specific
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}` // Admin must be authenticated
+                    },
+                    body: JSON.stringify({ username, email, password }) // Company ID is from admin's JWT
+                });
+                const data = await response.json();
+
+                if (response.ok) {
+                    displayFormMessage('register-message', data.message, 'success');
+                    document.getElementById('register-user-form').reset();
+                    loadCompanyUsers(); // Refresh user list
+                } else {
+                    displayFormMessage('register-message', data.message || 'Registration failed.', 'error');
+                }
+            } catch (error) {
+                console.error('Register user error:', error);
+                displayFormMessage('register-message', `Network error: ${error.message}`, 'error');
+            }
+        });
+
+        // Deactivate User
+        async function deactivateUser(userId) {
+            displayFormMessage('user-manage-message', 'Deactivating user...', 'info');
+            try {
+                const token = localStorage.getItem('jwtToken');
+                const response = await fetch('/api/admin/deactivate-user', { // Target new deactivate function
+                    method: 'POST', // Or DELETE if preferred in backend
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ userIdToDeactivate: userId })
+                });
+                const data = await response.json();
+
+                if (response.ok) {
+                    displayFormMessage('user-manage-message', data.message, 'success');
+                    loadCompanyUsers(); // Refresh user list
+                } else {
+                    displayFormMessage('user-manage-message', data.message || 'Deactivation failed.', 'error');
+                }
+            } catch (error) {
+                console.error('Deactivate user error:', error);
+                displayFormMessage('user-manage-message', `Network error: ${error.message}`, 'error');
+            }
+        }
+
+        // Assign Tools to User
+        document.getElementById('assign-tools-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const userIdToUpdate = document.getElementById('assign-user-select').value;
+            const selectedTools = Array.from(document.querySelectorAll('#assign-tools-multiselect .multiselect-option.selected'))
+                                    .map(option => option.dataset.toolIdentifier);
+            
+            if (!userIdToUpdate) {
+                displayFormMessage('assign-tools-message', 'Please select a user.', 'error');
+                return;
+            }
+            displayFormMessage('assign-tools-message', 'Updating user tools...', 'info');
+
+            try {
+                const token = localStorage.getItem('jwtToken');
+                const response = await fetch('/api/admin/update-user-tools', { // Target new update-user-tools function
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ userIdToUpdate, toolIdentifiers: selectedTools })
+                });
+                const data = await response.json();
+
+                if (response.ok) {
+                    displayFormMessage('assign-tools-message', data.message, 'success');
+                    document.getElementById('assign-tools-form').reset();
+                    loadCompanyUsers(); // Refresh user list
+                    // Re-select tools in multiselect for the next operation (or reset)
+                    document.querySelectorAll('#assign-tools-multiselect .multiselect-option').forEach(option => option.classList.remove('selected'));
+                } else {
+                    displayFormMessage('assign-tools-message', data.message || 'Failed to update tools.', 'error');
+                }
+            } catch (error) {
+                console.error('Assign tools error:', error);
+                displayFormMessage('assign-tools-message', `Network error: ${error.message}`, 'error');
+            }
+        });
+
+        // Save Company Defaults
+        document.getElementById('company-defaults-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const selectedDefaultTools = Array.from(document.querySelectorAll('#company-default-tools-multiselect .multiselect-option.selected'))
+                                            .map(option => option.dataset.toolIdentifier);
+            displayFormMessage('company-defaults-message', 'Saving company defaults...', 'info');
+
+            try {
+                const token = localStorage.getItem('jwtToken');
+                const response = await fetch('/api/admin/update-company-defaults', { // Target update-company-defaults
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ defaultToolIdentifiers: selectedDefaultTools })
+                });
+                const data = await response.json();
+
+                if (response.ok) {
+                    displayFormMessage('company-defaults-message', data.message, 'success');
+                } else {
+                    displayFormMessage('company-defaults-message', data.message || 'Failed to save defaults.', 'error');
+                }
+            } catch (error) {
+                console.error('Save company defaults error:', error);
+                displayFormMessage('company-defaults-message', `Network error: ${error.message}`, 'error');
+            }
+        });
+
+        // Superadmin: Create New Tool
+        document.getElementById('create-tool-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const name = document.getElementById('new-tool-name').value;
+            const description = document.getElementById('new-tool-description').value;
+            const isGlobal = document.getElementById('new-tool-is-global').checked;
+            displayFormMessage('create-tool-message', 'Creating new tool...', 'info');
+
+            try {
+                const token = localStorage.getItem('jwtToken');
+                // You'll need to create a backend function for superadmins to create tools
+                const response = await fetch('/api/admin/create-tool', { // NEW API PATH (for superadmin)
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ name, description, is_global: isGlobal })
+                });
+                const data = await response.json();
+
+                if (response.ok) {
+                    displayFormMessage('create-tool-message', data.message, 'success');
+                    document.getElementById('create-tool-form').reset();
+                    loadAllToolsForSuperadmin(); // Refresh tool list for assignments
+                    loadAvailableToolsForAssignment(); // Refresh if this superadmin's company is using it
+                } else {
+                    displayFormMessage('create-tool-message', data.message || 'Failed to create tool.', 'error');
+                }
+            } catch (error) {
+                console.error('Create tool error:', error);
+                displayFormMessage('create-tool-message', `Network error: ${error.message}`, 'error');
+            }
+        });
+
+        // Superadmin: Assign Tool to Company
+        document.getElementById('assign-tool-to-company-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const companyId = document.getElementById('assign-company-select').value;
+            const toolId = document.getElementById('assign-comp-tool-select').value;
+            displayFormMessage('assign-comp-tool-message', 'Assigning tool to company...', 'info');
+
+            if (!companyId || !toolId) {
+                displayFormMessage('assign-comp-tool-message', 'Please select both a company and a tool.', 'error');
+                return;
+            }
+
+            try {
+                const token = localStorage.getItem('jwtToken');
+                // You'll need a backend function for superadmins to assign tools to companies
+                const response = await fetch('/api/admin/assign-tool-to-company', { // NEW API PATH (for superadmin)
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ companyId, toolId })
+                });
+                const data = await response.json();
+
+                if (response.ok) {
+                    displayFormMessage('assign-comp-tool-message', data.message, 'success');
+                    document.getElementById('assign-tool-to-company-form').reset();
+                    // Optionally refresh other related lists
+                    loadAvailableToolsForAssignment(); // Refresh if this superadmin's company is impacted
+                } else {
+                    displayFormMessage('assign-comp-tool-message', data.message || 'Failed to assign tool to company.', 'error');
+                }
+            } catch (error) {
+                console.error('Assign tool to company error:', error);
+                displayFormMessage('assign-comp-tool-message', `Network error: ${error.message}`, 'error');
+            }
+        });
+    </script>
+</body>
+</html>
