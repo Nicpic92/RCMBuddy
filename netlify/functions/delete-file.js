@@ -1,32 +1,29 @@
 // netlify/functions/delete-file.js
-const jwt = require('jsonwebtoken'); // For JWT authentication
-const { Pool } = require('pg');     // PostgreSQL client
 
-// Initialize PostgreSQL pool
-const pool = new Pool({
-    connectionString: process.env.DATABASE_URL,
-    ssl: { rejectUnauthorized: false }
-});
+// NEW: Import centralized utility functions
+const { createDbClient } = require('./utils/db');
+const auth = require('./utils/auth');
 
 exports.handler = async (event, context) => {
     if (event.httpMethod !== 'DELETE') {
-        return { statusCode: 405, body: 'Method Not Allowed' };
+        return { statusCode: 405, body: JSON.stringify({ message: 'Method Not Allowed' }) };
     }
 
-    // 1. Authenticate user and get company_id
-    const authHeader = event.headers.authorization;
-    if (!authHeader) {
-        return { statusCode: 401, body: JSON.stringify({ message: 'Authentication required.' }) };
+    // 1. Authenticate user using the auth utility
+    const authResult = auth.verifyToken(event);
+    if (authResult.statusCode !== 200) {
+        return authResult; // Return authentication error response
     }
-    const token = authHeader.split(' ')[1];
-    let decoded;
-    try {
-        decoded = jwt.verify(token, process.env.JWT_SECRET);
-    } catch (error) {
-        return { statusCode: 403, body: JSON.stringify({ message: 'Invalid or expired token.' }) };
-    }
-    const company_id = decoded.company_id; // CRUCIAL for data isolation
-    const user_id = decoded.id;             // Optional: for logging/audit
+    const requestingUser = authResult.user; // Contains userId, companyId, role
+
+    // Optional: Add authorization check if only certain roles can delete files
+    // For example, if only admins can delete files:
+    // if (!auth.hasRole(requestingUser, 'admin')) {
+    //     return {
+    //         statusCode: 403,
+    //         body: JSON.stringify({ message: 'Access denied. Admin role required to delete files.' }),
+    //     };
+    // }
 
     // 2. Get file ID from the request body
     let body;
@@ -42,7 +39,8 @@ exports.handler = async (event, context) => {
 
     let client;
     try {
-        client = await pool.connect();
+        // NEW: Use the centralized createDbClient function
+        client = await createDbClient();
         await client.query('BEGIN'); // Start transaction
 
         // 3. Delete file record from database, ensuring company isolation
@@ -50,7 +48,7 @@ exports.handler = async (event, context) => {
         const deleteResult = await client.query(
             `DELETE FROM company_files
              WHERE id = $1 AND company_id = $2 RETURNING id`, // IMPORTANT: Filter by company_id
-            [fileId, company_id]
+            [fileId, requestingUser.companyId] // Use company_id from the authenticated user
         );
 
         if (deleteResult.rows.length === 0) {
@@ -72,6 +70,8 @@ exports.handler = async (event, context) => {
         console.error('Database error deleting file:', dbError);
         return { statusCode: 500, body: JSON.stringify({ message: 'Failed to delete file.', error: dbError.message }) };
     } finally {
-        if (client) client.release();
+        if (client) {
+            client.end(); // IMPORTANT: Use client.end() for direct client connections from createDbClient
+        }
     }
 };
