@@ -1,26 +1,22 @@
-# The correct and complete netlify.toml file
+# The correct and complete netlify.toml file for RCMBuddy
 
 [build]
   publish = "public"
   functions = "netlify/functions"
 
-# This rule handles the admin data function
-[[redirects]]
-  from = "/api/admin/get-company-admin-data"
-  to = "/.netlify/functions/admin/get-company-admin-data"
-  status = 200
+# This plugin is required for your function dependencies.
+[[plugins]]
+  package = "@netlify/plugin-functions-install-core"
 
-# This rule handles the other admin functions
+# --- API Redirects ---
+# This rule handles all admin functions, including the one that is failing.
 [[redirects]]
   from = "/api/admin/*"
   to = "/.netlify/functions/admin/:splat"
   status = 200
 
-# This rule handles all other non-admin functions
+# This rule handles all other non-admin functions.
 [[redirects]]
   from = "/api/*"
   to = "/.netlify/functions/:splat"
   status = 200
-
-[[plugins]]
-  package = "@netlify/plugin-functions-install-core"
