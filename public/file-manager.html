@@ -175,10 +175,14 @@
             try {
                 const token = localStorage.getItem('jwtToken');
                 if (!token) {
+                    // This scenario should ideally be caught by verifyAndSetupUser on page load
+                    // but is a good safeguard if the token disappears mid-action.
                     throw new Error('User not authenticated. Please log in again.');
                 }
 
-                const response = await fetch('/api/file-management/upload-file', { // UPDATED API PATH
+                // Send the FormData to your Netlify Function for cleaning
+                // UPDATED API PATH to match backend categorization
+                const response = await fetch('/api/file-management/upload-file', {
                     method: 'POST',
                     headers: {
                         'Authorization': `Bearer ${token}`
@@ -191,8 +195,8 @@
                 if (response.ok) {
                     statusMessage.textContent = `File "${result.fileName}" uploaded successfully to Neon!`;
                     statusMessage.className = 'mt-4 text-center text-green-700';
-                    documentFile.value = '';
-                    isDataDictionaryCheckbox.checked = false;
+                    documentFile.value = ''; // Clear file input
+                    isDataDictionaryCheckbox.checked = false; // Reset checkbox
                     fetchFiles(); // Refresh the file list after successful upload
                 } else {
                     statusMessage.textContent = `Error: ${result.message || 'Failed to upload file.'}`;
@@ -215,11 +219,12 @@
             const token = localStorage.getItem('jwtToken');
             if (!token) {
                 fileListContainer.innerHTML = '<p class="text-red-500 italic">Authentication required to load files.</p>';
-                return;
+                return; // verifyAndSetupUser should handle redirect if no token
             }
 
             try {
-                const response = await fetch('/api/file-management/list-files', { // UPDATED API PATH
+                // UPDATED API PATH to match backend categorization
+                const response = await fetch('/api/file-management/list-files', {
                     method: 'GET',
                     headers: {
                         'Authorization': `Bearer ${token}`
@@ -245,9 +250,10 @@
         }
 
         function renderFiles(files) {
-            fileListContainer.innerHTML = '';
+            fileListContainer.innerHTML = ''; // Clear previous content
             files.forEach(file => {
                 let displayFilename = file.filename;
+                // Defensive parsing for filename: try to parse as JSON, otherwise use as-is
                 if (typeof file.filename === 'string' && file.filename.startsWith('{')) {
                     try {
                         const parsedFilenameObject = JSON.parse(file.filename);
@@ -260,24 +266,26 @@
                 }
 
                 const fileItem = document.createElement('div');
-                fileItem.className = 'file-item';
+                fileItem.className = 'file-item'; // Apply Tailwind-like styles from CSS
 
-                const uploadedDate = new Date(file.uploaded_at).toLocaleString();
-                const isDataDictionaryTag = file.is_data_dictionary ? `<span class="data-dictionary-tag">Data Dictionary</span>` : '';
+                const uploadedDate = new Date(file.uploaded_at).toLocaleString(); // Format date
+                const isDataDictionaryTag = file.is_data_dictionary ? `<span class="data-dictionary-tag">Data Dictionary</span>` : ''; // NEW: Data Dictionary Tag
 
                 fileItem.innerHTML = `
                     <div class="file-info">
-                        <div class="file-name">${displayFilename} <span class="math-inline">\{isDataDictionaryTag\}</div\>
-<div class\="file\-meta"\></span>{formatBytes(file.size_bytes)} | Uploaded: <span class="math-inline">\{uploadedDate\}</div\>
-</div\>
-<div class\="file\-actions"\>
-<button class\="file\-action\-btn download\-btn" data\-file\-id\="</span>{file.id}" data-file-name="<span class="math-inline">\{displayFilename\}" data\-file\-mimetype\="</span>{file.mimetype}">Download</button>
+                        <div class="file-name">${displayFilename} ${isDataDictionaryTag}</div> {/* Use the potentially parsed filename AND new tag */}
+                        <div class="file-meta">${formatBytes(file.size_bytes)} | Uploaded: ${uploadedDate}</div>
+                    </div>
+                    <div class="file-actions">
+                        <button class="file-action-btn download-btn" data-file-id="${file.id}" data-file-name="${displayFilename}" data-file-mimetype="${file.mimetype}">Download</button>
                         <button class="file-action-btn delete-btn delete ml-2" data-file-id="${file.id}">Delete</button>
                     </div>
                 `;
                 fileListContainer.appendChild(fileItem);
             });
 
+            // Add event listeners for download and delete buttons (using event delegation)
+            // Ensure no duplicate listeners by removing previous if exists
             const existingClickListener = fileListContainer._clickListener;
             if (existingClickListener) {
                 fileListContainer.removeEventListener('click', existingClickListener);
@@ -297,7 +305,7 @@
                 }
             };
             fileListContainer.addEventListener('click', clickHandler);
-            fileListContainer._clickListener = clickHandler;
+            fileListContainer._clickListener = clickHandler; // Store reference to the attached listener
         }
 
         // --- Functions for Download and Delete ---
@@ -310,7 +318,8 @@
                     throw new Error('User not authenticated. Please log in again.');
                 }
 
-                const response = await fetch(`/api/file-management/get-file?fileId=${fileId}`, { // UPDATED API PATH
+                // UPDATED API PATH to match backend categorization
+                const response = await fetch(`/api/file-management/get-file?fileId=${fileId}`, {
                     method: 'GET',
                     headers: {
                         'Authorization': `Bearer ${token}`
@@ -320,6 +329,7 @@
                 if (response.ok) {
                     const result = await response.json();
                     
+                    // The backend get-file.js returns fileData as a base64 string directly
                     const binaryString = atob(result.fileData);
                     const len = binaryString.length;
                     const bytes = new Uint8Array(len);
@@ -362,7 +372,8 @@
                     throw new Error('User not authenticated. Please log in again.');
                 }
 
-                const response = await fetch('/api/file-management/delete-file', { // UPDATED API PATH
+                // UPDATED API PATH to match backend categorization
+                const response = await fetch('/api/file-management/delete-file', {
                     method: 'DELETE',
                     headers: {
                         'Content-Type': 'application/json',
