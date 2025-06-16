@@ -3,21 +3,12 @@
   command = "# No build command needed"
 
 # --- Netlify Functions Configuration ---
-# All your functions, whether in subdirectories or directly in 'netlify/functions',
-# will be discovered by Netlify if you point the 'directory' to the root
-# of your functions folder.
 [functions]
-  directory = "netlify/functions" # This single line is sufficient.
+  directory = "netlify/functions"
 
-# You do NOT need separate [functions] or [[functions]] entries for subdirectories.
-# Netlify will automatically discover functions within:
-# - netlify/functions/user-auth
-# - netlify/functions/admin
-# - netlify/functions/file-management
-# - netlify/functions/data-dictionary
-# - functions directly in netlify/functions
-
-[plugins]
+# --- Netlify Plugins Configuration ---
+# This needs to be an array of tables, hence the double brackets [[plugins]]
+[[plugins]]
   package = "@netlify/plugin-functions-install-core"
 
 # --- NO [[redirects]] RULES ---
