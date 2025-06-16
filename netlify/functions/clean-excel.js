@@ -1,8 +1,12 @@
 // netlify/functions/clean-excel.js
+
 const Busboy = require('busboy'); // For parsing multipart/form-data (file uploads)
 const exceljs = require('exceljs'); // For reading, manipulating, and writing Excel files
 const { Readable } = require('stream'); // Node.js stream utility
-const jwt = require('jsonwebtoken'); // For JWT verification to get company_id
+
+// NEW: Import centralized utility functions
+const { createDbClient } = require('./utils/db');
+const auth = require('./utils/auth');
 
 /**
  * Helper function to parse multipart/form-data from Netlify Function event.
@@ -11,6 +15,11 @@ const jwt = require('jsonwebtoken'); // For JWT verification to get company_id
  */
 function parseMultipartForm(event) {
     return new Promise((resolve, reject) => {
+        // Ensure that event.headers and event.headers['content-type'] are valid before passing to Busboy
+        if (!event.headers || !event.headers['content-type']) {
+            return reject(new Error('Missing Content-Type header in multipart form data.'));
+        }
+
         const busboy = Busboy({ headers: event.headers });
         const fields = {};
         const files = {};
@@ -42,6 +51,7 @@ function parseMultipartForm(event) {
 
         // Convert the event body to a readable stream for Busboy
         const readableStream = new Readable();
+        // Handle potential base64 encoding from Netlify for binary bodies
         readableStream.push(Buffer.from(event.body, event.isBase64Encoded ? 'base64' : 'utf8'));
         readableStream.push(null); // End the stream
 
@@ -64,11 +74,13 @@ function cleanWorksheet(worksheet, options) {
     let rows = [];
     worksheet.eachRow((row, rowNumber) => {
         // Skip header row if needed, assuming first row is header
-        if (rowNumber === 1 && options.firstRowHeader) { // Add option if you want to skip header
-            rows.push(row.values); // Store header as is
+        // Note: The 'values' property often includes empty cells at the beginning if A1 is empty
+        const rowValues = row.values.slice(1); // Adjust for ExcelJS 'values' array starting at index 1
+        if (rowNumber === 1 && options.firstRowHeader) {
+            rows.push(rowValues); // Store header as is
             return;
         }
-        rows.push(row.values);
+        rows.push(rowValues);
     });
 
     // 1. Trim Extra Spaces
@@ -123,7 +135,13 @@ function cleanWorksheet(worksheet, options) {
     }
 
     // Clear existing rows in worksheet and add cleaned data
-    worksheet.spliceRows(1, worksheet.actualRowCount); // Remove all existing rows
+    // worksheet.spliceRows(1, worksheet.actualRowCount); // Remove all existing rows - this can be problematic
+    // A safer way is to create a new worksheet or copy data to a fresh workbook
+    // For simplicity, re-adding to the same worksheet after clearing content.
+    worksheet.eachRow({ includeEmpty: true }, (row, rowNumber) => {
+        worksheet.getRow(rowNumber).values = []; // Clear content of each row
+    });
+
     rows.forEach(row => {
         worksheet.addRow(row);
     });
@@ -139,29 +157,19 @@ exports.handler = async (event, context) => {
     if (event.httpMethod !== 'POST') {
         return {
             statusCode: 405,
-            body: 'Method Not Allowed'
+            body: JSON.stringify({ message: 'Method Not Allowed' })
         };
     }
 
-    // Authenticate and get company_id from JWT (REQUIRED for data isolation)
-    const authHeader = event.headers.authorization;
-    if (!authHeader) {
-        return { statusCode: 401, body: JSON.stringify({ message: 'Authentication required.' }) };
+    // NEW: Authenticate and get user details from JWT
+    const authResult = auth.verifyToken(event);
+    if (authResult.statusCode !== 200) {
+        return authResult; // Return authentication error if token is missing/invalid
     }
-    const token = authHeader.split(' ')[1];
-    if (!token) {
-        return { statusCode: 401, body: JSON.stringify({ message: 'Authentication token missing.' }) };
-    }
-
-    let decoded;
-    try {
-        decoded = jwt.verify(token, process.env.JWT_SECRET);
-    } catch (error) {
-        // If token is invalid/expired, return 403 Forbidden
-        return { statusCode: 403, body: JSON.stringify({ message: 'Invalid or expired token.' }) };
-    }
-    const company_id = decoded.company_id; // Extract company_id from the authenticated user's JWT
-    const user_id = decoded.id; // Extract user_id (optional, but good for logging who did what)
+    const requestingUser = authResult.user;
+    // company_id and user_id are now available from requestingUser:
+    const company_id = requestingUser.companyId;
+    const user_id = requestingUser.userId;
 
     // Ensure the request is multipart/form-data
     if (!event.headers['content-type'] || !event.headers['content-type'].includes('multipart/form-data')) {
@@ -198,20 +206,6 @@ exports.handler = async (event, context) => {
         // Write the cleaned workbook to a buffer
         const cleanedFileBuffer = await workbook.xlsx.writeBuffer();
 
-        // --- IMPORTANT FOR MULTI-COMPANY DATA ISOLATION ---
-        // If you were to save a record of this cleaning event or the file itself to your database,
-        // you would NOW include `company_id` (and potentially `user_id`) in that database record.
-        // This is where you enforce that only data for the current company is handled/stored.
-        // For example (this is conceptual, not implemented here):
-        /*
-        const { Pool } = require('pg'); // Need to re-require if not already at top for this block
-        const dbPool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
-        await dbPool.query(
-             'INSERT INTO cleaning_logs (user_id, company_id, original_file_name, cleaned_summary, cleaned_file_size_kb) VALUES ($1, $2, $3, $4, $5)',
-             [user_id, company_id, excelFile.filename, JSON.stringify(cleaningSummary), cleanedFileBuffer.length / 1024]
-        );
-        */
-
         // Respond with the cleaned file as base64 and the summary
         return {
             statusCode: 200,
@@ -228,7 +222,6 @@ exports.handler = async (event, context) => {
 
     } catch (error) {
         console.error('Error in clean-excel function:', error);
-        // Provide more detailed error message if it's a known error type, otherwise generic
         let userFacingError = 'Error processing Excel file.';
         if (error.message.includes('file format')) {
             userFacingError = 'Invalid Excel file format. Please upload a valid .xlsx or .xls file.';
