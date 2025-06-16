@@ -20,8 +20,7 @@
 
     <div class="w-full max-w-md p-8 space-y-6 rounded-xl form-container shadow-2xl">
         <h1 class="text-3xl font-bold text-center text-white">RCM Buddy</h1>
-        
-        <!-- Registration Form (hidden by default) -->
+
         <form id="register-form" class="space-y-4 hidden">
             <h2 class="text-2xl font-semibold text-center text-white">Create an Account</h2>
             <div>
@@ -50,7 +49,6 @@
             </button>
         </form>
 
-        <!-- Login Form (visible by default) -->
         <form id="login-form" class="space-y-4">
             <h2 class="text-2xl font-semibold text-center text-white">Welcome Back!</h2>
             <div>
@@ -68,11 +66,9 @@
                 Login
             </button>
         </form>
-        
-        <!-- Message area for errors or success -->
+
         <div id="message-area" class="text-center font-semibold p-2 rounded-md"></div>
 
-        <!-- Toggle link -->
         <p class="text-sm text-center text-gray-300">
             <a href="#" id="toggle-link" class="font-medium text-white hover:underline">Don't have an account? Register here.</a>
         </p>
@@ -111,7 +107,7 @@
                     messageArea.className = 'text-center font-semibold p-2 rounded-md bg-green-500 text-white';
                 }
             }
-            
+
             // --- Registration Form Submission ---
             registerForm.addEventListener('submit', async (e) => {
                 e.preventDefault();
@@ -119,15 +115,16 @@
                 const email = document.getElementById('register-email').value;
                 const password = document.getElementById('register-password').value;
                 const company_name = document.getElementById('register-company').value;
-                
+
                 try {
-                    const response = await fetch('/api/register', {
+                    // CHANGED: Direct call to Netlify Function path
+                    const response = await fetch('/.netlify/functions/user-auth-register', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ username, email, password, company_name })
                     });
                     const data = await response.json();
-                    
+
                     if (response.ok) {
                         showMessage('Registration successful! Please log in.', false);
                         // Automatically switch to the login form
@@ -135,10 +132,11 @@
                         registerForm.classList.add('hidden');
                         toggleLink.textContent = "Don't have an account? Register here.";
                     } else {
-                        showMessage(data.message || 'An error occurred.', true);
+                        showMessage(data.message || 'An error occurred during registration.', true);
                     }
                 } catch (error) {
-                    showMessage('Network error. Please try again.', true);
+                    console.error("Fetch error during registration:", error);
+                    showMessage('Network error or server unreachable. Please try again.', true);
                 }
             });
 
@@ -149,22 +147,24 @@
                 const password = document.getElementById('login-password').value;
 
                 try {
-                    const response = await fetch('/api/login', {
+                    // CHANGED: Direct call to Netlify Function path
+                    const response = await fetch('/.netlify/functions/user-auth-login', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ identifier, password })
                     });
                     const data = await response.json();
-                    
+
                     if (response.ok) {
                         localStorage.setItem('jwtToken', data.token);
                         // Redirect to the dashboard upon successful login
                         window.location.href = '/dashboard.html';
                     } else {
-                        showMessage(data.message || 'Login failed.', true);
+                        showMessage(data.message || 'Login failed. Invalid credentials or account not active.', true);
                     }
                 } catch (error) {
-                    showMessage('Network error. Please try again.', true);
+                    console.error("Fetch error during login:", error);
+                    showMessage('Network error or server unreachable. Please try again.', true);
                 }
             });
         });
