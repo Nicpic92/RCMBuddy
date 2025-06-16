@@ -1,5 +1,3 @@
-# The final, correct, and complete netlify.toml file
-
 [build]
   publish = "public"
   command = "# No build command needed"
