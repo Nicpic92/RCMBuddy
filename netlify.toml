@@ -4,7 +4,7 @@
   # IMPORTANT: Ensure 'functions = "netlify/functions"' is NOT here under [build].
   # We are defining function directories explicitly below.
 
-[[plugins]]
+[plugins]
   package = "@netlify/plugin-functions-install-core"
 
 # --- Netlify Functions Configuration ---
@@ -12,16 +12,16 @@
 # THIS IS CRUCIAL FOR NESTED FUNCTIONS TO BE DISCOVERED AND BUNDLED.
 # Make sure there are NO leading spaces before '[[functions]]' or 'directory ='.
 
-[[functions]]
+[functions]
   directory = "netlify/functions/user-auth"
 
-[[functions]]
+[functions]
   directory = "netlify/functions/admin"
 
-[[functions]]
+[functions]
   directory = "netlify/functions/file-management"
 
-[[functions]]
+[functions]
   directory = "netlify/functions/data-dictionary"
 
 # Also explicitly include the top-level 'netlify/functions' directory
