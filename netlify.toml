@@ -1,15 +1,13 @@
-# --- FINAL TEST: netlify.toml with a REWRITE ---
+# The correct and complete netlify.toml file
 
 [build]
   publish = "public"
   functions = "netlify/functions"
-  # functions line is correctly removed
 
-# This rule tells the server: "When you receive a request for this URL,
-# run the get-data.js function instead of the get-company-admin-data.js function."
+# This rule handles the admin data function
 [[redirects]]
   from = "/api/admin/get-company-admin-data"
-  to = "/.netlify/functions/admin/get-data"
+  to = "/.netlify/functions/admin/get-company-admin-data"
   status = 200
 
 # This rule handles the other admin functions
