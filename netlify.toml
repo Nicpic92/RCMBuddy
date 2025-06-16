@@ -2,40 +2,16 @@
 
 [build]
   publish = "public"
+  functions = "netlify/functions" # This tells Netlify to look in this directory and all its subdirectories for functions.
   command = "# No build command needed"
-  # IMPORTANT: REMOVE functions = "netlify/functions" from here, as we'll define directories explicitly below
 
 # This plugin ensures your function dependencies from the root package.json are installed.
 [[plugins]]
   package = "@netlify/plugin-functions-install-core"
 
-# --- Netlify Functions Configuration ---
-# Define each function directory as a separate functions source.
-# This ensures Netlify discovers and bundles ALL functions,
-# including those within subdirectories.
-# This is the crucial part to make all your functions deploy.
-
-[[functions]]
-  directory = "netlify/functions/user-auth"
-
-[[functions]]
-  directory = "netlify/functions/admin"
-
-[[functions]]
-  directory = "netlify/functions/file-management"
-
-[[functions]]
-  directory = "netlify/functions/data-dictionary"
-
-# Also explicitly include the top-level 'netlify/functions' directory
-# for any functions directly inside it (like clean-excel.js).
-[[functions]]
-  directory = "netlify/functions"
-
 # --- API Redirects ---
 # These rules map frontend API calls (e.g., /api/register) to Netlify's deployed function paths.
-# Netlify by default flattens functions in subdirectories by replacing '/' with '-'
-# (e.g., user-auth/register.js becomes user-auth-register).
+# Netlify by default flattens functions in subdirectories by replacing '/' with '-' (e.g., user-auth/register.js becomes user-auth-register).
 
 # User Authentication Functions
 [[redirects]]
@@ -61,68 +37,68 @@
 
 [[redirects]]
   from = "/api/admin/update-company-defaults"
-  to = "/.netlify/functions/admin-update-company-defaults"
-  status = 200
+to = "/.netlify/functions/admin-update-company-defaults"
+status = 200
 
 [[redirects]]
-  from = "/api/admin/update-user-tools"
-  to = "/.netlify/functions/admin-update-user-tools"
-  status = 200
+from = "/api/admin/update-user-tools"
+to = "/.netlify/functions/admin-update-user-tools"
+status = 200
 
 [[redirects]]
-  from = "/api/admin/get-all-companies"
-  to = "/.netlify/functions/admin-get-all-companies"
-  status = 200
+from = "/api/admin/get-all-companies"
+to = "/.netlify/functions/admin-get-all-companies"
+status = 200
 
 [[redirects]]
-  from = "/api/admin/get-all-tools"
-  to = "/.netlify/functions/admin-get-all-tools"
-  status = 200
+from = "/api/admin/get-all-tools"
+to = "/.netlify/functions/admin-get-all-tools"
+status = 200
 
 # File Management Functions
 [[redirects]]
-  from = "/api/delete-file"
-  to = "/.netlify/functions/file-management-delete-file"
-  status = 200
+from = "/api/delete-file"
+to = "/.netlify/functions/file-management-delete-file"
+status = 200
 
 [[redirects]]
-  from = "/api/get-file"
-  to = "/.netlify/functions/file-management-get-file"
-  status = 200
+from = "/api/get-file"
+to = "/.netlify/functions/file-management-get-file"
+status = 200
 
 [[redirects]]
-  from = "/api/list-files"
-  to = "/.netlify/functions/file-management-list-files"
-  status = 200
+from = "/api/list-files"
+to = "/.netlify/functions/file-management-list-files"
+status = 200
 
 [[redirects]]
-  from = "/api/upload-file"
-  to = "/.netlify/functions/file-management-upload-file"
-  status = 200
+from = "/api/upload-file"
+to = "/.netlify/functions/file-management-upload-file"
+status = 200
 
 # Data Dictionary Functions
 [[redirects]]
-  from = "/api/delete-data-dictionary"
-  to = "/.netlify/functions/data-dictionary-delete-data-dictionary"
-  status = 200
+from = "/api/delete-data-dictionary"
+to = "/.netlify/functions/data-dictionary-delete-data-dictionary"
+status = 200
 
 [[redirects]]
-  from = "/api/get-data-dictionary"
-  to = "/.netlify/functions/data-dictionary-get-data-dictionary"
-  status = 200
+from = "/api/get-data-dictionary"
+to = "/.netlify/functions/data-dictionary-get-data-dictionary"
+status = 200
 
 [[redirects]]
-  from = "/api/list-data-dictionaries"
-  to = "/.netlify/functions/data-dictionary-list-data-dictionaries"
-  status = 200
+from = "/api/list-data-dictionaries"
+to = "/.netlify/functions/data-dictionary-list-data-dictionaries"
+status = 200
 
 [[redirects]]
-  from = "/api/save-data-dictionary"
-  to = "/.netlify/functions/data-dictionary-save-data-dictionary"
-  status = 200
+from = "/api/save-data-dictionary"
+to = "/.netlify/functions/data-dictionary-save-data-dictionary"
+status = 200
 
 # Other Functions
 [[redirects]]
-  from = "/api/clean-excel"
-  to = "/.netlify/functions/clean-excel"
-  status = 200
+from = "/api/clean-excel"
+to = "/.netlify/functions/clean-excel"
+status = 200
