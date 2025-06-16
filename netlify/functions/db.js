@@ -1,4 +1,4 @@
-// netlify/functions/utils/db.js
+// netlify/functions/db.js
 const { Client } = require('pg');
 
 async function createDbClient() {
