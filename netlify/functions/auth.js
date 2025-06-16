@@ -1,4 +1,4 @@
-// netlify/functions/utils/auth.js
+// netlify/functions/auth.js
 
 const jwt = require('jsonwebtoken');
 
