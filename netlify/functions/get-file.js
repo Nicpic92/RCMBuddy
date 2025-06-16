@@ -1,31 +1,25 @@
 // netlify/functions/get-file.js
-const jwt = require('jsonwebtoken'); // For JWT authentication
-const { Pool } = require('pg');     // PostgreSQL client
 
-// Initialize PostgreSQL pool
-const pool = new Pool({
-    connectionString: process.env.DATABASE_URL,
-    ssl: { rejectUnauthorized: false }
-});
+// OLD: const jwt = require('jsonwebtoken'); // For JWT authentication
+// OLD: const { Pool } = require('pg');      // PostgreSQL client
+// OLD: const pool = new Pool({ ... });
+
+// NEW: Import centralized utility functions
+const { createDbClient } = require('./utils/db');
+const auth = require('./utils/auth');
 
 exports.handler = async (event, context) => {
     if (event.httpMethod !== 'GET') {
-        return { statusCode: 405, body: 'Method Not Allowed' };
+        return { statusCode: 405, body: JSON.stringify({ message: 'Method Not Allowed' }) };
     }
 
-    // 1. Authenticate user and get company_id
-    const authHeader = event.headers.authorization;
-    if (!authHeader) {
-        return { statusCode: 401, body: JSON.stringify({ message: 'Authentication required.' }) };
+    // 1. Authenticate user using the auth utility
+    const authResult = auth.verifyToken(event);
+    if (authResult.statusCode !== 200) {
+        return authResult; // Return authentication error response
     }
-    const token = authHeader.split(' ')[1];
-    let decoded;
-    try {
-        decoded = jwt.verify(token, process.env.JWT_SECRET);
-    } catch (error) {
-        return { statusCode: 403, body: JSON.stringify({ message: 'Invalid or expired token.' }) };
-    }
-    const company_id = decoded.company_id; // CRUCIAL for data isolation
+    const requestingUser = authResult.user; // Contains userId, companyId, role
+    const company_id = requestingUser.companyId; // CRUCIAL for data isolation
 
     // 2. Get file ID from query parameters
     const fileId = event.queryStringParameters.fileId;
@@ -33,9 +27,10 @@ exports.handler = async (event, context) => {
         return { statusCode: 400, body: JSON.stringify({ message: 'File ID is required.' }) };
     }
 
-    let client;
+    let client; // Declare client outside try block for finally access
     try {
-        client = await pool.connect();
+        // NEW: Use the centralized createDbClient function
+        client = await createDbClient();
 
         // 3. Retrieve file metadata and data from database, ensuring company isolation
         const fileResult = await client.query(
@@ -52,7 +47,9 @@ exports.handler = async (event, context) => {
             return { statusCode: 404, body: JSON.stringify({ message: 'File not found or not accessible.' }) };
         }
 
-        // 4. Send the file data back as a binary response
+        // 4. Send the file data back as a binary base64 encoded response
+        // Note: For large files, direct binary responses can sometimes be tricky
+        // in Netlify Functions depending on payload limits.
         return {
             statusCode: 200,
             headers: {
@@ -70,6 +67,8 @@ exports.handler = async (event, context) => {
         console.error('Database error retrieving file for download:', dbError);
         return { statusCode: 500, body: JSON.stringify({ message: 'Failed to retrieve file for download.', error: dbError.message }) };
     } finally {
-        if (client) client.release();
+        if (client) {
+            client.end(); // IMPORTANT: Use client.end() for direct client connections from createDbClient
+        }
     }
 };
