@@ -1,13 +1,15 @@
 // netlify/functions/upload-file.js
-const Busboy = require('busboy'); // For parsing multipart/form-data
-const jwt = require('jsonwebtoken'); // For JWT authentication
-const { Pool } = require('pg');     // PostgreSQL client
 
-// Initialize PostgreSQL pool
-const pool = new Pool({
-    connectionString: process.env.DATABASE_URL,
-    ssl: { rejectUnauthorized: false }
-});
+const Busboy = require('busboy'); // For parsing multipart/form-data
+const { Readable } = require('stream'); // Node.js stream utility
+
+// OLD: const jwt = require('jsonwebtoken');
+// OLD: const { Pool } = require('pg');
+// OLD: const pool = new Pool({ ... });
+
+// NEW: Import centralized utility functions
+const { createDbClient } = require('./utils/db');
+const auth = require('./utils/auth');
 
 /**
  * Helper to parse multipart/form-data from Netlify Function event.
@@ -16,6 +18,11 @@ const pool = new Pool({
  */
 function parseMultipartForm(event) {
     return new Promise((resolve, reject) => {
+        // Ensure that event.headers and event.headers['content-type'] are valid before passing to Busboy
+        if (!event.headers || !event.headers['content-type']) {
+            return reject(new Error('Missing Content-Type header in multipart form data.'));
+        }
+
         const busboy = Busboy({ headers: event.headers });
         const fields = {};
         const files = {};
@@ -32,32 +39,26 @@ function parseMultipartForm(event) {
         busboy.on('error', reject);
 
         // Convert event body to a readable stream
-        const readableStream = new require('stream').Readable();
+        const readableStream = new Readable();
         readableStream.push(Buffer.from(event.body, event.isBase64Encoded ? 'base64' : 'utf8'));
-        readableStream.push(null);
+        readableStream.push(null); // End the stream
         readableStream.pipe(busboy);
     });
 }
 
 exports.handler = async (event, context) => {
     if (event.httpMethod !== 'POST') {
-        return { statusCode: 405, body: 'Method Not Allowed' };
+        return { statusCode: 405, body: JSON.stringify({ message: 'Method Not Allowed' }) };
     }
 
-    // 1. Authenticate user and get company_id
-    const authHeader = event.headers.authorization;
-    if (!authHeader) {
-        return { statusCode: 401, body: JSON.stringify({ message: 'Authentication required.' }) };
+    // 1. Authenticate user using the auth utility
+    const authResult = auth.verifyToken(event);
+    if (authResult.statusCode !== 200) {
+        return authResult; // Return authentication error response
     }
-    const token = authHeader.split(' ')[1];
-    let decoded;
-    try {
-        decoded = jwt.verify(token, process.env.JWT_SECRET);
-    } catch (error) {
-        return { statusCode: 403, body: JSON.stringify({ message: 'Invalid or expired token.' }) };
-    }
-    const user_id = decoded.id;
-    const company_id = decoded.company_id; // CRUCIAL for data isolation
+    const requestingUser = authResult.user; // Contains userId, companyId, role
+    const user_id = requestingUser.userId;
+    const company_id = requestingUser.companyId; // CRUCIAL for data isolation
 
     // 2. Parse file upload
     if (!event.headers['content-type'] || !event.headers['content-type'].includes('multipart/form-data')) {
@@ -67,23 +68,25 @@ exports.handler = async (event, context) => {
     try {
         const { fields, files } = await parseMultipartForm(event);
         const uploadedFile = files.file; // 'file' is the name attribute from the input type="file"
-        const isDataDictionary = fields.isDataDictionary === 'true'; // Get boolean from form field
+        // Ensure isDataDictionary is parsed correctly as a boolean
+        const isDataDictionary = fields.isDataDictionary === 'true';
 
         if (!uploadedFile || !uploadedFile.data) {
             return { statusCode: 400, body: JSON.stringify({ message: 'No file uploaded.' }) };
         }
 
         // --- Store file data directly in PostgreSQL (Neon) ---
-        let client;
+        let client; // Declare client outside try block for finally access
         try {
-            client = await pool.connect();
+            // NEW: Use the centralized createDbClient function
+            client = await createDbClient();
             await client.query('BEGIN'); // Start transaction for atomicity
 
             // Insert file metadata AND binary data into company_files table
             const insertResult = await client.query(
                 `INSERT INTO company_files (company_id, user_id, original_filename, mimetype, size_bytes, file_data, is_data_dictionary)
                  VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
-                [company_id, user_id, uploadedFile.filename, uploadedFile.mimetype, uploadedFile.data.length, uploadedFile.data, isDataDictionary] // Pass isDataDictionary
+                [company_id, user_id, uploadedFile.filename, uploadedFile.mimetype, uploadedFile.data.length, uploadedFile.data, isDataDictionary]
             );
             await client.query('COMMIT'); // Commit the transaction
 
@@ -100,7 +103,9 @@ exports.handler = async (event, context) => {
             console.error('Database error storing file:', dbError);
             return { statusCode: 500, body: JSON.stringify({ message: 'Failed to save file to database.', error: dbError.message }) };
         } finally {
-            if (client) client.release(); // Release client back to pool
+            if (client) {
+                client.end(); // IMPORTANT: Use client.end() for direct client connections
+            }
         }
 
     } catch (error) {
