@@ -110,7 +110,8 @@
 
     <script>
         document.addEventListener('DOMContentLoaded', async () => {
-            const token = localStorage.getItem('jwtToken');
+            // FIX: Corrected the key used to retrieve the JWT from localStorage.
+            const token = localStorage.getItem('token');
             const adminContent = document.getElementById('admin-content');
             const loader = document.getElementById('loader-container');
             const authError = document.getElementById('auth-error');
@@ -172,7 +173,8 @@
 
             } catch (error) {
                 console.error('Initialization Error:', error);
-                localStorage.removeItem('jwtToken');
+                // FIX: Ensure the correct token key is removed on error.
+                localStorage.removeItem('token');
                 window.location.href = '/index.html';
             }
             
@@ -181,7 +183,8 @@
             function setupNavigation(user) {
                 document.getElementById('nav-username').textContent = `Hello, ${user.username}`;
                 document.getElementById('logout-btn').addEventListener('click', () => {
-                    localStorage.removeItem('jwtToken');
+                    // FIX: Ensure the correct token key is removed on logout.
+                    localStorage.removeItem('token');
                     window.location.href = '/index.html';
                 });
                 if (user.role === 'admin') {
@@ -265,7 +268,7 @@
                 const userIdToUpdate = document.getElementById('userSelector').value;
                 if (!userIdToUpdate) {
                     showToast('Please select a user first.', 'error');
-return;
+                    return;
                 }
                 
                 btn.disabled = true;
