@@ -2,19 +2,16 @@ const { Client } = require('pg');
 const bcrypt = require('bcryptjs');
 
 exports.handler = async function(event) {
-  // We only accept POST requests
   if (event.httpMethod !== 'POST') {
     return { statusCode: 405, body: 'Method Not Allowed' };
   }
 
   const { username, email, password, company_name } = JSON.parse(event.body);
 
-  // Basic validation
-  if (!username || !email || !password) {
-    return { statusCode: 400, body: JSON.stringify({ message: 'Username, email, and password are required.' }) };
+  if (!username || !email || !password || !company_name) {
+    return { statusCode: 400, body: JSON.stringify({ message: 'Username, email, password, and company name are required.' }) };
   }
 
-  // Hash the password
   const salt = await bcrypt.genSalt(10);
   const password_hash = await bcrypt.hash(password, salt);
 
@@ -25,27 +22,46 @@ exports.handler = async function(event) {
 
   try {
     await client.connect();
-    const query = `
-      INSERT INTO users (username, email, password_hash, company_name)
-      VALUES ($1, $2, $3, $4)
-    `;
-    await client.query(query, [username, email, password_hash, company_name]);
-    await client.end();
+    // Start a transaction to ensure both operations succeed or fail together
+    await client.query('BEGIN');
 
+    // 1. Find or create the company and get its ID
+    let companyResult = await client.query('SELECT id FROM companies WHERE name = $1', [company_name]);
+    let companyId;
+
+    if (companyResult.rows.length > 0) {
+      companyId = companyResult.rows[0].id;
+    } else {
+      companyResult = await client.query('INSERT INTO companies(name) VALUES($1) RETURNING id', [company_name]);
+      companyId = companyResult.rows[0].id;
+    }
+
+    // 2. Insert the new user with the company_id
+    // The role defaults to 'user' in the database, so we don't need to specify it.
+    const userQuery = `
+      INSERT INTO users (username, email, password_hash, company_name, company_id)
+      VALUES ($1, $2, $3, $4, $5)
+    `;
+    await client.query(userQuery, [username, email, password_hash, company_name, companyId]);
+
+    // Commit the transaction
+    await client.query('COMMIT');
+
+    await client.end();
     return {
-      statusCode: 201, // 201 Created
+      statusCode: 201,
       body: JSON.stringify({ message: 'User registered successfully!' }),
     };
   } catch (error) {
+    await client.query('ROLLBACK'); // Roll back on error
     await client.end();
-    // Handle specific error for duplicate username/email
-    if (error.code === '23505') { // 'unique_violation'
+
+    if (error.code === '23505') {
       return {
-        statusCode: 409, // 409 Conflict
+        statusCode: 409,
         body: JSON.stringify({ message: 'Username or email already exists.' }),
       };
     }
-    // Generic server error
     console.error('Database error:', error);
     return {
       statusCode: 500,
