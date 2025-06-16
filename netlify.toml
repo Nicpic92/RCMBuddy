@@ -2,6 +2,7 @@
 
 [build]
   publish = "public"
+  functions = "netlify/functions"
   # functions line is correctly removed
 
 # This rule tells the server: "When you receive a request for this URL,
