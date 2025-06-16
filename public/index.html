@@ -117,7 +117,7 @@
                 const company_name = document.getElementById('register-company').value;
 
                 try {
-                    // CHANGED: Direct call to Netlify Function path
+                    // CORRECTED: Direct call to Netlify Function path with leading dot
                     const response = await fetch('/.netlify/functions/user-auth-register', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
@@ -147,7 +147,7 @@
                 const password = document.getElementById('login-password').value;
 
                 try {
-                    // CHANGED: Direct call to Netlify Function path
+                    // CORRECTED: Direct call to Netlify Function path with leading dot
                     const response = await fetch('/.netlify/functions/user-auth-login', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
