@@ -3,10 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Excel Buddy - File Manager</title>
-    <!-- Tailwind CSS CDN -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Google Fonts - Inter -->
+    <title>RCM Buddy - File Manager</title> <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         body {
@@ -23,6 +20,7 @@
             border-radius: 8px;
             box-shadow: 0 1px 3px rgba(0,0,0,0.05);
             transition: background-color 0.2s ease-in-out;
+            margin-bottom: 10px; /* Added margin for spacing between items */
         }
         .file-item:hover {
             background-color: #cbd5e1; /* Slightly darker on hover */
@@ -66,15 +64,15 @@
             border-radius: 9999px; /* Pill shape */
             margin-left: 8px;
             font-weight: 500;
-            vertical-align: middle; /* Align with text */
-            display: inline-flex; /* Allows padding and alignment */
+            vertical-align: middle;
+            display: inline-flex;
             align-items: center;
             justify-content: center;
         }
     </style>
+    <script src="/js/auth.js"></script>
 </head>
-<body class="flex flex-col min-h-screen text-gray-800">
-    <!-- Header Section -->
+<body class="flex flex-col min-h-screen text-gray-800" onload="verifyAndSetupUser().then(user => { if(user) fetchFiles(); });">
     <header class="bg-gradient-to-r from-blue-600 to-indigo-700 p-4 shadow-lg">
         <div class="container mx-auto flex flex-col sm:flex-row items-center justify-between">
             <h1 class="text-white text-3xl font-bold mb-2 sm:mb-0">File Manager</h1>
@@ -89,7 +87,6 @@
         </div>
     </header>
 
-    <!-- Main Content Section -->
     <main class="flex-grow container mx-auto p-4 sm:p-6 lg:p-8">
         <section class="bg-white p-6 sm:p-8 rounded-xl shadow-lg mb-8">
             <h2 class="text-2xl sm:text-3xl font-semibold text-center text-blue-700 mb-4">
@@ -122,26 +119,23 @@
                 <div id="statusMessage" class="mt-4 text-center text-gray-700 hidden"></div>
             </div>
 
-            <!-- File List Section -->
             <div class="mt-8 bg-white p-6 sm:p-8 rounded-xl shadow-lg">
                 <h3 class="text-2xl font-bold text-blue-700 mb-4">Your Files</h3>
                 <div id="fileList" class="space-y-3">
                     <p class="text-gray-500 italic">No files uploaded yet, or loading...</p>
-                    <!-- Files will be listed here dynamically -->
+                    {/* Files will be listed here dynamically */}
                 </div>
             </div>
         </section>
     </main>
 
-    <!-- Footer Section -->
     <footer class="bg-gray-800 text-white p-4 mt-8">
         <div class="container mx-auto text-center text-sm">
-            &copy; 2025 Excel Buddy. All rights reserved.
-        </div>
+            &copy; 2025 RCM Buddy. All rights reserved. </div>
     </footer>
 
     <script>
-        // --- Utility Functions ---
+        // --- Utility Function (Consider moving to public/js/common-utils.js) ---
         function formatBytes(bytes, decimals = 2) {
             if (bytes === 0) return '0 Bytes';
             const k = 1024;
@@ -150,59 +144,6 @@
             const i = Math.floor(Math.log(bytes) / Math.log(k));
             return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
         }
-
-        // --- Authentication Check on Page Load ---
-        document.addEventListener('DOMContentLoaded', async () => {
-            const token = localStorage.getItem('jwtToken');
-            if (!token) {
-                window.location.href = '/'; // Redirects to index.html
-                return;
-            }
-
-            try {
-                const response = await fetch('/api/protected', {
-                    method: 'GET',
-                    headers: { 'Authorization': `Bearer ${token}` }
-                });
-
-                if (!response.ok) {
-                    localStorage.removeItem('jwtToken');
-                    window.location.href = '/';
-                } else {
-                    // User is authenticated, fetch and display files
-                    const userData = await response.json(); // Fetch user data here
-                    setupNavigation(userData); // Setup navigation with user data
-                    fetchFiles();
-                }
-            } catch (error) {
-                console.error('Error verifying token on File Manager page:', error);
-                localStorage.removeItem('jwtToken');
-                window.location.href = '/';
-            }
-        });
-
-        // --- Setup Navigation Function ---
-        function setupNavigation(userData) {
-            const profileLink = document.getElementById('profileLink');
-            if (profileLink && userData && userData.user) { // Check for nested 'user' object
-                profileLink.textContent = `Hello, ${userData.user.username}`; // FIX: Access nested username
-                profileLink.href = '#'; // Placeholder
-            }
-
-            const logoutBtn = document.getElementById('logoutBtn');
-            if (logoutBtn) {
-                logoutBtn.addEventListener('click', () => {
-                    localStorage.removeItem('jwtToken');
-                    window.location.href = '/';
-                });
-            }
-        }
-
-        // --- Profile Link Placeholder ---
-        document.getElementById('profileLink').addEventListener('click', (e) => {
-            e.preventDefault();
-            alert('This would navigate to a detailed user profile page.');
-        });
 
         // --- File Upload Logic ---
         const uploadForm = document.getElementById('uploadForm');
@@ -228,8 +169,8 @@
             }
 
             const formData = new FormData();
-            formData.append('file', file); // 'file' matches the fieldname in upload-file.js
-            formData.append('isDataDictionary', isDataDictionaryCheckbox.checked); // Append checkbox value
+            formData.append('file', file);
+            formData.append('isDataDictionary', isDataDictionaryCheckbox.checked);
 
             try {
                 const token = localStorage.getItem('jwtToken');
@@ -237,10 +178,10 @@
                     throw new Error('User not authenticated. Please log in again.');
                 }
 
-                const response = await fetch('/api/upload-file', { // Target the upload function
+                const response = await fetch('/api/file-management/upload-file', { // UPDATED API PATH
                     method: 'POST',
                     headers: {
-                        'Authorization': `Bearer ${token}` // Send JWT for authentication
+                        'Authorization': `Bearer ${token}`
                     },
                     body: formData
                 });
@@ -250,8 +191,8 @@
                 if (response.ok) {
                     statusMessage.textContent = `File "${result.fileName}" uploaded successfully to Neon!`;
                     statusMessage.className = 'mt-4 text-center text-green-700';
-                    documentFile.value = ''; // Clear file input
-                    isDataDictionaryCheckbox.checked = false; // Reset checkbox
+                    documentFile.value = '';
+                    isDataDictionaryCheckbox.checked = false;
                     fetchFiles(); // Refresh the file list after successful upload
                 } else {
                     statusMessage.textContent = `Error: ${result.message || 'Failed to upload file.'}`;
@@ -269,7 +210,7 @@
 
         // --- File Listing Logic ---
         async function fetchFiles() {
-            fileListContainer.innerHTML = '<p class="text-gray-500 italic">Loading files...</p>'; // Show loading message
+            fileListContainer.innerHTML = '<p class="text-gray-500 italic">Loading files...</p>';
 
             const token = localStorage.getItem('jwtToken');
             if (!token) {
@@ -278,10 +219,10 @@
             }
 
             try {
-                const response = await fetch('/api/list-files', { // Target the list-files function
+                const response = await fetch('/api/file-management/list-files', { // UPDATED API PATH
                     method: 'GET',
                     headers: {
-                        'Authorization': `Bearer ${token}` // Send JWT for authentication
+                        'Authorization': `Bearer ${token}`
                     }
                 });
 
@@ -289,7 +230,7 @@
 
                 if (response.ok) {
                     if (result.files && result.files.length > 0) {
-                        renderFiles(result.files); // Render the fetched files
+                        renderFiles(result.files);
                     } else {
                         fileListContainer.innerHTML = '<p class="text-gray-500 italic">No files uploaded yet.</p>';
                     }
@@ -304,45 +245,39 @@
         }
 
         function renderFiles(files) {
-            fileListContainer.innerHTML = ''; // Clear previous content
+            fileListContainer.innerHTML = '';
             files.forEach(file => {
-                // Defensive parsing for filename: try to parse as JSON, otherwise use as-is
                 let displayFilename = file.filename;
-                // Check if the filename string starts with '{' and try to parse it as JSON
                 if (typeof file.filename === 'string' && file.filename.startsWith('{')) {
                     try {
                         const parsedFilenameObject = JSON.parse(file.filename);
-                        // If it's an object with a 'filename' property, use that
                         if (parsedFilenameObject && typeof parsedFilenameObject.filename === 'string') {
                             displayFilename = parsedFilenameObject.filename;
                         }
                     } catch (e) {
-                        // If parsing fails, it's not a JSON string, so use original file.filename
                         console.warn('Filename looks like JSON but could not be parsed:', file.filename);
                     }
                 }
-                // No change to file.mimetype; it should be correct as a string.
 
                 const fileItem = document.createElement('div');
-                fileItem.className = 'file-item'; // Apply Tailwind-like styles from CSS
+                fileItem.className = 'file-item';
 
-                const uploadedDate = new Date(file.uploaded_at).toLocaleString(); // Format date
-                const isDataDictionaryTag = file.is_data_dictionary ? `<span class="data-dictionary-tag">Data Dictionary</span>` : ''; // NEW: Data Dictionary Tag
+                const uploadedDate = new Date(file.uploaded_at).toLocaleString();
+                const isDataDictionaryTag = file.is_data_dictionary ? `<span class="data-dictionary-tag">Data Dictionary</span>` : '';
 
                 fileItem.innerHTML = `
                     <div class="file-info">
-                        <div class="file-name">${displayFilename} ${isDataDictionaryTag}</div> {/* Use the potentially parsed filename AND new tag */}
-                        <div class="file-meta">${formatBytes(file.size_bytes)} | Uploaded: ${uploadedDate}</div>
-                    </div>
-                    <div class="file-actions">
-                        <button class="file-action-btn download-btn" data-file-id="${file.id}" data-file-name="${displayFilename}" data-file-mimetype="${file.mimetype}">Download</button>
+                        <div class="file-name">${displayFilename} <span class="math-inline">\{isDataDictionaryTag\}</div\>
+<div class\="file\-meta"\></span>{formatBytes(file.size_bytes)} | Uploaded: <span class="math-inline">\{uploadedDate\}</div\>
+</div\>
+<div class\="file\-actions"\>
+<button class\="file\-action\-btn download\-btn" data\-file\-id\="</span>{file.id}" data-file-name="<span class="math-inline">\{displayFilename\}" data\-file\-mimetype\="</span>{file.mimetype}">Download</button>
                         <button class="file-action-btn delete-btn delete ml-2" data-file-id="${file.id}">Delete</button>
                     </div>
                 `;
                 fileListContainer.appendChild(fileItem);
             });
 
-            // Add event listeners for download and delete buttons (using event delegation)
             const existingClickListener = fileListContainer._clickListener;
             if (existingClickListener) {
                 fileListContainer.removeEventListener('click', existingClickListener);
@@ -362,12 +297,12 @@
                 }
             };
             fileListContainer.addEventListener('click', clickHandler);
-            fileListContainer._clickListener = clickHandler; // Store reference to the attached listener
+            fileListContainer._clickListener = clickHandler;
         }
 
         // --- Functions for Download and Delete ---
         async function downloadFile(fileId, fileName, fileMimeType, buttonElement) {
-            buttonElement.disabled = true; // Disable button during download
+            buttonElement.disabled = true;
             buttonElement.textContent = 'Downloading...';
             try {
                 const token = localStorage.getItem('jwtToken');
@@ -375,7 +310,7 @@
                     throw new Error('User not authenticated. Please log in again.');
                 }
 
-                const response = await fetch(`/api/get-file?fileId=${fileId}`, { // Target the get-file function
+                const response = await fetch(`/api/file-management/get-file?fileId=${fileId}`, { // UPDATED API PATH
                     method: 'GET',
                     headers: {
                         'Authorization': `Bearer ${token}`
@@ -383,7 +318,7 @@
                 });
 
                 if (response.ok) {
-                    const result = await response.json(); // Backend sends JSON with base64 data
+                    const result = await response.json();
                     
                     const binaryString = atob(result.fileData);
                     const len = binaryString.length;
@@ -419,7 +354,7 @@
         }
 
         async function deleteFile(fileId, buttonElement) {
-            buttonElement.disabled = true; // Disable button during deletion
+            buttonElement.disabled = true;
             buttonElement.textContent = 'Deleting...';
             try {
                 const token = localStorage.getItem('jwtToken');
@@ -427,7 +362,7 @@
                     throw new Error('User not authenticated. Please log in again.');
                 }
 
-                const response = await fetch('/api/delete-file', { // Target the delete-file function
+                const response = await fetch('/api/file-management/delete-file', { // UPDATED API PATH
                     method: 'DELETE',
                     headers: {
                         'Content-Type': 'application/json',
