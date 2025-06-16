@@ -1,4 +1,4 @@
-// netlify/functions/admin/update-user-tools.js
+// netlify/functions/update-user-tools.js
 
 // OLD: const jwt = require('jsonwebtoken');
 // OLD: const { Pool } = require('pg');
