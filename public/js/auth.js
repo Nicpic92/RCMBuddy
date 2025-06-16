@@ -52,7 +52,8 @@ async function verifyAndSetupUser() {
                 profileLink.href = '/profile.html'; // Set actual profile page URL
             }
             if (welcomeMessage) { // For dashboard.html
-                welcomeMessage.textContent = `Welcome, <span class="math-inline">\{data\.user\.username\}\! \(</span>{data.user.role})`;
+                // FIXED: Corrected string interpolation
+                welcomeMessage.textContent = `Welcome, ${data.user.username}! (${data.user.role})`;
             }
         }
 
