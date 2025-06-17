@@ -118,7 +118,7 @@
 
                 try {
                     // CORRECTED: Direct call to Netlify Function path with leading dot
-                    const response = await fetch('/netlify/functions/user-auth-register', {
+                    const response = await fetch('functions/user-auth-register', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ username, email, password, company_name })
@@ -148,7 +148,7 @@
 
                 try {
                     // CORRECTED: Direct call to Netlify Function path with leading dot
-                    const response = await fetch('/netlify/functions/user-auth-login', {
+                    const response = await fetch('functions/user-auth-login', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ identifier, password })
