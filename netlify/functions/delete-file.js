@@ -1,8 +1,8 @@
 // netlify/functions/delete-file.js
 
 // NEW: Import centralized utility functions
-const { createDbClient } = require('./db'); // CORRECTED: Removed '/utils'
-const auth = require('./auth'); // CORRECTED: Removed '/utils'
+const { createDbClient } = require('db'); // CORRECTED: Removed '/utils'
+const auth = require('auth'); // CORRECTED: Removed '/utils'
 
 exports.handler = async (event, context) => {
     if (event.httpMethod !== 'DELETE') {
