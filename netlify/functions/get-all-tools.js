@@ -1,5 +1,5 @@
-const { createDbClient } = require('../utils/db');
-const { verifyToken, hasRole } = require('../utils/auth');
+const { createDbClient } = require('db');
+const { verifyToken, hasRole } = require('auth');
 
 exports.handler = async (event, context) => {
     if (event.httpMethod !== 'GET') {
