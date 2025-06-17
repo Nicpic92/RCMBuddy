@@ -8,6 +8,7 @@
     "busboy": "^1.6.0",
     "exceljs": "^4.4.0",
     "jsonwebtoken": "^9.0.2",
-    "pg": "^8.11.3"
+    "pg": "^8.11.3",
+    "@netlify/neon": "^0.1.0"
   }
 }
