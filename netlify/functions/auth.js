@@ -7,7 +7,7 @@ const jwt = require('jsonwebtoken');
  * @param {Object} event - The Netlify Function event object.
  * @returns {Object} An object containing statusCode and user data if successful, or an error response.
  */
-exports.verifyToken = (event) => {
+exports.handler = (event) => {
     const authHeader = event.headers.authorization;
     if (!authHeader) {
         return {
