@@ -5,8 +5,8 @@ const exceljs = require('exceljs'); // For reading, manipulating, and writing Ex
 const { Readable } = require('stream'); // Node.js stream utility
 
 // NEW: Import centralized utility functions
-const { createDbClient } = require('db');
-const auth = require('auth');
+const { createDbClient } = require('./db');
+const auth = require('./auth');
 
 /**
  * Helper function to parse multipart/form-data from Netlify Function event.
