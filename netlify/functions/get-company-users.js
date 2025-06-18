@@ -4,8 +4,8 @@
 // OLD: const { requireAdmin } = require('../utils/auth'); // This will be replaced
 
 // NEW: Import centralized utility functions
-const { createDbClient } = require('db');
-const auth = require('auth');
+const { createDbClient } = require('./db');
+const auth = require('./auth');
 
 exports.handler = async function(event) {
     if (event.httpMethod !== 'GET') {
