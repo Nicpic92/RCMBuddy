@@ -6,8 +6,8 @@
 // OLD: const authenticateAdmin = (authHeader) => { ... }; // This helper is removed
 
 // NEW: Import centralized utility functions (note the ../../ for path from admin/ subdirectory)
-const { createDbClient } = require('db');
-const auth = require('auth');
+const { createDbClient } = require('./db');
+const auth = require('./auth');
 
 exports.handler = async (event, context) => {
     // This function only accepts POST requests
