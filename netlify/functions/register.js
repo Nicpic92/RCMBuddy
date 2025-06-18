@@ -2,7 +2,7 @@
 
 // NEW: Import centralized utility functions
 // CORRECTED PATH: Go up two levels (from user-auth to functions) then down into utils
-const { createDbClient } = require('db'); 
+const { createDbClient } = require('./db'); 
 const bcrypt = require('bcryptjs'); // bcryptjs is used directly here
 
 exports.handler = async function(event) {
