@@ -4,8 +4,8 @@
 // OLD: const jwt = require('jsonwebtoken');
 
 // NEW: Import centralized utility functions
-const { createDbClient } = require('db');
-const auth = require('auth');
+const { createDbClient } = require('./db');
+const auth = require('./auth');
 
 // OLD: Removed authenticateAdmin helper, replaced by auth.verifyToken and auth.hasRole
 
