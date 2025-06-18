@@ -5,8 +5,8 @@
 // OLD: const pool = new Pool({ ... });
 
 // NEW: Import centralized utility functions
-const { createDbClient } = require('db');
-const auth = require('auth');
+const { createDbClient } = require('./db');
+const auth = require('./auth');
 
 exports.handler = async (event, context) => {
     if (event.httpMethod !== 'GET') {
