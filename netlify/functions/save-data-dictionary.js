@@ -11,8 +11,8 @@
 // OLD: let pool; // Declare pool here so it's accessible globally
 // OLD: try { ... const jwt = require('jsonwebtoken'); const { Pool } = require('pg'); ... }
 // NEW: Import centralized utility functions
-const { createDbClient } = require('db');
-const auth = require('auth'); // For JWT authentication and role checking
+const { createDbClient } = require('./db');
+const auth = require('./auth'); // For JWT authentication and role checking
 
 // console.log("DEPENDENCIES LOADED: jsonwebtoken and pg modules have been required (via utils).");
 // console.log("POSTGRES POOL INITIALIZED: Database pool creation will be handled by utils/db.");
