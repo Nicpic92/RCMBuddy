@@ -5,7 +5,7 @@
 // OLD: const jwt = require('jsonwebtoken');
 
 // NEW: Import centralized utility functions
-const { createDbClient } = require('db');
+const { createDbClient } = require('./db');
 const bcrypt = require('bcryptjs'); // bcryptjs is used directly here
 const jwt = require('jsonwebtoken'); // jsonwebtoken is used directly here
 
