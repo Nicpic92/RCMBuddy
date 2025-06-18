@@ -1,8 +1,8 @@
 // netlify/functions/get-accessible-tools.js
 
 // Import centralized utility functions (note the ../ for path from user-auth/ subdirectory)
-const { createDbClient } = require('db');
-const auth = require('auth');
+const { createDbClient } = require('./db');
+const auth = require('./auth');
 
 exports.handler = async (event, context) => {
     // Ensure only GET requests are allowed
