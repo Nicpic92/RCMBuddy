@@ -1,7 +1,8 @@
 // netlify/functions/auth.js
 
 const jwt = require('jsonwebtoken');
-const { createDbClient } = require('./db'); // Adjust path if needed
+const { handler: loginHandler } = require('./login');
+const { handler: registerHandler } = require('./register');
 
 /**
  * Verifies the JWT token from the request headers.
@@ -17,7 +18,7 @@ const verifyToken = (event) => {
         };
     }
 
-    const token = authHeader.split(' ')[1]; // Expects "Bearer <token>"
+    const token = authHeader.split(' ')[1];
     if (!token) {
         return {
             statusCode: 401,
@@ -29,7 +30,7 @@ const verifyToken = (event) => {
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
         return {
             statusCode: 200,
-            user: decoded, // Contains userId, username, role, companyId from JWT payload
+            user: decoded,
         };
     } catch (error) {
         console.error('Token verification error:', error.message);
@@ -65,16 +66,44 @@ const hasRole = (user, requiredRole) => {
 };
 
 /**
- * Netlify Function handler for authentication-related operations.
- * Handles login, registration, or token verification based on the request.
+ * Netlify Function handler to route authentication requests.
  */
 exports.handler = async (event, context) => {
     try {
-        // Determine the operation based on HTTP method or path
-        const { httpMethod, path, body } = event;
+        const { httpMethod, body } = event;
+        if (httpMethod !== 'POST') {
+            return {
+                statusCode: 405,
+                body: JSON.stringify({ message: 'Method not allowed.' }),
+            };
+        }
 
-        // Example: Handle token verification
-        if (httpMethod === 'GET' && path.includes('/verify')) {
+        const parsedBody = body ? JSON.parse(body) : {};
+
+        // Route to registerHandler if email or company_name is present
+        if (parsedBody.email || parsedBody.company_name) {
+            if (!parsedBody.username || !parsedBody.email || !parsedBody.password || !parsedBody.company_name) {
+                return {
+                    statusCode: 400,
+                    body: JSON.stringify({ message: 'Username, email, password, and company name are required for registration.' }),
+                };
+            }
+            return await registerHandler(event, context);
+        }
+
+        // Route to loginHandler if identifier is present
+        if (parsedBody.identifier) {
+            if (!parsedBody.password) {
+                return {
+                    statusCode: 400,
+                    body: JSON.stringify({ message: 'Identifier and password are required for login.' }),
+                };
+            }
+            return await loginHandler(event, context);
+        }
+
+        // Handle token verification
+        if (event.path.includes('/verify')) {
             const result = verifyToken(event);
             return {
                 statusCode: result.statusCode,
@@ -82,77 +111,9 @@ exports.handler = async (event, context) => {
             };
         }
 
-        // Example: Handle login
-        if (httpMethod === 'POST' && path.includes('/login')) {
-            const { username, password } = JSON.parse(body || '{}');
-            if (!username || !password) {
-                return {
-                    statusCode: 400,
-                    body: JSON.stringify({ message: 'Username and password required.' }),
-                };
-            }
-
-            // Initialize database client (adjust based on your db.js)
-            const dbClient = await createDbClient();
-            const user = await dbClient.queryUserByUsername(username); // Example: Implement queryUserByUsername in db.js
-
-            if (!user || user.password !== password) { // Replace with proper password hashing
-                return {
-                    statusCode: 401,
-                    body: JSON.stringify({ message: 'Invalid credentials.' }),
-                };
-            }
-
-            // Generate JWT
-            const token = jwt.sign(
-                { userId: user.id, username: user.username, role: user.role, companyId: user.companyId },
-                process.env.JWT_SECRET,
-                { expiresIn: '1h' }
-            );
-
-            return {
-                statusCode: 200,
-                body: JSON.stringify({ token, user: { id: user.id, username: user.username, role: user.role } }),
-            };
-        }
-
-        // Example: Handle registration
-        if (httpMethod === 'POST' && path.includes('/register')) {
-            const { username, password, role, companyId } = JSON.parse(body || '{}');
-            if (!username || !password || !role) {
-                return {
-                    statusCode: 400,
-                    body: JSON.stringify({ message: 'Username, password, and role required.' }),
-                };
-            }
-
-            const dbClient = await createDbClient();
-            const existingUser = await dbClient.queryUserByUsername(username);
-            if (existingUser) {
-                return {
-                    statusCode: 409,
-                    body: JSON.stringify({ message: 'Username already exists.' }),
-                };
-            }
-
-            // Insert new user (replace with actual db insert logic)
-            const newUser = await dbClient.insertUser({ username, password, role, companyId }); // Implement insertUser in db.js
-            const token = jwt.sign(
-                { userId: newUser.id, username: newUser.username, role: newUser.role, companyId: newUser.companyId },
-                process.env.JWT_SECRET,
-                { expiresIn: '1h' }
-            );
-
-            return {
-                statusCode: 201,
-                body: JSON.stringify({ token, user: { id: newUser.id, username: newUser.username, role: newUser.role } }),
-            };
-        }
-
-        // If no matching route
         return {
-            statusCode: 404,
-            body: JSON.stringify({ message: 'Invalid auth route.' }),
+            statusCode: 400,
+            body: JSON.stringify({ message: 'Invalid request. Missing required fields.' }),
         };
     } catch (error) {
         console.error('Auth handler error:', error);
@@ -162,3 +123,6 @@ exports.handler = async (event, context) => {
         };
     }
 };
+
+exports.verifyToken = verifyToken;
+exports.hasRole = hasRole;
